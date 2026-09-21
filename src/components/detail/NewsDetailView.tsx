@@ -1,0 +1,792 @@
+import React, { useEffect, useState } from 'react';
+import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract } from '../../types';
+import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
+import { SevenElementsTab } from './SevenElementsTab';
+import { LogicTreeTab } from './LogicTreeTab';
+import { RelevanceIdentityTab } from './RelevanceIdentityTab';
+import { RippleEffectTab } from './RippleEffectTab';
+import { DeepSpectrumTab } from './DeepSpectrumTab';
+import { ForecastArenaTab } from './ForecastArenaTab';
+import { KeyTermNote } from '../common/KeyTermHighlight';
+import { FeatureSummary } from '../common/FeatureSummary';
+import type { FeatureSummaryId } from '../../utils/featureSummaries';
+import { EvidenceBadge } from '../common/EvidenceBadge';
+import { formatArticleTime } from '../../utils/articleTime';
+import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
+import { downloadBriefingPng } from '../../utils/briefingImage';
+import { CERTIFICATION_STANDARDS } from '../../utils/methodRegistry';
+import { 
+  ArrowLeft, 
+  Bookmark, 
+  Share2, 
+  Bot, 
+  Send, 
+  RefreshCw, 
+  Sparkles, 
+  Printer, 
+  Check,
+  Download,
+  FileImage,
+  HelpCircle,
+  Clock,
+  Layers,
+  Flame,
+  GitFork,
+  UserCheck,
+  Waves,
+  ArrowRight,
+  Radio,
+  BookOpen,
+  Network,
+  GitMerge,
+  Crosshair,
+  ChevronDown
+} from 'lucide-react';
+
+// 浅层外部信源条目缺少深度认知字段时的优雅占位
+const MissingDeep: React.FC<{ feature: string; note?: string }> = ({ feature, note }) => (
+  <div className="p-10 text-center bg-white border-2 border-dashed border-stone-300 rounded-2xl space-y-2">
+    <p className="text-sm font-serif font-bold text-stone-700">本篇文章暂无「{feature}」深度认知数据</p>
+    <p className="text-xs text-stone-500">
+      {note ||
+        '该条目来自外部信源浅层摄取；配置 GEMINI_API_KEY 后可通过 AI 懒加载补全（见 DATA_PIPELINE_DESIGN.md §4）。'}
+    </p>
+  </div>
+);
+
+// 将 /api/enrich 返回的深层字段合并进浅层文章（只取白名单字段）
+type DeepMergeKeys =
+  | 'sevenElements'
+  | 'logicTree'
+  | 'personaImpacts'
+  | 'rippleEffect'
+  | 'spectrumLayers'
+  | 'evidenceChain'
+  | 'industrySignals'
+  | 'oneSentenceVerdict'
+  | 'subtitle'
+  | 'summary'
+  | 'coreQuote'
+  | 'quoteAuthor'
+  | 'tongsuSummary'
+  | 'dehydratedItems'
+  | 'backstoryTimeline'
+  | 'stakeholderImpact'
+  | 'coreLogic'
+  | 'bullBearDebate'
+  | 'relatedNews'
+  | 'personaForecasts'
+  | 'aiFieldMeta';
+
+function mergeDeep(article: NewsArticle, overrides: Record<string, unknown>): NewsArticle {
+  const keys: DeepMergeKeys[] = [
+    'sevenElements','logicTree','personaImpacts','rippleEffect','spectrumLayers',
+    'evidenceChain','industrySignals','oneSentenceVerdict','subtitle','summary','coreQuote','quoteAuthor',
+    'tongsuSummary','dehydratedItems','backstoryTimeline','stakeholderImpact','coreLogic','bullBearDebate','relatedNews','personaForecasts','aiFieldMeta',
+  ];
+  const next: NewsArticle = { ...article };
+  for (const key of keys) {
+    const value = overrides[key];
+    if (value !== undefined && value !== null) {
+      (next as any)[key] = value;
+    }
+  }
+  return next;
+}
+
+interface NewsDetailViewProps {
+  article: NewsArticle;
+  onBack: () => void;
+  isBookmarked: boolean;
+  onToggleBookmark: () => void;
+  activePersona: UserPersona;
+  onSelectPersona: (id: UserPersonaId) => void;
+  onOpenTermExplain: (term: string) => void;
+  onNavigateTab?: (tab: PrimaryNavTab) => void;
+  onSaveContract?: (contract: PredictionContract) => Promise<boolean>;
+  onEnrichArticle?: (updated: NewsArticle) => void;
+  /** 按需技能（timeline 等） */
+  onRunSkill?: (skill: import('../home/HomeView').NewsSkill, article: NewsArticle) => Promise<NewsArticle | null>;
+  /** 身份化「正反双向预测」 */
+  onRunPersonaForecast?: (persona: UserPersona, article: NewsArticle) => Promise<NewsArticle | null>;
+  /** 相关新闻：语料池与打开其它文章 */
+  contextArticles?: NewsArticle[];
+  onOpenArticle?: (article: NewsArticle) => void;
+  onOpenShareCard?: (article: NewsArticle) => void;
+}
+
+export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
+  article,
+  onBack,
+  isBookmarked,
+  onToggleBookmark,
+  activePersona,
+  onSelectPersona,
+  onOpenTermExplain,
+  onNavigateTab,
+  onSaveContract,
+  onEnrichArticle,
+  onRunSkill,
+  onRunPersonaForecast,
+  contextArticles,
+  onOpenArticle,
+  onOpenShareCard,
+}) => {
+  const [activeTab, setActiveTab] = useState<CognitiveDetailTab>('seven_elements');
+  const [probeQuestion, setProbeQuestion] = useState('');
+  const [probeAnswer, setProbeAnswer] = useState<string | null>(null);
+  const [probeFallback, setProbeFallback] = useState(false);
+  const [probeLoading, setProbeLoading] = useState(false);
+  const [copiedQuote, setCopiedQuote] = useState(false);
+  const [showPrintCard, setShowPrintCard] = useState(false);
+  const [showProbe, setShowProbe] = useState(false);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
+
+  useEffect(() => {
+    const updateProgress = () => {
+      const root = document.documentElement;
+      const total = root.scrollHeight - window.innerHeight;
+      setReadingProgress(total > 0 ? Math.max(0, Math.min(100, (window.scrollY / total) * 100)) : 0);
+    };
+    updateProgress();
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    window.addEventListener('resize', updateProgress);
+    return () => {
+      window.removeEventListener('scroll', updateProgress);
+      window.removeEventListener('resize', updateProgress);
+    };
+  }, [article.id]);
+
+  // 简报卡“下载 / 打印 PDF”：临时给 body 挂 printing 类，打印样式只保留 #briefing-sheet
+  const handlePrintBriefing = () => {
+    setShowPrintCard(true);
+    const cleanup = () => {
+      document.body.classList.remove('printing');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    // 等渲染出卡片后挂上打印类再触发打印（打印样式只保留 #briefing-sheet）
+    setTimeout(() => {
+      document.body.classList.add('printing');
+      window.print();
+      // 兜底清理：个别浏览器不派发 afterprint
+      setTimeout(cleanup, 60000);
+    }, 120);
+  };
+
+  // —— 浅层外部信源条目：深层认知 AI 懒加载补全 ——
+  const isShallow = !article.spectrumLayers || article.spectrumLayers.length === 0;
+  const [enrichPhase, setEnrichPhase] = useState<'idle' | 'loading' | 'done' | 'unavailable' | 'error'>('idle');
+
+  const handleGenerateDeepAnalysis = async () => {
+    if (!isShallow || enrichPhase === 'loading') return;
+    setEnrichPhase('loading');
+    try {
+      const response = await fetch('/api/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          articleId: article.id,
+          title: article.title,
+          content: article.summary || article.subtitle || article.title,
+          source: article.sourceName,
+          sourceUrl: article.sourceUrl || '',
+          publishedAt: article.publishedAt || '',
+          category: article.category,
+        }),
+      });
+      const json = await response.json();
+      if (json?.enriched && json.overrides && onEnrichArticle) {
+        onEnrichArticle(mergeDeep(article, json.overrides));
+        setEnrichPhase('done');
+      } else if (json?.reason === 'no_api_key') {
+        setEnrichPhase('unavailable');
+      } else {
+        setEnrichPhase('error');
+      }
+    } catch {
+      setEnrichPhase('error');
+    }
+  };
+
+  // 浅层占位提示文案随补全状态变化
+  const deepNote =
+    enrichPhase === 'loading'
+      ? '正在请求 AI 懒加载补全深度认知字段…（需服务端配置 Gemini 或 DeepSeek Key）'
+      : enrichPhase === 'unavailable'
+        ? 'AI 懒加载补全暂不可用：服务端未配置 Gemini 或 DeepSeek Key；配置后重新打开本页即可。'
+      : enrichPhase === 'error'
+          ? '深度分析生成失败（网络、额度或服务异常），请稍后重试。'
+          : '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
+
+  // Find related topic cluster if any
+  const relatedTopic = TOPIC_CLUSTERS.find(t => 
+    t.articleIds?.includes(article.id) || 
+    t.tags.some(tag => article.tags?.includes(tag))
+  );
+  const latestAiMeta = Object.entries(article.aiFieldMeta || {})
+    .sort((a, b) => String(b[1]?.generatedAt || '').localeCompare(String(a[1]?.generatedAt || '')))[0];
+
+  // 详情认知路径（去重整合版）：事实 → 因果+涟漪 → 与我何干 → 预测擂台 → 深度全览
+  // 注：五层光谱的 interests/logic/deduction 与下方因果/涟漪/预测同源，故此处不再单独重复；
+  //     光谱层作为第 5 页的“通读排版”整合呈现。
+  const tabsList: Array<{ id: CognitiveDetailTab; label: string; icon: React.ReactNode; step: string }> = [
+    { id: 'seven_elements', label: '七要素事实', icon: <Sparkles className="w-4 h-4 text-[#E3120B]" />, step: '1 · 事实' },
+    { id: 'logic_tree', label: '因果与涟漪', icon: <GitFork className="w-4 h-4 text-purple-600" />, step: '2 · 推演' },
+    { id: 'relevance_identity', label: '与我何干', icon: <UserCheck className="w-4 h-4 text-emerald-600" />, step: '3 · 身份' },
+    { id: 'forecast_arena', label: '人机预测擂台', icon: <Crosshair className="w-4 h-4 text-red-600" />, step: '4 · 前瞻' },
+    { id: 'deep_spectrum', label: '深度全览', icon: <Layers className="w-4 h-4 text-amber-600" />, step: '5 · 通读' },
+  ];
+  const tabFeatureId: Record<CognitiveDetailTab, FeatureSummaryId> = {
+    seven_elements: 'detail-seven',
+    logic_tree: 'detail-logic',
+    relevance_identity: 'detail-identity',
+    forecast_arena: 'detail-forecast',
+    deep_spectrum: 'detail-spectrum',
+  };
+
+  const handleAskProbe = async (q: string) => {
+    if (!q.trim()) return;
+    setProbeLoading(true);
+    try {
+      const res = await fetch('/api/ask-nuance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: q,
+          articleContext: {
+            title: article.title,
+            oneSentenceVerdict: article.oneSentenceVerdict,
+            sevenElements: article.sevenElements,
+            logicTree: article.logicTree,
+            spectrumLayers: article.spectrumLayers,
+          },
+        }),
+      });
+      const data = await res.json();
+      setProbeAnswer(data.answer || '未能获取微观探针答复，请重试。');
+      setProbeFallback(!!data.fallback);
+    } catch (e) {
+      console.error(e);
+      setProbeFallback(false);
+      setProbeAnswer('⚠ 未能获取答复：网络或服务异常（未生成内容），请稍后重试。');
+    } finally {
+      setProbeLoading(false);
+    }
+  };
+
+  const handleCopyQuote = () => {
+    const textToCopy = `“${article.oneSentenceVerdict || article.summary}” —— 见微 Genway ·《${article.title}》`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedQuote(true);
+    setTimeout(() => setCopiedQuote(false), 2500);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8">
+      <div
+        className="fixed top-0 left-0 h-0.5 bg-[#E3120B] z-[60] transition-[width] duration-150"
+        style={{ width: `${readingProgress}%` }}
+        aria-hidden="true"
+      />
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+        <button
+          onClick={onBack}
+          className="flex items-center space-x-2 text-xs font-serif font-bold text-stone-700 hover:text-stone-950 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>返回全景情报列表</span>
+        </button>
+
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={onToggleBookmark}
+            className={`p-2 rounded-lg border transition-colors ${
+              isBookmarked
+                ? 'bg-amber-50 border-amber-400 text-amber-700'
+                : 'border-stone-300 text-stone-600 hover:bg-stone-100'
+            }`}
+            title={isBookmarked ? '取消收藏' : '收藏本篇'}
+          >
+            <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-amber-500' : ''}`} />
+          </button>
+
+          {onOpenShareCard && (
+            <button
+              onClick={() => onOpenShareCard(article)}
+              className="px-3 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors shadow-2xs"
+              title="生成社交裂变金句长图（带见微认证水印）"
+            >
+              <FileImage className="w-3.5 h-3.5 text-amber-700" />
+              <span>生成洞察金句卡</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setShowPrintCard(!showPrintCard)}
+            className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg text-xs font-medium text-stone-800 flex items-center space-x-1.5 transition-colors"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">生成简报卡片</span>
+          </button>
+
+          <button
+            onClick={handleCopyQuote}
+            className="px-3 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg flex items-center space-x-1.5 transition-all shadow-xs"
+          >
+            {copiedQuote ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span>{copiedQuote ? '已复制金句' : '分享金句'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 七要素简报卡 · 可下载（打印/另存 PDF） */}
+      {showPrintCard && (
+        <div className="space-y-3">
+          <div
+            id="briefing-sheet"
+            className="bg-white border-4 border-stone-900 rounded-xl p-5 sm:p-8 font-serif shadow-2xl space-y-4"
+          >
+            {/* 头 */}
+            <div className="brief-flex flex items-center justify-between gap-3 border-b-2 border-stone-900 pb-3">
+              <div className="flex items-center space-x-2 min-w-0">
+                <span className="w-6 h-6 rounded bg-[#E3120B] text-white text-xs font-black flex items-center justify-center shrink-0">微</span>
+                <span className="text-base font-black tracking-tight text-stone-950">见微 Genway · 七要素简报卡</span>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-xs font-mono text-stone-500">{formatArticleTime(article)}</div>
+                <div className="text-[10px] font-mono text-stone-400">{article.sourceName || ''}</div>
+              </div>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-black text-stone-950 leading-tight">{article.title}</h2>
+
+            {article.sevenElements?.aiVerdict && (
+              <div className="bg-stone-950 text-stone-100 rounded-xl px-4 py-3 border border-stone-800 text-xs leading-relaxed">
+                <b className="text-red-500">AI 解读：</b>{article.sevenElements.aiVerdict.verdictSummary}
+                <span className="ml-2 font-mono text-[10px] text-stone-400">
+                  模型自评 {article.sevenElements.aiVerdict.confidenceScore}/100（未校准） · 波动 {article.sevenElements.aiVerdict.volatility} · 行动 {article.sevenElements.aiVerdict.actionLevel}
+                </span>
+              </div>
+            )}
+
+            {article.sevenElements ? (
+              <div className="bg-stone-50 border-l-4 border-stone-900 rounded-r-xl p-3.5">
+                <div className="text-[10px] font-serif font-bold text-stone-500 uppercase tracking-wider mb-1">
+                  事件模型 · 一页看懂（7W 整合）
+                </div>
+                <p className="text-sm sm:text-base font-serif font-bold text-stone-900 leading-relaxed">
+                  {composeModel(article.sevenElements)}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-stone-50 border-l-4 border-amber-500 rounded-r-xl p-3.5">
+                <div className="text-[10px] font-serif font-bold text-amber-700 uppercase tracking-wider mb-1">
+                  尚未深度解读
+                </div>
+                <p className="text-sm sm:text-base font-serif font-bold text-stone-900 leading-relaxed">
+                  {article.oneSentenceVerdict || article.summary}
+                </p>
+                <p className="text-[10px] text-stone-400 mt-1">打开详情会自动触发 AI 深度解读；完成后此卡将填充七要素模型。</p>
+              </div>
+            )}
+
+            {article.sevenElements && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 brief-grid">
+                {SEVEN_W_ITEMS.map((w) => {
+                  const v = (article.sevenElements as any)?.[w.key];
+                  if (!v || !String(v).trim()) return null;
+                  return (
+                    <div key={w.key} className="flex items-start gap-2 text-xs font-sans bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                      <span className={`mt-1 w-2 h-2 rounded-full ${w.color} shrink-0`} />
+                      <span>
+                        <b className="text-stone-700">{w.label}：</b>
+                        <span className="text-stone-800">{v}</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="text-[10px] text-stone-400 border-t border-stone-200 pt-2 leading-relaxed">
+              口径：七要素为事实整理，AI 解读与模型自评分均为辅助推断（非事实裁决）；本卡为速读简化版，完整分析见站内详情。生成：见微 Genway · {new Date().toLocaleDateString('zh-CN')}
+            </p>
+          </div>
+
+          {/* 操作条（打印/下载时不显示） */}
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <button
+              onClick={() => downloadBriefingPng(article)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-serif font-bold transition-colors"
+            >
+              <FileImage className="w-4 h-4" />
+              下载 PNG 图片
+            </button>
+            <button
+              onClick={handlePrintBriefing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-serif font-bold transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              下载 / 打印 PDF
+            </button>
+            <button
+              onClick={() => setShowPrintCard(false)}
+              className="px-3.5 py-2 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 text-xs font-serif font-bold"
+            >
+              ✕ 收起卡片
+            </button>
+            <span className="text-[10px] text-stone-400 font-sans">
+              PNG 为画布直绘的简化图卡；PDF 走打印（可选“另存为 PDF”）。
+            </span>
+          </div>
+
+          {/* 打印样式：只输出简报卡本身 */}
+          <style>{`
+            @media print {
+              body.printing #root * { display: none !important; }
+              body.printing #briefing-sheet,
+              body.printing #briefing-sheet * { display: block !important; }
+              body.printing #briefing-sheet {
+                position: absolute !important;
+                top: 0; left: 0; width: 100%;
+                box-shadow: none !important;
+                border-width: 2px !important;
+              }
+              body.printing #briefing-sheet .brief-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+              body.printing #briefing-sheet .brief-flex { display: flex !important; align-items: center !important; justify-content: space-between !important; }
+              #briefing-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          `}</style>
+        </div>
+      )}
+
+{/* Article Header & Meta */}
+      <div className="space-y-4">
+        {/* Linked Topic Cluster Banner */}
+        {relatedTopic && onNavigateTab && (
+          <div 
+            onClick={() => onNavigateTab('topics')}
+            className="p-3 bg-stone-900 text-stone-200 hover:text-white rounded-xl flex items-center justify-between cursor-pointer transition-all border border-stone-800 group shadow-xs"
+          >
+            <div className="flex items-center space-x-2 text-xs">
+              <BookOpen className="w-4 h-4 text-amber-400" />
+              <span className="font-serif font-bold text-amber-400">所属长周期专题：</span>
+              <span className="font-serif font-bold text-white group-hover:underline">
+                【{relatedTopic.title}】
+              </span>
+            </div>
+            <span className="text-[11px] font-serif font-bold text-amber-400 flex items-center space-x-1 group-hover:translate-x-1 transition-transform">
+              <span>查看宏观演进时间轴</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </span>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 break-words">
+          <span className="font-serif font-bold text-[#E3120B] bg-red-50 px-2.5 py-0.5 rounded border border-red-200">
+            {article.category}
+          </span>
+          {article.isExternal && article.sourceUrl && (
+            <a
+              href={article.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-[11px] px-2 py-0.5 rounded border border-stone-300 text-[#0284C7] hover:bg-blue-50 transition-colors"
+            >
+              阅读原文 ↗
+            </a>
+          )}
+          <span className="text-stone-300">·</span>
+          <span className="font-mono text-stone-700">{formatArticleTime(article)}</span>
+          <span className="text-stone-300">·</span>
+          <EvidenceBadge article={article} corpus={contextArticles} />
+        </div>
+
+        <h1 className="text-[26px] sm:text-4xl font-serif font-black text-stone-950 tracking-tight leading-tight break-words">
+          {article.title}
+        </h1>
+
+        <p className="text-base sm:text-lg font-serif text-stone-700 leading-relaxed max-w-3xl break-words">
+          {article.subtitle}
+        </p>
+
+        {/* High Contrast Verdict Box */}
+        <div className="bg-[#FAF8F5] border-l-4 border-[#E3120B] p-5 sm:p-6 rounded-r-2xl shadow-xs">
+          <div className="text-xs font-serif font-bold text-[#E3120B] uppercase tracking-wider mb-1.5 flex items-center space-x-1.5">
+            <Sparkles className="w-4 h-4" />
+            <span>
+              {String(article.oneSentenceVerdict || '').trim()
+                ? article.isExternal
+                  ? 'AI 解读 · 一句话提炼 (So What)'
+                  : '见微解读 · 一句话提炼 (So What)'
+                : '原文摘要 · 尚未生成 AI 解读'}
+            </span>
+          </div>
+          <p className={`text-base sm:text-xl font-serif font-black text-stone-950 leading-snug break-words ${
+            !summaryExpanded ? 'line-clamp-4' : ''
+          }`}>
+            “{article.oneSentenceVerdict || article.summary}”
+          </p>
+          {!article.oneSentenceVerdict && String(article.summary || '').length > 180 && (
+            <button
+              type="button"
+              onClick={() => setSummaryExpanded((value) => !value)}
+              className="mt-2 text-[11px] font-serif font-bold text-stone-600 hover:text-stone-950 underline underline-offset-2"
+            >
+              {summaryExpanded ? '收起摘要' : '展开全文摘要'}
+            </button>
+          )}
+        </div>
+
+        {latestAiMeta && (
+          <details className="text-[10px] text-stone-400">
+            <summary className="cursor-pointer hover:text-stone-700">分析版本</summary>
+            <p className="mt-1 font-mono">
+              {latestAiMeta[1].method === 'legacy_unknown'
+                ? '旧版 AI 字段 · 生成元数据缺失'
+                : `${latestAiMeta[1].provider}/${latestAiMeta[1].model} · ${latestAiMeta[1].promptVersion} · ${
+                    CERTIFICATION_STANDARDS[latestAiMeta[1].certificationStandard]?.label || '未认证'
+                  }`}
+            </p>
+          </details>
+        )}
+      </div>
+
+      {/* AI 技能条：一句话解读 / 趋势预测 / 风险挑刺 / 大白话 / 脱水 / 关联背景 */}
+      {/*（7W/趋势/风险入口已整合进首页卡片分析盒，见 StandardModeFeed/CardInsightBox）*/}
+
+      {isShallow && enrichPhase !== 'done' && (
+        <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-serif font-bold text-stone-900">深度分析</div>
+            <p className="text-[11px] text-stone-500 mt-0.5">
+              当前为原文摘要，深层字段尚未生成。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleGenerateDeepAnalysis()}
+            disabled={enrichPhase === 'loading'}
+            className="shrink-0 px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
+          >
+            {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {enrichPhase === 'loading' ? '正在生成…' : '生成深度分析'}
+          </button>
+        </div>
+      )}
+
+      {/* 4-Stage Cognitive Path Navigation Tabs */}
+      <div className="sticky top-28 lg:top-16 z-30 bg-[#FAF8F5]/95 backdrop-blur-md pt-2 border-b-2 border-stone-900">
+        <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar pb-2">
+          {tabsList.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-serif font-bold whitespace-nowrap transition-all flex items-center space-x-2 ${
+                  isActive
+                    ? 'bg-stone-900 text-white shadow-sm'
+                    : 'bg-white text-stone-700 border border-stone-300 hover:border-stone-500 hover:bg-stone-100'
+                }`}
+              >
+                <span className={`text-[10px] font-mono px-1 rounded ${
+                  isActive ? 'bg-stone-800 text-red-400' : 'bg-stone-100 text-stone-500'
+                }`}>
+                  {tab.step}
+                </span>
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <FeatureSummary featureId={tabFeatureId[activeTab]} compact />
+
+      {/* Render Active Cognitive Tab Content */}
+      {(activeTab === 'seven_elements' || activeTab === 'relevance_identity' || activeTab === 'deep_spectrum') && (
+        <div className="mb-3 text-[10px] text-stone-400">
+          <details>
+            <summary className="cursor-pointer hover:text-stone-700">颜色标记说明</summary>
+            <div className="mt-1">
+              <KeyTermNote />
+            </div>
+          </details>
+        </div>
+      )}
+      <div className="min-h-[400px]">
+        {activeTab === 'seven_elements' && <SevenElementsTab article={article} onRunSkill={onRunSkill} contextArticles={contextArticles} onOpenArticle={onOpenArticle} />}
+
+        {activeTab === 'logic_tree' && (
+          <div className="space-y-6">
+            {/* 因果逻辑树 */}
+            {article.logicTree ? (
+              <LogicTreeTab logicTree={article.logicTree} />
+            ) : (
+              <MissingDeep feature="因果逻辑树" note={deepNote} />
+            )}
+            {/* 涟漪效应与多源验证（合并进同一“因果与涟漪”页） */}
+            {article.rippleEffect ? (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-xs font-serif font-bold text-[#0284C7] uppercase tracking-wider">
+                  <Waves className="w-4 h-4" />
+                  <span>传导与涟漪（二）· 承接上面的因果链看影响如何扩散</span>
+                </div>
+                <RippleEffectTab rippleEffect={article.rippleEffect} />
+              </div>
+            ) : (
+              <MissingDeep feature="涟漪效应与多源验证" note={deepNote} />
+            )}
+          </div>
+        )}
+
+        {activeTab === 'relevance_identity' && (
+          <RelevanceIdentityTab
+            article={article}
+            personaImpacts={article.personaImpacts || []}
+            activePersona={activePersona}
+            onSelectPersona={onSelectPersona}
+            onRunPersonaForecast={onRunPersonaForecast}
+          />
+        )}
+
+        {activeTab === 'forecast_arena' && (
+          <ForecastArenaTab
+            article={article}
+            onSaveContract={onSaveContract}
+            onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
+          />
+        )}
+
+        {activeTab === 'deep_spectrum' &&
+          ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
+            <DeepSpectrumTab article={article} />
+          ) : (
+            <MissingDeep feature="五层光谱深度全览" note={deepNote} />
+          ))}
+      </div>
+
+      {/* Continuous Cognitive Progression Guide (Next-Step Journey Card) */}
+      <div className="py-3 px-1 border-t border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans">
+        <div className="space-y-0.5">
+          <div className="text-xs font-serif font-bold text-stone-700">
+            {activeTab === 'seven_elements' && '事实已结构化拆解完毕 ➔ 下一步：进入「因果与涟漪」，先看始发因果，再看影响如何扩散'}
+            {activeTab === 'logic_tree' && '因果链与涟漪传导已清晰 ➔ 下一步：切换为您的决策角色，评估机会与风险'}
+            {activeTab === 'relevance_identity' && '决策身份影响已明确 ➔ 下一步：进入「人机预测擂台」，提出您的独立预判与 AI 对抗'}
+            {activeTab === 'forecast_arena' && '预测契约已拟定 ➔ 下一步：查阅「深度全览」，用五层光谱通读全文'}
+            {activeTab === 'deep_spectrum' && '您已完整掌握该事件的全部认知维度 ➔ 可前往「我的关注」沉淀行动备忘录'}
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            if (activeTab === 'seven_elements') setActiveTab('logic_tree');
+            else if (activeTab === 'logic_tree') setActiveTab('relevance_identity');
+            else if (activeTab === 'relevance_identity') setActiveTab('forecast_arena');
+            else if (activeTab === 'forecast_arena') setActiveTab('deep_spectrum');
+            else if (activeTab === 'deep_spectrum' && onNavigateTab) {
+              onNavigateTab('my_focus');
+            }
+            window.scrollTo({ top: 400, behavior: 'smooth' });
+          }}
+          className="px-3 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-auto"
+        >
+          <span>
+            {activeTab === 'seven_elements' && '进入因果与涟漪'}
+            {activeTab === 'logic_tree' && '进入身份透镜 (与我何干)'}
+            {activeTab === 'relevance_identity' && '进入人机预测擂台'}
+            {activeTab === 'forecast_arena' && '进入深度全览'}
+            {activeTab === 'deep_spectrum' && '沉淀至决策工作台'}
+          </span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Nuance In-depth Probe ("微观探针 / 针对本篇新闻向 AI 追问") */}
+      <div className="bg-white border border-stone-300 rounded-xl overflow-hidden font-sans">
+        <button
+          type="button"
+          onClick={() => setShowProbe((value) => !value)}
+          aria-expanded={showProbe}
+          className="w-full px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 text-left hover:bg-stone-50 transition-colors"
+        >
+          <span className="flex items-center gap-2 text-xs font-serif font-bold text-stone-800">
+            <Bot className="w-4 h-4 text-[#E3120B]" />
+            对本文继续追问
+          </span>
+          <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform ${showProbe ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showProbe && (
+        <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-stone-100 space-y-4">
+
+        <p className="text-xs text-stone-600">
+          输入问题，AI 将基于本文已有内容作答。
+        </p>
+
+        {/* Preset quick probe questions */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {[
+            '文中提到的良品率公差对下游交付有何实质影响？',
+            '为什么各方在财报附注中披露而非在正文宣讲？',
+            '未来 3 个月可能出现反转的关键指标是什么？'
+          ].map((pq, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                setProbeQuestion(pq);
+                handleAskProbe(pq);
+              }}
+              disabled={probeLoading}
+              className="text-xs px-3 py-1 bg-white hover:bg-stone-200 border border-stone-300 rounded-lg text-stone-800 transition-colors"
+            >
+              ❓ {pq}
+            </button>
+          ))}
+        </div>
+
+        {/* Input box */}
+        <div className="flex items-center space-x-2 pt-2">
+          <input
+            type="text"
+            value={probeQuestion}
+            onChange={(e) => setProbeQuestion(e.target.value)}
+            placeholder="输入您的追问..."
+            className="flex-1 px-4 py-2.5 bg-white border border-stone-300 rounded-xl text-sm text-stone-900 focus:outline-hidden focus:border-stone-900 font-sans"
+          />
+          <button
+            onClick={() => handleAskProbe(probeQuestion)}
+            disabled={probeLoading || !probeQuestion.trim()}
+            className="px-5 py-2.5 bg-stone-900 hover:bg-[#E3120B] disabled:opacity-40 text-white text-xs font-serif font-bold rounded-xl transition-all flex items-center space-x-1.5 shrink-0"
+          >
+            {probeLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+            <span>探针追问</span>
+          </button>
+        </div>
+
+        {/* Probe Answer */}
+        {probeAnswer && (
+          <div className="bg-white p-4 rounded-xl border border-stone-300 text-sm font-serif text-stone-800 leading-relaxed space-y-2">
+            <div className="text-xs font-bold text-stone-900 font-sans flex items-center space-x-1">
+              <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />
+              <span>探针解析：</span>
+            </div>
+            {probeFallback && (
+              <p className="mb-1.5 text-[11px] font-bold text-amber-700">
+                本次未生成在线内容
+              </p>
+            )}
+            <p>{probeAnswer}</p>
+          </div>
+        )}
+        </div>
+        )}
+      </div>
+    </div>
+  );
+};

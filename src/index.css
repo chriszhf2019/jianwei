@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+/* Tailwind v4 主题接线：让 font-sans / font-serif / font-mono 工具类使用站内字体栈 */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Songti SC', STSong, 'Noto Serif CJK SC', Georgia, serif;
+  --font-mono: SFMono-Regular, Menlo, Monaco, Consolas, ui-monospace, monospace;
+}
+
+@layer base {
+  :root {
+    --paper-warm: #FAF8F5; /* 与组件内统一使用的暖纸色保持一致 */
+    --paper-card: #FFFFFF;
+    --economist-red: #E3120B;
+    --ft-salmon: #FFF1E5;
+    --proof-blue: #0D47A1;
+    --ink-dark: #1E293B;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--paper-warm);
+    color: var(--ink-dark);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+.font-serif-sc {
+  font-family: 'Songti SC', STSong, 'Noto Serif CJK SC', Georgia, serif;
+}
+
+.font-sans-ui {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+.font-mono-code {
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.font-cinzel {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+/* Custom newspaper hairline divider */
+.hairline-b {
+  border-bottom: 1px solid rgba(30, 41, 59, 0.12);
+}
+.hairline-t {
+  border-top: 1px solid rgba(30, 41, 59, 0.12);
+}
+.hairline-r {
+  border-right: 1px solid rgba(30, 41, 59, 0.12);
+}
+.hairline-l {
+  border-left: 1px solid rgba(30, 41, 59, 0.12);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(30, 41, 59, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(30, 41, 59, 0.35);
+}

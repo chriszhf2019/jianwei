@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  见微 Genway · launchd 常驻服务模板（开机自启 / 崩溃自动拉起 / 日志持久）
+  安装（请把 /ABSOLUTE/PATH/TO/News-Jianwei-main 替换为仓库真实路径）：
+    sed "s|__REPO__|$(pwd)|g" scripts/com.news.jianwei.server.plist > ~/Library/LaunchAgents/com.news.jianwei.server.plist
+    launchctl load ~/Library/LaunchAgents/com.news.jianwei.server.plist      # 或 launchctl bootstrap gui/$(id -u) …
+  常用命令：
+    launchctl start com.news.jianwei.server      # 立即拉起（已 load 后）
+    launchctl kickstart -k gui/$(id -u)/com.news.jianwei.server   # 重启（先 stop 旧进程）
+    launchctl unload ~/Library/LaunchAgents/com.news.jianwei.server.plist   # 卸载
+  日志：~/Library/Logs/JianweiGenway/{stdout,stderr}.log
+-->
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.news.jianwei.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/env</string>
+      <string>bash</string>
+      <string>-lc</string>
+      <string>cd __REPO__ &amp;&amp; exec npx tsx server.ts</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/__USER__/Library/Logs/JianweiGenway/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/__USER__/Library/Logs/JianweiGenway/stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PORT</key>
+      <string>3001</string>
+      <key>NODE_ENV</key>
+      <string>development</string>
+    </dict>
+  </dict>
+</plist>

@@ -1,0 +1,48 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>见微 Genway · 人工验收打勾表</title><style>
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#faf8f5;color:#1e293b;max-width:900px;margin:24px auto;padding:0 16px}
+h1{font-size:22px;border-bottom:2px solid #0f172a;padding-bottom:8px}
+h2{margin:20px 0 8px;font-size:16px;color:#b91c1c}
+ol{margin:0;padding-left:0;list-style:none}
+li{padding:4px 2px;border-bottom:1px dashed #d6d3d1}
+label{display:flex;gap:8px;cursor:pointer;font-size:14px;line-height:1.6}
+label input{margin-top:3px}
+#bar{position:sticky;top:0;background:#0f172a;color:#fff;padding:8px 12px;border-radius:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+#bar b{font-size:16px}
+button{background:#e3120b;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer}
+#autoRes{margin:8px 0;font-size:13px}
+</style></head><body>
+<div id="bar"><b>见微 · 人工验收</b><span>已勾选：<span id="cnt">0/0</span></span><button onclick="runAuto()">自动预填可验证项</button><span style="font-size:12px;opacity:.7">进度自动保存在本浏览器</span></div>
+<h1>人工点击验收打勾表</h1>
+<p style="color:#64748b;font-size:13px">前置：常驻服务在线（http://127.0.0.1:3001）。无 Key 时把“降级提示”也视为通过。对照 UI_CONTROLS.md。</p>
+<h2>0 全局</h2><ol><li><label><input type='checkbox'><span>顶栏 5 导航可切换</span></label></li><li><label><input type='checkbox'><span>⌘/Ctrl+K 打开搜索，Esc 关闭，可进详情</span></label></li><li><label><input type='checkbox'><span>身份透镜 6 项切换后顶栏/影响我联动</span></label></li><li><label><input type='checkbox'><span>设置⚙️ 可打开，昵称即时更新问候</span></label></li><li><label><input type='checkbox'><span>AI 提交分析弹窗开关</span></label></li><li><label><input type='checkbox'><span>页脚四个入口可用</span></label></li><li><label><input type='checkbox'><span>任一模态 Esc 关闭</span></label></li></ol><h2>1 首页</h2><ol><li><label><input type='checkbox'><span>三态阅读切换</span></label></li><li><label><input type='checkbox'><span>分类 pills 过滤（含外部信源）</span></label></li><li><label><input type='checkbox'><span>内容口径 pills 计数正确</span></label></li><li><label><input type='checkbox'><span>卡片进详情/收藏/关注且刷新保留</span></label></li><li><label><input type='checkbox'><span>通俗模式术语弹词典</span></label></li><li><label><input type='checkbox'><span>监控雷达真实命中与筛选</span></label></li><li><label><input type='checkbox'><span>净情绪(词典)/负向信号口径一致</span></label></li></ol><h2>2 详情页</h2><ol><li><label><input type='checkbox'><span>六页签逐项打开无白屏</span></label></li><li><label><input type='checkbox'><span>逻辑树沙盒实时重算</span></label></li><li><label><input type='checkbox'><span>与我何干6身份/涟漪/光谱节奏</span></label></li><li><label><input type='checkbox'><span>擂台命题/引擎三态/契约签订</span></label></li><li><label><input type='checkbox'><span>外部新闻自动 AI 补全或降级占位</span></label></li></ol><h2>3 情报中心</h2><ol><li><label><input type='checkbox'><span>快照刷新与口径一致</span></label></li><li><label><input type='checkbox'><span>共振自动/自定义</span></label></li><li><label><input type='checkbox'><span>热力维度切换与格子跳详情</span></label></li><li><label><input type='checkbox'><span>密度堆叠三态</span></label></li><li><label><input type='checkbox'><span>冲突重新仲裁(真实/无候选/无Key)</span></label></li><li><label><input type='checkbox'><span>盲区补源建议→设置</span></label></li><li><label><input type='checkbox'><span>明日热度点名真实</span></label></li></ol><h2>4 地区情报</h2><ol><li><label><input type='checkbox'><span>时间/置信筛选联动</span></label></li><li><label><input type='checkbox'><span>矩阵下钻文章流</span></label></li><li><label><input type='checkbox'><span>三级下钻过滤</span></label></li><li><label><input type='checkbox'><span>组合聚合非空</span></label></li><li><label><input type='checkbox'><span>CSV 导出不乱码</span></label></li><li><label><input type='checkbox'><span>依赖预警与按地区浏览</span></label></li></ol><h2>5 关注/专题/搜索</h2><ol><li><label><input type='checkbox'><span>契约删除/四态裁决/Brier 写入</span></label></li><li><label><input type='checkbox'><span>雷达/备忘录刷新保留</span></label></li><li><label><input type='checkbox'><span>专题时间轴与收录</span></label></li><li><label><input type='checkbox'><span>搜索命中外部标题</span></label></li></ol><h2>6 设置</h2><ol><li><label><input type='checkbox'><span>通道保存后徽章一致</span></label></li><li><label><input type='checkbox'><span>Key 测试/清除降级</span></label></li><li><label><input type='checkbox'><span>RSS 保存+立即摄取</span></label></li><li><label><input type='checkbox'><span>词库双端同步(刷新生效)</span></label></li><li><label><input type='checkbox'><span>昵称/身份/偏好刷新保留</span></label></li></ol><h2>7 键盘/可达性</h2><ol><li><label><input type='checkbox'><span>Esc/autofocus/退场动画可见</span></label></li></ol><h2>可自动验证项（点上方按钮自动预填）</h2><ul style='list-style:disc;padding-left:20px;font-size:13px;color:#334155'><li>全局·服务健康（/api/health）</li>
+<li>情报中心·语料真实（/api/snapshot）</li>
+<li>地区情报·涉事地区已标注（/api/snapshot）</li>
+<li>主体标注任务完成（/api/entities/status）</li>
+<li>信源状态接口（/api/feeds/status）</li>
+</ul><div id='autoRes'></div><p style='color:#94a3b8;font-size:12px'>提示：自动预填只验证服务在线/数据存在类项目；交互与视觉仍需人工点击。</p><script>
+var AUTO=[{label:'全局·服务健康',url:'/api/health',cond:function(d){return d&&d.status==='ok';}},{label:'情报中心·语料真实',url:'/api/snapshot',cond:function(d){return d&&d.meta&&d.meta.corpusSize>=0;}},{label:'地区情报·涉事地区已标注',url:'/api/snapshot',cond:function(d){return d&&d.derived&&(d.derived.regionAnnotatedCount||0)>0;}},{label:'主体标注任务完成',url:'/api/entities/status',cond:function(d){return d&&d.task&&(d.task.status==='finished'||d.task.status==='idle');}},{label:'信源状态接口',url:'/api/feeds/status',cond:function(d){return d&&'enabled' in d;}}];
+var KEY='jianwei-acceptance';
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return{}}}
+function save(st){localStorage.setItem(KEY,JSON.stringify(st));}
+var st=load();
+document.querySelectorAll('label input').forEach(function(inp){
+  var key=inp.parentElement.textContent.trim();
+  if(st[key])inp.checked=true;
+  inp.addEventListener('change',function(){var s2=load();s2[key]=inp.checked;save(s2);update();});
+});
+function update(){var all=document.querySelectorAll('label input');var ok=document.querySelectorAll('label input:checked');document.getElementById('cnt').textContent=ok.length+' / '+all.length;}
+update();
+async function runAuto(){
+ var box=document.getElementById('autoRes');box.innerHTML='自动验证中…';
+ for(var i=0;i<AUTO.length;i++){
+  var a=AUTO[i];var line=document.createElement('div');line.style.fontSize='13px';
+  try{
+   var r=await fetch(a.url);var d=await r.json();var ok=!!a.cond(d);
+   line.textContent=(ok?'✓ ':'✗ ')+a.label+(ok?'':'（请手动核验）');line.style.color=ok?'#047857':'#b45309';
+   if(ok){var s2=load();var boxes=document.querySelectorAll('label input');for(var j=0;j<boxes.length;j++){var t=boxes[j].parentElement.textContent.trim();if(t.indexOf(a.label)!==-1||a.label.indexOf(t.slice(0,4))!==-1){boxes[j].checked=true;s2[t]=true;}}save(s2);update();}
+  }catch(e){line.textContent='✗ '+a.label+'（请求失败）';line.style.color='#b91c1c';}
+  box.appendChild(line);
+ }
+}
+</script></body></html>

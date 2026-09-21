@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>Jianwei Test Feed</title>
+<item><title>功能测试外部新闻A：某车企发布固态电池量产时间表</title><link>https://news-a.example/story1</link><pubDate>Tue, 02 Sep 2026 08:00:00 GMT</pubDate><description><![CDATA[<p>该车企宣布中试线良率达标，量产提前两个季度。</p>]]></description></item>
+<item><title>功能测试外部新闻B：央行会议纪要措辞微调</title><link>https://news-b.example/story2</link><pubDate>Tue, 02 Sep 2026 09:00:00 GMT</pubDate><description><![CDATA[<p>纪要删去固定锚定描述，市场解读为宽松窗口临近。</p>]]></description></item>
+<item><title>功能测试外部新闻A：某车企发布固态电池量产时间表</title><link>https://news-c.example/story1-copy</link><pubDate>Tue, 02 Sep 2026 09:15:00 GMT</pubDate><description><![CDATA[<p>另一家媒体转引该车企的量产计划，并补充供应链排期信息。</p>]]></description></item>
+</channel></rss>

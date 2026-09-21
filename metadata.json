@@ -1,0 +1,6 @@
+{
+  "name": "见微 Genway",
+  "description": "见微 Genway・于细微处，读懂新闻背后。报刊为骨，数据为翼，融合五大阅读节奏光谱与AI细微多层拆解的深度新闻解读应用。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

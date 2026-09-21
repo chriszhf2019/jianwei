@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+data/settings.json
+data/corpus.json
+data/*.db
+data/backups/
+data/evaluation/
+docs-snapshot-*.zip
