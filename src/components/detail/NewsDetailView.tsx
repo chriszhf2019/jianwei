@@ -8,7 +8,9 @@ import { RippleEffectTab } from './RippleEffectTab';
 import { DeepSpectrumTab } from './DeepSpectrumTab';
 import { ForecastArenaTab } from './ForecastArenaTab';
 import { EventEvolutionTimeline } from './EventEvolutionTimeline';
+import { SidebarEvolutionNav } from './SidebarEvolutionNav';
 import { ArticleBodyParserSection } from './ArticleBodyParserSection';
+
 import { KeyTermNote, KeyTermHighlight } from '../common/KeyTermHighlight';
 
 
@@ -339,14 +341,19 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
       <div
         className="fixed top-0 left-0 h-0.5 bg-[#E3120B] z-[60] transition-[width] duration-150"
         style={{ width: `${readingProgress}%` }}
         aria-hidden="true"
       />
-      {/* Top Action Bar */}
-      <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+
+      <div className="flex flex-col xl:flex-row gap-8 items-start">
+        {/* Main Article Reading & Deep Cognitive Content Area */}
+        <div className="flex-1 min-w-0 space-y-8 max-w-5xl">
+          {/* Top Action Bar */}
+          <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+
         <button
           onClick={onBack}
           className="flex items-center space-x-2 text-xs font-serif font-bold text-stone-700 hover:text-stone-950 transition-colors"
@@ -818,9 +825,9 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
 
       {/* 4-Stage Cognitive Path Navigation Tabs */}
-
-      <div className="sticky top-28 lg:top-16 z-30 bg-[#FAF8F5]/95 backdrop-blur-md pt-2 border-b-2 border-stone-900">
+      <div id="detail-tabs-container" className="sticky top-28 lg:top-16 z-30 bg-[#FAF8F5]/95 backdrop-blur-md pt-2 border-b-2 border-stone-900 scroll-mt-24">
         <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar pb-2">
+
           {tabsList.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -1056,6 +1063,16 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         </div>
         )}
       </div>
+      </div>
+
+      {/* SVG Linked Interactive Sidebar Evolution Timeline Navigation */}
+      <SidebarEvolutionNav
+        article={article}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+      />
     </div>
-  );
+  </div>
+);
 };
+

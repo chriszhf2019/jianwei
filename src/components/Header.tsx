@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Settings as SettingsIcon,
   MapPin,
-  Bell
+  Bell,
+  ShieldCheck
 } from 'lucide-react';
 import { USER_PERSONAS } from '../data/intelligenceData';
 import { FEATURE_SUMMARIES } from '../utils/featureSummaries';
@@ -55,7 +56,9 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'topics', label: '专题档案', icon: <Layers className="w-4 h-4" /> },
     { id: 'region', label: '地区情报', icon: <MapPin className="w-4 h-4 text-[#0284C7]" /> },
     { id: 'my_focus', label: '我的关注', icon: <Radio className="w-4 h-4 text-emerald-600" /> },
+    { id: 'admin', label: '管理端', icon: <ShieldCheck className="w-4 h-4 text-purple-600" /> },
   ];
+
 
   return (
     <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b-2 border-stone-900 transition-all font-sans">
@@ -212,8 +215,9 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Mobile Navigation Bar */}
-      <div className="lg:hidden grid grid-cols-5 border-t border-stone-300 py-1.5 bg-stone-100 pb-[calc(0.375rem+env(safe-area-inset-bottom))]">
+      <div className="lg:hidden grid grid-cols-6 border-t border-stone-300 py-1.5 bg-stone-100 pb-[calc(0.375rem+env(safe-area-inset-bottom))]">
         {navItems.map((item) => {
+
           const isActive = activeTab === item.id;
           return (
             <button

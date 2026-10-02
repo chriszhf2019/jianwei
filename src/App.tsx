@@ -25,8 +25,10 @@ import { useLocalState } from './hooks/useLocalState';
 import { useSnapshot } from './hooks/useSnapshot';
 import { corpusDerived, deriveFromList } from './utils/corpusMetrics';
 import { parseArticleDate } from './utils/articleTime';
+import { logUserActivity } from './utils/activityTracker';
 
 type AppViewTab = PrimaryNavTab | 'detail';
+
 
 const IntelligenceHubView = lazy(() =>
   import('./components/intelligence/IntelligenceHubView').then((module) => ({ default: module.IntelligenceHubView }))
@@ -73,6 +75,9 @@ const ShareCardModal = lazy(() =>
 const SubscriptionModal = lazy(() =>
   import('./components/common/SubscriptionModal').then((module) => ({ default: module.SubscriptionModal }))
 );
+const AdminConsoleView = lazy(() =>
+  import('./components/admin/AdminConsoleView').then((module) => ({ default: module.AdminConsoleView }))
+);
 
 const ViewLoading = () => (
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-xs text-stone-400">
@@ -80,7 +85,8 @@ const ViewLoading = () => (
   </div>
 );
 
-const VALID_VIEW_TABS: PrimaryNavTab[] = ['home', 'intelligence', 'topics', 'region', 'my_focus'];
+const VALID_VIEW_TABS: PrimaryNavTab[] = ['home', 'intelligence', 'topics', 'region', 'my_focus', 'admin'];
+
 const LEGACY_DEMO_PREDICTION_IDS = new Set(['contract-agent-2026', 'contract-semi-historical']);
 
 function parseLocationHash(): { tab: AppViewTab; articleId: string | null } {
@@ -189,7 +195,14 @@ export const App: React.FC = () => {
 
   const handleAddKnowledge = (item: KnowledgeItem) => {
     setKnowledgeItems((prev) => [item, ...prev.filter((i) => i.id !== item.id && i.title !== item.title)]);
+    logUserActivity({
+      action: 'knowledge.deposit',
+      entityType: 'knowledge',
+      entityId: item.id,
+      metadata: { title: item.title, category: item.category },
+    });
   };
+
 
   const handleUpdateKnowledge = (id: string, updates: Partial<KnowledgeItem>) => {
     setKnowledgeItems((prev) =>
@@ -511,7 +524,14 @@ export const App: React.FC = () => {
     setDetailInitialTab('seven_elements');
     setActiveTab('detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    logUserActivity({
+      action: 'article.read',
+      entityType: 'article',
+      entityId: art.id,
+      metadata: { title: art.title, category: art.category, isExternal: !!art.isExternal },
+    });
   };
+
 
   const handleSelectArticleWithTab = (art: NewsArticle, tab: CognitiveDetailTab = 'seven_elements') => {
     setSelectedArticle(art);
@@ -1056,9 +1076,13 @@ export const App: React.FC = () => {
             }}
             onOpenTermExplain={(term) => setActiveTermExplain(term)}
           />
+        )}
 
+        {activeTab === 'admin' && (
+          <AdminConsoleView />
         )}
         </Suspense>
+
       </main>
 
       {/* 3. Global Footer */}

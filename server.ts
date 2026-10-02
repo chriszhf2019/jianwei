@@ -1646,6 +1646,123 @@ app.get("/api/admin/audit", (req, res) => {
   res.json(result);
 });
 
+// 用户行为事件打点与记录
+app.post("/api/activity/log", applyRateLimit, (req, res) => {
+  const actor = String((req as any).auth?.username || req.body?.actor || "analyst_guest").slice(0, 120);
+  const action = String(req.body?.action || "unknown").slice(0, 120);
+  const entityType = req.body?.entityType ? String(req.body.entityType).slice(0, 80) : undefined;
+  const entityId = req.body?.entityId ? String(req.body.entityId).slice(0, 160) : undefined;
+  const metadata = req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {};
+
+  recordAuditEvent({
+    actor,
+    action,
+    entityType,
+    entityId,
+    status: "success",
+    metadata,
+  });
+  res.json({ ok: true });
+});
+
+// 管理端：用户登录与使用情况聚合分析
+app.get("/api/admin/user-activity", (req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  if (NO_PERSIST) return res.json({ stats: null, userSummaries: [], recentLogs: [] });
+
+  const rawAudit = listAuditEvents(1000);
+  const events = rawAudit.events || [];
+
+  const userMap: Record<string, {
+    username: string;
+    totalLogins: number;
+    totalAiAnalysis: number;
+    totalArticleReads: number;
+    totalDeposits: number;
+    totalPredictions: number;
+    lastActiveAt: string;
+    recentActions: Array<{ action: string; at: string; detail?: string }>;
+  }> = {};
+
+  const hourlyDistribution: Record<number, number> = {};
+  for (let i = 0; i < 24; i++) hourlyDistribution[i] = 0;
+
+  let totalLogins = 0;
+  let totalAiCalls = 0;
+  let totalReads = 0;
+  let totalDeposits = 0;
+  const activeActors = new Set<string>();
+
+  for (const evt of events) {
+    const actor = evt.actor || "analyst_guest";
+    activeActors.add(actor);
+
+    if (!userMap[actor]) {
+      userMap[actor] = {
+        username: actor,
+        totalLogins: 0,
+        totalAiAnalysis: 0,
+        totalArticleReads: 0,
+        totalDeposits: 0,
+        totalPredictions: 0,
+        lastActiveAt: evt.at,
+        recentActions: [],
+      };
+    }
+
+    const u = userMap[actor];
+    if (new Date(evt.at) > new Date(u.lastActiveAt)) {
+      u.lastActiveAt = evt.at;
+    }
+
+    if (u.recentActions.length < 15) {
+      const meta = typeof evt.metadata === "object" && evt.metadata ? (evt.metadata as any) : {};
+      u.recentActions.push({
+        action: evt.action,
+        at: evt.at,
+        detail: evt.entityId || meta.title || meta.question || meta.tag || undefined,
+      });
+    }
+
+    try {
+      const hour = new Date(evt.at).getHours();
+      hourlyDistribution[hour] = (hourlyDistribution[hour] || 0) + 1;
+    } catch {}
+
+    const act = evt.action.toLowerCase();
+    if (act.includes("login") || act.includes("auth")) {
+      u.totalLogins += 1;
+      totalLogins += 1;
+    } else if (act.includes("enrich") || act.includes("ai") || act.includes("analysis") || act.includes("predict.create")) {
+      u.totalAiAnalysis += 1;
+      totalAiCalls += 1;
+    } else if (act.includes("read") || act.includes("article") || act.includes("view")) {
+      u.totalArticleReads += 1;
+      totalReads += 1;
+    } else if (act.includes("knowledge") || act.includes("deposit")) {
+      u.totalDeposits += 1;
+      totalDeposits += 1;
+    } else if (act.includes("contract") || act.includes("prediction")) {
+      u.totalPredictions += 1;
+    }
+  }
+
+  res.json({
+    stats: {
+      totalLogins,
+      totalAiCalls,
+      totalReads,
+      totalDeposits,
+      activeUsersCount: activeActors.size,
+      totalEventsLogged: events.length,
+    },
+    hourlyDistribution,
+    userSummaries: Object.values(userMap),
+    recentLogs: events.slice(0, 150),
+  });
+});
+
+
 app.post("/api/admin/backups", applyRateLimit, (_req, res) => {
   if (NO_PERSIST) return res.status(503).json({ error: "persistence_disabled" });
   const backupPath = backupCorpus("manual");

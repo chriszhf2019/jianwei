@@ -1,4 +1,5 @@
-export type PrimaryNavTab = 'home' | 'intelligence' | 'topics' | 'region' | 'my_focus';
+export type PrimaryNavTab = 'home' | 'intelligence' | 'topics' | 'region' | 'my_focus' | 'admin';
+
 
 export type HomeReadingMode = 'standard' | 'tongsu' | 'dehydrated';
 
