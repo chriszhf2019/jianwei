@@ -5,7 +5,8 @@ import { RegionSectorMatrix } from './intelligence/RegionSectorMatrix';
 import { EntitySamplePanel } from './intelligence/EntitySamplePanel';
 import { ThreeLevelDrill } from './intelligence/ThreeLevelDrill';
 import { ComboAggregate } from './intelligence/ComboAggregate';
-import { MapPin, X, ArrowRight, Download, Info, RefreshCw, Sparkles, Loader2 } from 'lucide-react';
+import { CrossRegionFlowPanel } from './intelligence/CrossRegionFlowPanel';
+import { MapPin, X, ArrowRight, Download, Info, RefreshCw, Sparkles, Loader2, Globe2 } from 'lucide-react';
 import { buildIntelCsv, downloadCsv } from '../utils/intelExport';
 import { primaryRegionMention, regionScopeOf, REGION_SCOPE_LABELS } from '../utils/regionSemantics';
 import type { RegionScope } from '../types';
@@ -14,7 +15,8 @@ import { KeyTermHighlight } from './common/KeyTermHighlight';
 import { FeatureSummary } from './common/FeatureSummary';
 import type { FeatureSummaryId } from '../utils/featureSummaries';
 
-type RegionSection = 'matrix' | 'entities' | 'drill' | 'aggregate';
+type RegionSection = 'matrix' | 'flow' | 'entities' | 'drill' | 'aggregate';
+
 
 interface RegionIntelligencePageProps {
   articles: NewsArticle[];
@@ -251,16 +253,19 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
 
   const sections: Array<{ id: RegionSection; label: string }> = [
     { id: 'matrix', label: '地区矩阵' },
+    { id: 'flow', label: '🌐 跨区流动与阻尼' },
     { id: 'entities', label: '主体抽样' },
     { id: 'drill', label: '三级下钻' },
     { id: 'aggregate', label: '组合聚合' },
   ];
   const sectionFeatureId: Record<RegionSection, FeatureSummaryId> = {
     matrix: 'region-matrix',
+    flow: 'region-matrix',
     entities: 'region-entities',
     drill: 'region-drill',
     aggregate: 'region-aggregate',
   };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8">
@@ -576,9 +581,13 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
       </>
       )}
 
+      {section === 'flow' && (
+        <CrossRegionFlowPanel articles={filtered} onOpenArticleById={onOpenArticleById} />
+      )}
       {section === 'entities' && (
         <EntitySamplePanel articles={filtered} onOpenArticleById={onOpenArticleById} />
       )}
+
       {section === 'drill' && (
         <ThreeLevelDrill articles={filtered} onOpenArticleById={onOpenArticleById} />
       )}

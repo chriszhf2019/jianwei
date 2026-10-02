@@ -15,14 +15,27 @@ import { TodayBlindspotWidget } from './TodayBlindspotWidget';
 import { TomorrowWatchlistWidget } from './TomorrowWatchlistWidget';
 import { CrossEventNexusPanel } from './CrossEventNexusPanel';
 import { AIStrategicAdvisor } from './AIStrategicAdvisor';
-import { Flame, ShieldCheck, HelpCircle, Activity, Info, Database, RefreshCw, MapPin, Bot } from 'lucide-react';
+import { DynamicHeatTrendChart } from './DynamicHeatTrendChart';
+import { DynamicSentimentTrendChart } from './DynamicSentimentTrendChart';
+import { StrategicThreeTierCenter } from './StrategicThreeTierCenter';
+import { TopicBreakoutForecastChart } from './TopicBreakoutForecastChart';
+import { StrategicActionPlaybook } from './StrategicActionPlaybook';
+import { SupplyChainStressSimulator } from './SupplyChainStressSimulator';
+import { CompetitorDynamicRadar } from './CompetitorDynamicRadar';
+import { Flame, ShieldCheck, ShieldAlert, Compass, HelpCircle, Activity, Info, Database, RefreshCw, MapPin, Bot, LineChart } from 'lucide-react';
+
+
+
+
+
+
 import { useAIProvider } from '../../hooks/useAIProvider';
 import { articleSortTime } from '../../utils/articleTime';
 import { FeatureSummary } from '../common/FeatureSummary';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 
 type SnapshotStatus = 'loading' | 'ok' | 'error';
-type HubSection = 'overview' | 'signals' | 'sources' | 'regions' | 'advisor';
+type HubSection = 'overview' | 'supply_stress' | 'competitor_radar' | 'signals' | 'sources' | 'regions' | 'advisor';
 
 interface IntelligenceHubViewProps {
   selectedPersona: UserPersona;
@@ -56,7 +69,9 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   ).length;
 
   const sections: Array<{ id: HubSection; label: string; icon: React.ReactNode }> = [
-    { id: 'overview', label: '概览', icon: <Activity className="w-4 h-4" /> },
+    { id: 'overview', label: '态势总览', icon: <Activity className="w-4 h-4" /> },
+    { id: 'supply_stress', label: '断供压力测试', icon: <ShieldAlert className="w-4 h-4 text-rose-500" /> },
+    { id: 'competitor_radar', label: '竞对异动雷达', icon: <Compass className="w-4 h-4 text-amber-500" /> },
     { id: 'signals', label: '信号', icon: <Flame className="w-4 h-4" /> },
     { id: 'sources', label: '来源与实体', icon: <Database className="w-4 h-4" /> },
     { id: 'regions', label: '地区观察', icon: <MapPin className="w-4 h-4" /> },
@@ -64,11 +79,14 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   ];
   const sectionFeatureId: Record<HubSection, FeatureSummaryId> = {
     overview: 'intelligence-overview',
+    supply_stress: 'intelligence-overview',
+    competitor_radar: 'intelligence-overview',
     signals: 'intelligence-signals',
     sources: 'intelligence-sources',
     regions: 'intelligence-regions',
     advisor: 'intelligence-advisor',
   };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8">
@@ -272,22 +290,121 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         )}
       </div>
 
-      {/* 1. Top Strategic Metrics Bar */}
+      {/* 1. 四大决策概览卡片 (Critical Alerts, Trending, Sectors, Sources) */}
+      <StrategicMetricsBar
+        articles={contextArticles}
+        onOpenAlerts={() => setSection('signals')}
+        onOpenTrending={() => setSection('signals')}
+        onOpenSectors={() => setSection('regions')}
+        onOpenSources={() => setSection('sources')}
+      />
+
+      {/* 2. 动态热度演变趋势图 (Recharts Dynamic Heat Curve) */}
+      <DynamicHeatTrendChart
+        articles={contextArticles}
+        onOpenArticleById={onOpenArticleById}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
+
+      {/* 2.5 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
+      <TopicBreakoutForecastChart
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
+      {/* 2.8 新闻情绪指数动态时序趋势图 (Recharts Dynamic Sentiment Curve) */}
+      <DynamicSentimentTrendChart
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
+      {/* 2.9 全球供应链断供压力测试与卡脖子模拟器 */}
+      <SupplyChainStressSimulator
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
+
+      {/* 2.95 跨国企业竞争对手异动雷达 */}
+      <CompetitorDynamicRadar
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
+
+      {/* 3. 三层全球战略情报中心 (全景宏观 ➔ 行业垂类 ➔ 事件洞察) */}
+
+      <StrategicThreeTierCenter
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
+      {/* 3.5 全球战略决策行动指南 (分角色/分时效高价值决策建议清单) */}
+      <StrategicActionPlaybook
+        selectedPersona={selectedPersona}
+        contextArticles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
+      {/* 4. 今日态势解读与行动指引 */}
       <SituationReadoutPanel articles={contextArticles} />
       <FrequentPatternPanel articles={contextArticles} />
-
-      <StrategicMetricsBar articles={contextArticles} />
       </>
       )}
 
+      {section === 'supply_stress' && (
+        <div className="space-y-6">
+          <SupplyChainStressSimulator
+            articles={contextArticles}
+            onSelectArticleTitle={onSelectArticleTitle}
+          />
+        </div>
+      )}
+
+      {section === 'competitor_radar' && (
+        <div className="space-y-6">
+          <CompetitorDynamicRadar
+            articles={contextArticles}
+            onSelectArticleTitle={onSelectArticleTitle}
+          />
+        </div>
+      )}
+
       {section === 'signals' && (
+
       <>
+      {/* 1.5 动态热度演变趋势图 (Recharts Dynamic Heat Curve) */}
+      <DynamicHeatTrendChart
+        articles={contextArticles}
+        onOpenArticleById={onOpenArticleById}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
+
+      {/* 1.8 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
+      <TopicBreakoutForecastChart
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
+      {/* 1.9 新闻情绪指数动态时序趋势图 (Recharts Dynamic Sentiment Curve) */}
+      <DynamicSentimentTrendChart
+        articles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
       {/* 2. Cross-Event Synergy & Hidden Nexus Engine (多事件跨篇因果交叉对比) */}
+
+
       <CrossEventNexusPanel
         articles={contextArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
+
 
       {/* 3. 24-Hour Content-Arrival Heatmap（真实时间统计） */}
       <SentimentHeatmap24h articles={contextArticles} onSelectArticleTitle={onSelectArticleTitle} />
@@ -347,6 +464,14 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {section === 'advisor' && (
       <>
+      {/* 6.8 全球战略决策行动指南 (分角色/分时效高价值决策建议清单) */}
+      <StrategicActionPlaybook
+        selectedPersona={selectedPersona}
+        contextArticles={contextArticles}
+        onSelectArticleTitle={onSelectArticleTitle}
+        onOpenArticleById={onOpenArticleById}
+      />
+
       {/* 7. AI Strategic Advisor (基于今天的新闻情报回答我) */}
       <AIStrategicAdvisor
         selectedPersona={selectedPersona}
@@ -354,6 +479,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       />
       </>
       )}
+
     </div>
   );
 };

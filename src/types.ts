@@ -714,9 +714,29 @@ export interface PredictionContract {
   disputeCount?: number;
 }
 
+// ==========================================
+// 战略知识库沉淀数据契约 (Knowledge Base)
+// ==========================================
+
+export interface KnowledgeItem {
+  id: string;
+  articleId?: string;
+  title: string;
+  category: string;
+  tags: string[];
+  sourceName?: string;
+  publishedAt?: string;
+  oneSentenceVerdict: string;
+  keyTakeaways: string[];
+  coreMechanisms?: string;
+  decisionImplication?: string;
+  personalNote?: string;
+  createdAt: string;
+}
 
 // ==========================================
 // Snapshot（服务端 /api/snapshot 派生数据契约）
+
 // ==========================================
 
 export interface SnapshotMeta {

@@ -7,15 +7,18 @@ import {
   NewsArticle, 
   RadarKeyword,
   PredictionContract,
-  CognitiveDetailTab
+  CognitiveDetailTab,
+  KnowledgeItem
 } from './types';
 
 import { 
   USER_PERSONAS, 
   INITIAL_RADAR_KEYWORDS, 
   TOPIC_CLUSTERS,
-  INITIAL_PREDICTION_CONTRACTS
+  INITIAL_PREDICTION_CONTRACTS,
+  INITIAL_KNOWLEDGE_ITEMS
 } from './data/intelligenceData';
+
 import { Header } from './components/Header';
 import { HomeView, NewsSkill } from './components/home/HomeView';
 import { useLocalState } from './hooks/useLocalState';
@@ -178,6 +181,26 @@ export const App: React.FC = () => {
     INITIAL_PREDICTION_CONTRACTS,
     { version: 1 }
   );
+  const [knowledgeItems, setKnowledgeItems] = useLocalState<KnowledgeItem[]>(
+    'jianwei-knowledge-ledger',
+    INITIAL_KNOWLEDGE_ITEMS,
+    { version: 1 }
+  );
+
+  const handleAddKnowledge = (item: KnowledgeItem) => {
+    setKnowledgeItems((prev) => [item, ...prev.filter((i) => i.id !== item.id && i.title !== item.title)]);
+  };
+
+  const handleUpdateKnowledge = (id: string, updates: Partial<KnowledgeItem>) => {
+    setKnowledgeItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
+    );
+  };
+
+  const handleRemoveKnowledge = (id: string) => {
+    setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
   const preferencesHydratedRef = useRef(false);
   const preferencesVersionRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
@@ -923,8 +946,11 @@ export const App: React.FC = () => {
             contextArticles={articles}
             onOpenArticle={handleSelectArticle}
             onOpenShareCard={(art) => setShareCardArticle(art)}
+            isDepositedInKnowledge={knowledgeItems.some((k) => k.articleId === selectedArticle.id)}
+            onDepositToKnowledge={handleAddKnowledge}
           />
         )}
+
 
         {/* Home Page View */}
         {activeTab === 'home' && (
@@ -1020,7 +1046,17 @@ export const App: React.FC = () => {
             onRemoveContract={handleRemoveContract}
             personalNotes={personalNotes}
             onPersonalNotesChange={setPersonalNotes}
+            knowledgeItems={knowledgeItems}
+            onAddKnowledge={handleAddKnowledge}
+            onUpdateKnowledge={handleUpdateKnowledge}
+            onRemoveKnowledge={handleRemoveKnowledge}
+            onOpenArticleById={(artId) => {
+              const matched = articles.find((a) => a.id === artId);
+              if (matched) handleSelectArticle(matched);
+            }}
+            onOpenTermExplain={(term) => setActiveTermExplain(term)}
           />
+
         )}
         </Suspense>
       </main>

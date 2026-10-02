@@ -4,7 +4,12 @@ import { USER_PERSONAS } from '../../data/intelligenceData';
 import { formatArticleTime } from '../../utils/articleTime';
 import { keywordHits } from '../../utils/corpusMetrics';
 import { PredictionCalibrationPanel } from './PredictionCalibrationPanel';
+import { CognitiveBiasRadarPanel } from './CognitiveBiasRadarPanel';
 import { EvaluationLabPanel } from './EvaluationLabPanel';
+import { KnowledgeBasePanel } from './KnowledgeBasePanel';
+import { KnowledgeGraphView } from './KnowledgeGraphView';
+import { KnowledgeItem } from '../../types';
+
 import { predictionDueInfo } from '../../utils/predictionLedger';
 import { FeatureSummary } from '../common/FeatureSummary';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
@@ -26,10 +31,13 @@ import {
   Sparkles,
   Lock,
   LayoutDashboard,
-  FlaskConical
+  FlaskConical,
+  BookOpen,
+  Network
 } from 'lucide-react';
 
-type FocusSection = 'overview' | 'contracts' | 'watchlist' | 'evaluation';
+type FocusSection = 'overview' | 'knowledge' | 'graph' | 'contracts' | 'watchlist' | 'evaluation';
+
 
 interface MyFocusViewProps {
   selectedPersona: UserPersona;
@@ -61,7 +69,14 @@ interface MyFocusViewProps {
   onRemoveContract?: (contractId: string) => Promise<boolean>;
   personalNotes: string;
   onPersonalNotesChange: (value: string) => void;
+  knowledgeItems?: KnowledgeItem[];
+  onAddKnowledge?: (item: KnowledgeItem) => void;
+  onUpdateKnowledge?: (id: string, updates: Partial<KnowledgeItem>) => void;
+  onRemoveKnowledge?: (id: string) => void;
+  onOpenArticleById?: (articleId: string) => void;
+  onOpenTermExplain?: (term: string) => void;
 }
+
 
 export const MyFocusView: React.FC<MyFocusViewProps> = ({
   selectedPersona,
@@ -81,6 +96,12 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
   onRemoveContract,
   personalNotes,
   onPersonalNotesChange,
+  knowledgeItems = [],
+  onAddKnowledge,
+  onUpdateKnowledge,
+  onRemoveKnowledge,
+  onOpenArticleById,
+  onOpenTermExplain,
 }) => {
   const [section, setSection] = useState<FocusSection>('overview');
 
@@ -102,16 +123,22 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
 
   const sections: Array<{ id: FocusSection; label: string; icon: React.ReactNode }> = [
     { id: 'overview', label: '个人概览', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'knowledge', label: '战略知识库', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'graph', label: '知识图谱', icon: <Network className="w-4 h-4" /> },
     { id: 'contracts', label: '预测契约', icon: <Crosshair className="w-4 h-4" /> },
     { id: 'watchlist', label: '关注与收藏', icon: <Radio className="w-4 h-4" /> },
     { id: 'evaluation', label: '评测中心', icon: <FlaskConical className="w-4 h-4" /> },
   ];
   const sectionFeatureId: Record<FocusSection, FeatureSummaryId> = {
     overview: 'focus-overview',
+    knowledge: 'focus-watchlist',
+    graph: 'focus-watchlist',
     contracts: 'focus-contracts',
     watchlist: 'focus-watchlist',
     evaluation: 'focus-evaluation',
   };
+
+
 
   const contractsWithDue = useMemo(() => {
     const dueRank = { overdue: 0, due_today: 1, due_soon: 2, upcoming: 3, invalid: 4, resolved: 5 } as const;
@@ -434,7 +461,11 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
           </div>
         )}
 
+        {/* 🧠 超级预测者认知偏差与胜率雷达 */}
+        <CognitiveBiasRadarPanel contracts={predictionContracts} />
+
         <PredictionCalibrationPanel contracts={predictionContracts} />
+
 
         {predictionContracts.length === 0 ? (
           <div className="py-8 text-center text-stone-500 text-xs font-sans">
@@ -980,9 +1011,30 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
       </>
       )}
 
+      {section === 'knowledge' && (
+        <KnowledgeBasePanel
+          knowledgeItems={knowledgeItems}
+          onAddKnowledge={onAddKnowledge}
+          onUpdateKnowledge={onUpdateKnowledge}
+          onRemoveKnowledge={onRemoveKnowledge}
+          onOpenArticleById={onOpenArticleById}
+          onOpenTermExplain={onOpenTermExplain}
+        />
+      )}
+
+      {section === 'graph' && (
+        <KnowledgeGraphView
+          knowledgeItems={knowledgeItems}
+          onOpenArticleById={onOpenArticleById}
+          onOpenTermExplain={onOpenTermExplain}
+        />
+      )}
+
       {section === 'overview' && (
+
       <>
       {/* 5. 战略决策备忘录 (Private Intelligence Memo) */}
+
       <div className="bg-white border-2 border-stone-800 rounded-xl p-6 space-y-4 shadow-xs">
         <div className="flex items-center space-x-2 border-b border-stone-200 pb-3">
           <FileText className="w-5 h-5 text-stone-700" />

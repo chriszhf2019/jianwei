@@ -16,7 +16,9 @@ interface SevenElementsTabProps {
   /** 相关新闻：语料池与点击打开其它文章 */
   contextArticles?: NewsArticle[];
   onOpenArticle?: (article: NewsArticle) => void;
+  onOpenTermExplain?: (term: string) => void;
 }
+
 
 const FIELD_LABEL: Record<string, { short: string; icon: React.ReactNode }> = {
   what: { short: '发生', icon: <Activity className="w-3.5 h-3.5 text-[#E3120B]" /> },
@@ -100,7 +102,14 @@ function GroupFold(props: {
   );
 }
 
-export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({ article, onRunSkill, contextArticles = [], onOpenArticle }) => {
+export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
+  article,
+  onRunSkill,
+  contextArticles = [],
+  onOpenArticle,
+  onOpenTermExplain,
+}) => {
+
   const [timelineBusy, setTimelineBusy] = React.useState(false);
   const [stakeBusy, setStakeBusy] = React.useState(false);
   const [logicBusy, setLogicBusy] = React.useState(false);
@@ -238,7 +247,11 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({ article, onR
         {sevenElements && (
           <>
             <p className="text-base font-serif font-bold text-stone-950 leading-relaxed max-w-3xl">
-              <KeyTermHighlight text={composeModel(sevenElements)} entities={(article.entityMentions || []).map((e) => e.name)} />
+              <KeyTermHighlight
+                text={composeModel(sevenElements)}
+                entities={(article.entityMentions || []).map((e) => e.name)}
+                onOpenTermExplain={onOpenTermExplain}
+              />
             </p>
 
             {/* 紧凑要点行（替代原来 7 个大方块） */}
@@ -252,7 +265,13 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({ article, onR
                     <span className="mt-0.5 shrink-0">{meta.icon}</span>
                     <div className="min-w-0">
                       <span className="font-serif font-bold text-stone-500 mr-1.5">{meta.short}</span>
-                      <span className="text-stone-800 leading-relaxed">{val}</span>
+                      <span className="text-stone-800 leading-relaxed">
+                        <KeyTermHighlight
+                          text={val}
+                          entities={(article.entityMentions || []).map((e) => e.name)}
+                          onOpenTermExplain={onOpenTermExplain}
+                        />
+                      </span>
                     </div>
                   </div>
                 );
@@ -260,6 +279,7 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({ article, onR
             </div>
           </>
         )}
+
       </div>
 
       {/* ② 多源验证：哪些媒体也报道了同一事件 */}

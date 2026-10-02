@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract } from '../../types';
+import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem } from '../../types';
 import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
 import { SevenElementsTab } from './SevenElementsTab';
 import { LogicTreeTab } from './LogicTreeTab';
@@ -7,14 +7,21 @@ import { RelevanceIdentityTab } from './RelevanceIdentityTab';
 import { RippleEffectTab } from './RippleEffectTab';
 import { DeepSpectrumTab } from './DeepSpectrumTab';
 import { ForecastArenaTab } from './ForecastArenaTab';
-import { KeyTermNote } from '../common/KeyTermHighlight';
+import { EventEvolutionTimeline } from './EventEvolutionTimeline';
+import { ArticleBodyParserSection } from './ArticleBodyParserSection';
+import { KeyTermNote, KeyTermHighlight } from '../common/KeyTermHighlight';
+
+
+
 import { FeatureSummary } from '../common/FeatureSummary';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 import { EvidenceBadge } from '../common/EvidenceBadge';
 import { formatArticleTime } from '../../utils/articleTime';
 import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
+import { downloadMarkdownBriefing, exportBriefingAsPdf } from '../../utils/briefingReportExport';
 import { CERTIFICATION_STANDARDS } from '../../utils/methodRegistry';
+
 import { 
   ArrowLeft, 
   Bookmark, 
@@ -31,17 +38,18 @@ import {
   Clock,
   Layers,
   Flame,
+  BookOpen,
   GitFork,
   UserCheck,
   Waves,
   ArrowRight,
   Radio,
-  BookOpen,
   Network,
   GitMerge,
   Crosshair,
   ChevronDown
 } from 'lucide-react';
+
 
 // 浅层外部信源条目缺少深度认知字段时的优雅占位
 const MissingDeep: React.FC<{ feature: string; note?: string }> = ({ feature, note }) => (
@@ -114,6 +122,8 @@ interface NewsDetailViewProps {
   contextArticles?: NewsArticle[];
   onOpenArticle?: (article: NewsArticle) => void;
   onOpenShareCard?: (article: NewsArticle) => void;
+  isDepositedInKnowledge?: boolean;
+  onDepositToKnowledge?: (item: KnowledgeItem) => void;
 }
 
 export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
@@ -133,6 +143,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   contextArticles,
   onOpenArticle,
   onOpenShareCard,
+  isDepositedInKnowledge = false,
+  onDepositToKnowledge,
 }) => {
   const [activeTab, setActiveTab] = useState<CognitiveDetailTab>(initialTab);
 
@@ -148,7 +160,41 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const [probeLoading, setProbeLoading] = useState(false);
   const [copiedQuote, setCopiedQuote] = useState(false);
   const [showPrintCard, setShowPrintCard] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [showProbe, setShowProbe] = useState(false);
+  const [deposited, setDeposited] = useState(isDepositedInKnowledge);
+
+  const handleDeposit = () => {
+    if (!onDepositToKnowledge) return;
+    const item: KnowledgeItem = {
+      id: `kb-${article.id}`,
+      articleId: article.id,
+      title: article.title,
+      category: article.category || '综合战略',
+      tags: Array.isArray(article.tags) && article.tags.length > 0 ? article.tags : ['深度研判'],
+      sourceName: article.sourceName,
+      publishedAt: article.publishedAt,
+      oneSentenceVerdict: article.oneSentenceVerdict || article.summary || article.subtitle || article.title,
+      keyTakeaways: [
+        ...(article.dehydratedItems?.coreShifts || []),
+        ...(article.dehydratedItems?.impactHighlights || []),
+        ...(article.evidenceChain?.slice(0, 3).map((e) => e.claim) || []),
+        article.sevenElements ? `【事实锚点】${article.sevenElements.what}` : '',
+      ].filter(Boolean),
+      coreMechanisms: article.coreLogic?.points?.join('；') || article.coreLogic?.essence || '',
+      decisionImplication: Array.isArray(article.personaImpacts) && article.personaImpacts.length > 0
+        ? article.personaImpacts[0]?.recommendedAction
+        : '',
+      personalNote: `沉淀自《${article.title}》(${article.sourceName || '见微'})`,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+
+    onDepositToKnowledge(item);
+    setDeposited(true);
+  };
+
+
+
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
 
@@ -322,7 +368,24 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-amber-500' : ''}`} />
           </button>
 
+          {/* 沉淀到知识库按钮 */}
+          {onDepositToKnowledge && (
+            <button
+              onClick={handleDeposit}
+              className={`px-3 py-2 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-all shadow-2xs border ${
+                deposited
+                  ? 'bg-emerald-50 border-emerald-400 text-emerald-800'
+                  : 'bg-white hover:bg-amber-50 border-stone-300 hover:border-amber-400 text-stone-800'
+              }`}
+              title="将关键事实、推演因果链与决策启示一键沉淀到个人战略知识库"
+            >
+              <BookOpen className={`w-3.5 h-3.5 ${deposited ? 'text-emerald-600' : 'text-amber-600'}`} />
+              <span>{deposited ? '已沉淀至知识库' : '沉淀到知识库'}</span>
+            </button>
+          )}
+
           {onOpenShareCard && (
+
             <button
               onClick={() => onOpenShareCard(article)}
               className="px-3 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors shadow-2xs"
@@ -333,23 +396,147 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             </button>
           )}
 
+          {/* 导出情报简报按钮 (PDF / Markdown / 长图) */}
           <button
-            onClick={() => setShowPrintCard(!showPrintCard)}
-            className="px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg text-xs font-medium text-stone-800 flex items-center space-x-1.5 transition-colors"
+            onClick={() => setShowExportModal(true)}
+            className="px-3.5 py-2 bg-[#E3120B] hover:bg-red-700 text-white rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
+            title="导出包含前因后果、AI深度解读与时间轴演变的决策简报"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">生成简报卡片</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>导出情报简报</span>
           </button>
 
           <button
             onClick={handleCopyQuote}
-            className="px-3 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg flex items-center space-x-1.5 transition-all shadow-xs"
+            className="px-3 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-serif font-bold rounded-lg flex items-center space-x-1.5 transition-all shadow-xs"
           >
             {copiedQuote ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
             <span>{copiedQuote ? '已复制金句' : '分享金句'}</span>
           </button>
         </div>
       </div>
+
+      {/* 导出情报简报 Modal 对话框 */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white border-2 border-stone-800 rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 font-sans">
+            <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+              <div className="flex items-center space-x-2">
+                <span className="p-1.5 rounded-lg bg-[#E3120B] text-white">
+                  <Download className="w-4 h-4" />
+                </span>
+                <h3 className="text-base sm:text-lg font-serif font-bold text-stone-950">
+                  导出结构化战略情报简报
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-stone-400 hover:text-stone-700 text-sm font-mono cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-600 font-sans leading-relaxed">
+              将当前事件的<strong>前因溯源、核心事实突破、潜在未来触发点、因果逻辑树、多空分歧及角色行动建议</strong>一键整理为标准格式文档，方便您进行线下晨会决策与企业知识库归档。
+            </p>
+
+            {/* Export Options Grid */}
+            <div className="space-y-3">
+              {/* Option 1: Markdown */}
+              <div
+                onClick={() => {
+                  downloadMarkdownBriefing(article);
+                  setShowExportModal(false);
+                }}
+                className="p-4 border-2 border-stone-200 hover:border-stone-900 hover:bg-[#FAF8F5] rounded-xl transition-all cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-start space-x-3">
+                  <span className="p-2 rounded-lg bg-stone-100 text-stone-800 group-hover:bg-stone-900 group-hover:text-white transition-colors">
+                    <FileImage className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <div className="font-serif font-bold text-sm text-stone-950 flex items-center gap-1.5">
+                      <span>导出 Markdown 简报 (.md)</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-100 text-stone-600">
+                        结构化归档
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      原生支持导入 Notion、Obsidian、飞书文档、语雀等企业知识库
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-900 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+              </div>
+
+              {/* Option 2: PDF / Print */}
+              <div
+                onClick={() => {
+                  exportBriefingAsPdf(article);
+                  setShowExportModal(false);
+                }}
+                className="p-4 border-2 border-stone-200 hover:border-[#E3120B] hover:bg-red-50/20 rounded-xl transition-all cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-start space-x-3">
+                  <span className="p-2 rounded-lg bg-red-50 text-[#E3120B] group-hover:bg-[#E3120B] group-hover:text-white transition-colors">
+                    <Printer className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <div className="font-serif font-bold text-sm text-stone-950 flex items-center gap-1.5">
+                      <span>导出 / 打印高保真 PDF 简报 (.pdf)</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-red-100 text-red-800 font-bold">
+                        A4 高管排版
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      标准 A4 报纸版心，带见微认证水印，适合高管晨会汇报与线下传阅
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-[#E3120B] group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+              </div>
+
+              {/* Option 3: PNG Long Image */}
+              <div
+                onClick={() => {
+                  downloadBriefingPng(article);
+                  setShowExportModal(false);
+                }}
+                className="p-4 border-2 border-stone-200 hover:border-amber-600 hover:bg-amber-50/20 rounded-xl transition-all cursor-pointer flex items-center justify-between group"
+              >
+                <div className="flex items-start space-x-3">
+                  <span className="p-2 rounded-lg bg-amber-50 text-amber-700 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                    <Sparkles className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <div className="font-serif font-bold text-sm text-stone-950 flex items-center gap-1.5">
+                      <span>生成长图简报卡片 (PNG)</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                        移动端分享
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      即时渲染为高清图片，适合微信群、钉钉或社交媒体即时交流
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-serif font-bold transition-colors cursor-pointer"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* 七要素简报卡 · 可下载（打印/另存 PDF） */}
       {showPrintCard && (
@@ -519,7 +706,11 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         </h1>
 
         <p className="text-base sm:text-lg font-serif text-stone-700 leading-relaxed max-w-3xl break-words">
-          {article.subtitle}
+          <KeyTermHighlight
+            text={article.subtitle}
+            entities={(article.entityMentions || []).map((e) => e.name)}
+            onOpenTermExplain={onOpenTermExplain}
+          />
         </p>
 
         {/* High Contrast Verdict Box */}
@@ -534,11 +725,17 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                 : '原文摘要 · 尚未生成 AI 解读'}
             </span>
           </div>
-          <p className={`text-base sm:text-xl font-serif font-black text-stone-950 leading-snug break-words ${
+          <div className={`text-base sm:text-xl font-serif font-black text-stone-950 leading-snug break-words ${
             !summaryExpanded ? 'line-clamp-4' : ''
           }`}>
-            “{article.oneSentenceVerdict || article.summary}”
-          </p>
+            “<KeyTermHighlight
+              text={article.oneSentenceVerdict || article.summary || ''}
+              entities={(article.entityMentions || []).map((e) => e.name)}
+              onOpenTermExplain={onOpenTermExplain}
+            />”
+          </div>
+
+
           {!article.oneSentenceVerdict && String(article.summary || '').length > 180 && (
             <button
               type="button"
@@ -548,7 +745,30 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               {summaryExpanded ? '收起摘要' : '展开全文摘要'}
             </button>
           )}
+
+          {/* 核心研判区一键沉淀操作条 */}
+          {onDepositToKnowledge && (
+            <div className="mt-4 pt-3 border-t border-stone-200/80 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center space-x-2 text-xs font-serif text-stone-600">
+                <BookOpen className="w-3.5 h-3.5 text-amber-600" />
+                <span>沉淀当前深度解读、事实锚点与因果图谱至决策库</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleDeposit}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-all shadow-2xs cursor-pointer ${
+                  deposited
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-stone-900 hover:bg-[#E3120B] text-white'
+                }`}
+              >
+                <Check className={`w-3.5 h-3.5 ${deposited ? 'opacity-100' : 'hidden'}`} />
+                <span>{deposited ? '已存入个人战略知识库' : '沉淀到知识库'}</span>
+              </button>
+            </div>
+          )}
         </div>
+
 
         {latestAiMeta && (
           <details className="text-[10px] text-stone-400">
@@ -587,7 +807,18 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         </div>
       )}
 
+      {/* 📰 深度报道事实正文 · 语义解析层 (Article Body & Semantic Parser Layer) */}
+      <ArticleBodyParserSection
+        article={article}
+        onOpenTermExplain={onOpenTermExplain}
+      />
+
+      {/* 事件全生命周期演变脉络 (垂直时序因果轴：前因 ➔ 当前 ➔ 未来) */}
+      <EventEvolutionTimeline article={article} />
+
+
       {/* 4-Stage Cognitive Path Navigation Tabs */}
+
       <div className="sticky top-28 lg:top-16 z-30 bg-[#FAF8F5]/95 backdrop-blur-md pt-2 border-b-2 border-stone-900">
         <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar pb-2">
           {tabsList.map((tab) => {
@@ -636,8 +867,10 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             onRunSkill={onRunSkill}
             contextArticles={contextArticles}
             onOpenArticle={onOpenArticle}
+            onOpenTermExplain={onOpenTermExplain}
           />
         )}
+
 
         {/* 第二篇：底层逻辑与多方博弈 */}
         {activeTab === 'logic_tree' && (
