@@ -602,14 +602,58 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
             <span>中立平衡 (50%)</span>
             <span>极高把握 (80%~95%)</span>
           </div>
+
+          {/* AI 历史先验概率校准与偏误提醒 (Prior Calibration & Bias Warning) */}
+          <div className={`p-3 rounded-lg border text-xs leading-relaxed space-y-1 transition-all ${
+            userConfidence >= 80
+              ? 'bg-amber-50 border-amber-300 text-amber-950'
+              : userConfidence <= 35
+              ? 'bg-sky-50 border-sky-300 text-sky-950'
+              : 'bg-stone-100 border-stone-300 text-stone-800'
+          }`}>
+            <div className="flex items-center justify-between font-serif font-bold text-[11px]">
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />
+                <span>AI 先验校准提示 (Prior Calibration Assist)：</span>
+              </span>
+              <span className="font-mono text-[10px] text-stone-500">Superforecasting 理论锚点</span>
+            </div>
+            {userConfidence >= 80 ? (
+              <p className="text-amber-900 font-sans">
+                <strong>⚠️ 高置信过度警示 (Overconfidence Warning)：</strong>统计显示，在前瞻宏观/行业推演中，实际兑现概率很少超过 75%。过高估计容易导致避险不足。建议仔细核对右侧『自设可证伪关键触发线』。
+              </p>
+            ) : userConfidence <= 35 ? (
+              <p className="text-sky-900 font-sans">
+                <strong>🔻 低发生预估 (Contrarian View)：</strong>代表您判断该正面预期落空的风险极高，属于偏悲观防守视角。
+              </p>
+            ) : (
+              <p className="text-stone-700 font-sans">
+                <strong>⚖️ 中立无偏视角 (Balanced Prior)：</strong>主观概率位于 40%~75% 经验区间，符合严谨无偏先验，适合在步骤 2 对扣 AI 引擎差异。
+              </p>
+            )}
+          </div>
         </div>
 
         {/* User Core Premises & Falsifiable Line */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-xs font-serif font-bold text-stone-800">
-              支撑您判断的核心前提 (Premises)：
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-serif font-bold text-stone-800">
+                支撑您判断的核心前提 (Premises)：
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserPremise1(`核心驱动：${article.logicTree?.rootCause || article.title.slice(0, 22)}`);
+                  setUserPremise2('支撑条件：相关产业链资金链稳定，宏观政策保持延续');
+                  setUserFalsifiable(`若在 ${targetVerificationDate} 前，官方数据或行业第三方报告出现逆向大幅修调，则承认预测失效。`);
+                }}
+                className="text-[11px] font-serif text-red-700 hover:text-red-900 flex items-center gap-1 cursor-pointer font-bold"
+              >
+                <Sparkles className="w-3 h-3 text-red-600" />
+                <span>✨ 一键智能提炼前提与证伪线</span>
+              </button>
+            </div>
             <input
               type="text"
               value={userPremise1}
@@ -838,8 +882,23 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
 
         {/* Visual Probability Comparison Bar */}
         <div className="bg-[#FAF8F5] p-5 rounded-xl border border-stone-300 space-y-4">
-          <div className="text-xs font-serif font-bold text-stone-900">
-            方向与主观概率对照（本地强度指数不与概率相减）：
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-serif font-bold text-stone-900">
+              方向与主观概率对照：
+            </div>
+            {gapData.comparable && gapData.delta !== null && (
+              <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold ${
+                userDirection !== aiPrediction.direction
+                  ? 'bg-red-100 text-red-700 border border-red-300'
+                  : gapData.delta > 0
+                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+              }`}>
+                {userDirection !== aiPrediction.direction
+                  ? '⚠️ 方向立场分歧 (Opposing Direction)'
+                  : `分歧差值 Δ = ${gapData.delta > 0 ? `+${gapData.delta}% (高估偏乐观)` : `${gapData.delta}% (审慎偏保守)`}`}
+              </span>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -848,7 +907,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-serif font-bold text-stone-900 flex items-center space-x-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#E3120B]" />
-                  <span>您的主观概率 (User)</span>
+                  <span>您的主观概率 (User Forecaster)</span>
                 </span>
                 <span className="font-mono font-bold text-[#E3120B] text-sm">
                   {userConfidence}%
@@ -885,9 +944,12 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
           </div>
 
           {/* Diagnosis verdict */}
-          <div className="p-3.5 bg-white rounded-lg border border-stone-200 text-xs text-stone-800 font-sans leading-relaxed">
-            <strong className="text-stone-950 font-serif">差距诊断与认知启示：</strong>
-            {gapData.diagnosis}
+          <div className="p-3.5 bg-white rounded-lg border border-stone-200 text-xs text-stone-800 font-sans leading-relaxed space-y-1">
+            <div className="font-serif font-bold text-stone-950 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />
+              <span>人机差距诊断与分歧归因 (Disagreement Attribution)：</span>
+            </div>
+            <p className="text-stone-700">{gapData.diagnosis}</p>
           </div>
         </div>
 

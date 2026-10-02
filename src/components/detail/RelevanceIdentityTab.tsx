@@ -3,7 +3,7 @@ import { PersonaImpact, PersonaForecastItem, UserPersona, UserPersonaId, NewsArt
 import { USER_PERSONAS } from '../../data/intelligenceData';
 import { localTrendModel, LOCAL_TREND_NOTE } from '../../utils/localTrendModel';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
-import { UserCheck, Sparkles, AlertTriangle, TrendingUp, CheckCircle, ArrowRight, Loader2, RefreshCw, Crosshair } from 'lucide-react';
+import { UserCheck, Sparkles, AlertTriangle, TrendingUp, CheckCircle, ArrowRight, Loader2, RefreshCw, Crosshair, ChevronDown, ChevronUp, Sliders } from 'lucide-react';
 
 /** 概率带配色：bull 高=机会兑现概率高（绿），bear 高=风险兑现概率高（红） */
 function bandCls(band: ProbabilityBand | string | undefined, tone: 'bull' | 'bear'): string {
@@ -87,6 +87,8 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
   const [selectedTabId, setSelectedTabId] = useState<UserPersonaId>(activePersona.id);
   const [forecastBusy, setForecastBusy] = useState(false);
   const [forecastErr, setForecastErr] = useState('');
+  const [showVariableBreakdown, setShowVariableBreakdown] = useState(false);
+  const [memoSynced, setMemoSynced] = useState(false);
 
   const currentImpact =
     personaImpacts.find((p) => p.personaId === selectedTabId) || personaImpacts[0];
@@ -107,6 +109,16 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
     } finally {
       setForecastBusy(false);
     }
+  };
+
+  const handleSyncMemo = () => {
+    if (!currentImpact) return;
+    const currentMemo = localStorage.getItem('action-memo') || '';
+    const personaName = USER_PERSONAS.find((p) => p.id === currentImpact.personaId)?.name || '';
+    const newEntry = `\n\n【${article.title}】(${personaName}专属行动)：\n• ${currentImpact.recommendedAction}`;
+    localStorage.setItem('action-memo', currentMemo + newEntry);
+    setMemoSynced(true);
+    setTimeout(() => setMemoSynced(false), 3000);
   };
 
   return (
@@ -206,6 +218,70 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
               <p className="text-[10px] text-stone-400 leading-relaxed">
                 {LOCAL_TREND_NOTE}（中性路径不在上图内）
               </p>
+
+              {/* 查看多空胶着的核心驱动变量 */}
+              <div className="pt-1 border-t border-stone-200">
+                <button
+                  type="button"
+                  onClick={() => setShowVariableBreakdown(!showVariableBreakdown)}
+                  className="text-[11px] font-serif font-bold text-stone-700 hover:text-stone-950 flex items-center gap-1 cursor-pointer"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-[#E3120B]" />
+                  <span>{showVariableBreakdown ? '收起驱动变量胶着细节' : '🔍 查看多空胶着的核心驱动变量分拆'}</span>
+                  {showVariableBreakdown ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showVariableBreakdown && (
+                  <div className="mt-2.5 p-3 bg-white rounded-lg border border-stone-200 space-y-2 text-xs">
+                    <div className="font-serif font-bold text-stone-900 border-b border-stone-200 pb-1.5 flex items-center justify-between">
+                      <span>驱动变量博弈分拆 (Variable Tug-of-War)</span>
+                      <span className="text-[10px] font-mono text-stone-500">总权重计：{localTrend.totalWeight}%</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {/* 利好动能 */}
+                      <div className="p-2.5 bg-emerald-50/80 rounded-lg border border-emerald-200 space-y-1">
+                        <div className="font-serif font-bold text-emerald-900 text-[11px] flex items-center justify-between">
+                          <span>🟢 利好驱动变量 (Up Sum: {localTrend.upSum}%)</span>
+                        </div>
+                        <ul className="text-[11px] text-emerald-950 space-y-1 font-sans">
+                          {(article.logicTree?.variableWeights || [])
+                            .filter((w) => w.impactDirection === 'up')
+                            .map((w, idx) => (
+                              <li key={idx} className="flex items-start gap-1">
+                                <span className="font-mono font-bold shrink-0">[{w.weight}%]</span>
+                                <span>{w.name} - <span className="opacity-80">{w.description || '正面驱动'}</span></span>
+                              </li>
+                            ))}
+                          {(article.logicTree?.variableWeights || []).filter((w) => w.impactDirection === 'up').length === 0 && (
+                            <li className="text-stone-400 italic">暂无明确利好变量</li>
+                          )}
+                        </ul>
+                      </div>
+
+                      {/* 利空拖累 */}
+                      <div className="p-2.5 bg-red-50/80 rounded-lg border border-red-200 space-y-1">
+                        <div className="font-serif font-bold text-red-900 text-[11px] flex items-center justify-between">
+                          <span>🔴 利空驱动变量 (Down Sum: {localTrend.downSum}%)</span>
+                        </div>
+                        <ul className="text-[11px] text-red-950 space-y-1 font-sans">
+                          {(article.logicTree?.variableWeights || [])
+                            .filter((w) => w.impactDirection === 'down')
+                            .map((w, idx) => (
+                              <li key={idx} className="flex items-start gap-1">
+                                <span className="font-mono font-bold shrink-0">[{w.weight}%]</span>
+                                <span>{w.name} - <span className="opacity-80">{w.description || '反向拖累'}</span></span>
+                              </li>
+                            ))}
+                          {(article.logicTree?.variableWeights || []).filter((w) => w.impactDirection === 'down').length === 0 && (
+                            <li className="text-stone-400 italic">暂无明确利空变量</li>
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <p className="text-[11px] text-stone-500 leading-relaxed">
@@ -365,15 +441,17 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  const currentMemo = localStorage.getItem('action-memo') || '';
-                  const newEntry = `\n\n【${article.title}】(${USER_PERSONAS.find((p) => p.id === currentImpact.personaId)?.name}专属行动)：\n• ${currentImpact.recommendedAction}`;
-                  localStorage.setItem('action-memo', currentMemo + newEntry);
-                  alert('✓ 已成功将行动建议同步至「我的行动备忘录」！可在“我的关注”中查看。');
-                }}
-                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-serif font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                onClick={handleSyncMemo}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-serif font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
               >
-                <span>📝 一键同步至「我的行动备忘录」</span>
+                {memoSynced ? (
+                  <span className="text-stone-950 flex items-center gap-1 font-sans font-bold">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-800" />
+                    <span>✓ 已成功同步至「我的行动备忘录」</span>
+                  </span>
+                ) : (
+                  <span>📝 一键同步至「我的行动备忘录」</span>
+                )}
               </button>
             </div>
 

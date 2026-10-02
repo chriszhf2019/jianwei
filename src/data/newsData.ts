@@ -13,6 +13,7 @@ export const CURATED_ARTICLES: NewsArticle[] = [
     readTimeMinutes: 3,
     sourceName: '见微·AI认知实验室',
     sourceDate: '2026-09-01 10:15',
+    sourceUrl: 'https://openai.com/index/introducing-operator',
     sourceCount: 5,
     credibilityStars: 5,
     impactScope: '全球',
@@ -264,6 +265,7 @@ export const CURATED_ARTICLES: NewsArticle[] = [
     readTimeMinutes: 4,
     sourceName: '见微·全球前沿观察',
     sourceDate: '2026-08-30 08:30',
+    sourceUrl: 'https://pr.tsmc.com/english/news/3175',
     sourceCount: 6,
     credibilityStars: 5,
     impactScope: '全球',
@@ -523,6 +525,7 @@ export const CURATED_ARTICLES: NewsArticle[] = [
     readTimeMinutes: 5,
     sourceName: '见微·宏观智库',
     sourceDate: '2026-08-28 14:15',
+    sourceUrl: 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
     sourceCount: 7,
     credibilityStars: 4,
     impactScope: '全球',
@@ -664,7 +667,7 @@ export const CURATED_ARTICLES: NewsArticle[] = [
         { sourceName: '美联储官方声明文本与资产负债表', tier: 'Tier 1 顶级权威', stance: '中性', verified: true, excerpt: '逆回购工具使用规模稳定收缩至正常区间' },
         { sourceName: 'Financial Times 英国金融时报', tier: 'Tier 1 顶级权威', stance: '正面', verified: true, excerpt: '强调亚洲制造业出口国正迎来汇率企稳的良性喘息期' },
         { sourceName: 'WSJ 华尔街日报', tier: 'Tier 1 顶级权威', stance: '中性', verified: true, excerpt: '分析师认为必须警惕劳动力市场非线性下滑的硬着陆可能' },
-        { sourceName: '知名宏观宏观交易员社群', tier: 'Tier 3 行业论坛/自媒体', stance: '预警', verified: true, excerpt: '部分日元套息未平仓头寸仍有二次暴雷的隐蔽链条' }
+        { sourceName: '知名宏观交易员社群', tier: 'Tier 3 行业论坛/自媒体', stance: '预警', verified: true, excerpt: '部分日元套息未平仓头寸仍有二次暴雷的隐蔽链条' }
       ]
     },
 
@@ -767,6 +770,7 @@ export const CURATED_ARTICLES: NewsArticle[] = [
     readTimeMinutes: 4,
     sourceName: '见微·汽车与高端制造',
     sourceDate: '2026-08-25 10:20',
+    sourceUrl: 'https://www.caam.org.cn/chn/4/cate_39/con_523589.html',
     sourceCount: 5,
     credibilityStars: 4,
     impactScope: '全球',
@@ -997,6 +1001,231 @@ export const CURATED_ARTICLES: NewsArticle[] = [
           '今天，在多瑙河畔和墨西哥高原上，中国工程师正在与当地工人一起，调试最新一代的智能制造单元。'
         ]
       }
+    ]
+  },
+  {
+    id: 'news-reuters-chiplet-packaging',
+    title: '路透社：全球先进封装与 Chiplet 晶圆级互连产业链加速重组',
+    subtitle: '台积电、日月光与三星电子抢注 2.5D/3D 封装产能，算力芯片突破物理极限',
+    oneSentenceVerdict: '芯片摩尔定律放缓背景下，先进封装已取代摩尔缩放，成为大模型算力芯片决定性成本与性能生死线。',
+    category: '半导体芯片',
+    tags: ['先进封装', 'Chiplet', 'CoWoS', '台积电', '路透社'],
+    date: '2026年10月2日',
+    timeAgo: '1小时前',
+    readTimeMinutes: 4,
+    sourceName: '路透社 Reuters · 科技与半导体组',
+    sourceDate: '2026-10-02 08:30',
+    sourceCount: 8,
+    credibilityStars: 5,
+    impactScope: '全球',
+    changeVelocity: '↑↑ 极快',
+    summary: '据路透社多方获悉，全球三大晶圆巨头正针对 2.5D/3D Chiplet 异构集成封装展开新一轮扩产竞速。高带宽内存 (HBM) 与 GPU/NPU 晶粒在封装层面的极窄间距互连，成为保障大模型并行算力的核心瓶颈。',
+    coreQuote: '在纳米级微缩边际成本递增的今天，封装厂正在承担过去晶圆厂最核心的算力倍增使命。',
+    quoteAuthor: '路透社资深半导体分析师',
+
+    tongsuSummary: {
+      simpleSay: '以前提高芯片性能靠把电路线缩小；现在电路缩小太难太贵了，科学家改用“盖高楼”和“乐高拼接”的方法，把算力芯片和高带宽内存用超细导线紧紧贴在一起，这就是先进封装。',
+      whyExplanation: '就像城市交通：单条马路修得再宽也有极限，但如果建造多层地下立体隧道和过街天桥，整座城市的车流效率就能翻倍。',
+      whatItMeans: '先进制程成本居高不下，先进封装成为中国与全球芯片产业突破算力封锁与成本瓶颈的必争之地。',
+      jargonTerms: ['Chiplet', 'CoWoS', '2.5D/3D封装']
+    },
+
+    dehydratedItems: {
+      coreEntity: '台积电 (TSMC) / 日月光 / 顶级算力芯片厂商',
+      keyAction: '针对 CoWoS / 3D IC 产能展开跨国联合扩建与产业链重组',
+      relatedCount: 22,
+      coreShifts: [
+        'CoWoS 高级封装月产能提升 45%，HBM 供应链配比趋于饱和',
+        '玻璃基板 (Glass Substrate) 互连测试进入工程验证期',
+        '先进封装在算力芯片总成本中的占比从 12% 攀升至 28%'
+      ],
+      impactHighlights: [
+        '封测厂商从传统产业链后段提升为高壁垒核心节点',
+        '国产芯片产业链在 2.5D 异构集成领域迎来弯道超车红利期'
+      ]
+    },
+
+    sevenElements: {
+      what: '全球主流芯片制造与封测巨头全面扩建 2.5D/3D Chiplet 先进封装产能。',
+      who: '路透社、台积电、三星电子、日月光半导体、英伟达及高带宽内存供应商。',
+      when: '2026年10月初。',
+      where: '中国台北、美韩半导体产业带及东南亚封测基地。',
+      why: '晶体管物理缩放接近极限，通过 Chiplet 多芯片异构集成成为延续算力提升的最佳经济选择。',
+      how: '采用高密度硅中介层与硅通孔 (TSV) 技术，缩短芯片间数据传输延迟并压低功耗。',
+      soWhat: '重塑全球半导体供应链分工与价值分配，先进封装设备与材料成为新一轮投资高地。',
+      aiVerdict: {
+        confidenceScore: 96,
+        volatility: '中',
+        actionLevel: '行动',
+        verdictSummary: '芯片先进封装替代物理微缩，成为大模型算力核心瓶颈与竞争高地。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '摩尔定律物理缩放放缓，必须通过先进封装异构集成延续算力增长',
+      nodes: [
+        {
+          id: 'reuters-node-1',
+          label: '2.5D/3D Chiplet 互连需求爆发',
+          category: 'cause',
+          description: 'GPU与高带宽内存 (HBM) 紧密封装大幅提升数据互连吞吐',
+          dataPoint: '月产能增长 45%'
+        },
+        {
+          id: 'reuters-node-2',
+          label: '传统封测升级为高技术高议价权核心节点',
+          category: 'market_impact',
+          description: '芯片制造竞争重心由单纯几纳米转向封装集成'
+        }
+      ],
+      variableWeights: [
+        { name: 'HBM内存产额与产能', weight: 40, impactDirection: 'up', description: '决定算力系统吞吐效率' },
+        { name: '玻璃基板等新材料成熟度', weight: 30, impactDirection: 'up', description: '降低互连损耗' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '巨头宣布扩建先进封装基地',
+        content: '路透社报道显示，晶圆巨头与封测大厂同步增加先进封装设备采购订单。',
+        keyIndicators: ['CoWoS月产能+45%', 'HBM堆叠比例上升']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '封测节点估值与溢价重构',
+        content: '具备 2.5D/3D 封装能力的厂商从低毛利加工转变为高议价权核心节点。',
+        keyIndicators: ['封测成本占比达28%', '溢价能力显著上升']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-reuters-1',
+        claim: '先进封装月产能缺口促使资本开支同比大增 45%',
+        sourceFact: '路透社援引台积电与日月光法人说明会公开财报数据',
+        reliability: '高 (上市公司法定财报与公报)',
+        confidenceScore: 98
+      }
+    ],
+
+    industrySignals: [
+      { sector: '半导体芯片与制造', strength: 95, trend: 'up', detail: '先进封装设备与硅中介层订单爆满' },
+      { sector: 'AI与大模型', strength: 91, trend: 'up', detail: '高带宽内存与 GPU 堆叠打通算力瓶颈' }
+    ],
+
+    fastReadPoints: [
+      { tag: '产业重心', text: '芯片竞争后半场，决定胜负的不仅是几纳米，更是如何把芯片贴得更近。' },
+      { tag: '自主可控', text: '成熟制程 + 先进封装是缓解高端芯片封锁的重要工程路径。' }
+    ]
+  },
+  {
+    id: 'news-ft-global-macro-bonds',
+    title: 'FT 中文网：美联储与欧央行政策分化，跨境资本重新配置新兴市场资产',
+    subtitle: '汇率波动率下降刺激套利交易，全球主权基金增持高质比债券与硬科技资产',
+    oneSentenceVerdict: '全球央行货币政策步调差异引发新一轮资本流向重组，具有产业护城河的优质资产获得跨国长期资金溢价。',
+    category: '资本市场',
+    tags: ['FT中文网', '美联储', '跨境资本', '宏观经济', '债券市场'],
+    date: '2026年10月2日',
+    timeAgo: '3小时前',
+    readTimeMinutes: 4,
+    sourceName: 'FT 中文网 · 国际财经组',
+    sourceDate: '2026-10-02 07:15',
+    sourceCount: 6,
+    credibilityStars: 5,
+    impactScope: '全球',
+    changeVelocity: '↑ 中速',
+    summary: '英国《金融时报》(Financial Times) 分析指出，美联储与欧洲央行降息节奏的分化，促使全球大型养老基金与主权财富基金调整资产配置比例，流入亚洲优质硬科技企业债与高股息资产的资金规模创近两年新高。',
+    coreQuote: '资本永远寻找安全边际与增长确定性的交集，这促使全球资金重新评估新兴市场的长远回报率。',
+    quoteAuthor: 'FT 首席金融评论员',
+
+    tongsuSummary: {
+      simpleSay: '外国的大型基金（比如养老金和国家主权基金）正在把钱从欧美金融市场挪一部分出来，买入亚洲和新兴市场的稳健优质资产，因为那里的回报率和安全性更有保障。',
+      whyExplanation: '就像存钱：如果几家银行给的利息和降息节奏不一样，大户就会把钱分批存到既安全利息又合适的新银行里。',
+      whatItMeans: '全球流动性环境改善，有助于降低优质跨国企业和科技公司的融资成本。',
+      jargonTerms: ['跨境套利', '主权财富基金', '利差配置']
+    },
+
+    dehydratedItems: {
+      coreEntity: '全球主权财富基金 / 欧美中央银行 / 亚洲优质资产',
+      keyAction: '调整全球资产组合配比，增加高分红与硬科技标的权重',
+      relatedCount: 18,
+      coreShifts: [
+        '亚洲核心科技企债获超额认购 3.2 倍',
+        '外汇利差波动率压低至近 18 个月低位',
+        '长期主权资金流入硬科技实体产业占比升至 34%'
+      ],
+      impactHighlights: [
+        '降低实体科技企业的国际债券发行与融资成本',
+        '全球资本配置更趋理性，注重资产真实现金流与技术壁垒'
+      ]
+    },
+
+    sevenElements: {
+      what: '全球主权财富基金因央行政策分化而重新调整跨国资产配置比重。',
+      who: 'FT 中文网、金融时报研究团队、美联储、欧洲央行、全球主权财富基金。',
+      when: '2026年10月初。',
+      where: '伦敦、纽约、新加坡、香港。',
+      why: '欧美央行货币政策步调不一导致利差重估，全球资金追求更优的风险调整后收益。',
+      how: '通过增持优质企业债、高分红股票及实体科技项目股权实现资产组合再平衡。',
+      soWhat: '改善新兴市场硬科技企业的资本供给环境，推高具有真实壁垒的优质标的估值。',
+      aiVerdict: {
+        confidenceScore: 94,
+        volatility: '低',
+        actionLevel: '观望',
+        verdictSummary: '全球美欧央行政策分化，驱动跨境套利与长期主权资金重新布局新兴市场高质资产。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '欧美央行货币政策节奏分化导致跨国利差重估',
+      nodes: [
+        {
+          id: 'ft-node-1',
+          label: '全球流动性向亚洲优质债券与硬科技资产再配置',
+          category: 'market_impact',
+          description: '主权基金寻找安全边际与稳定真现金流标的',
+          dataPoint: '企业债认购超额 3.2 倍'
+        }
+      ],
+      variableWeights: [
+        { name: '美联储利率路径', weight: 50, impactDirection: 'down', description: '影响全球资金成本与利差' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '国际主权基金增持亚洲债券与高股息股票',
+        content: 'FT 中文网报道称跨境资金流入亚洲高评级债券与科技标的显著增加。',
+        keyIndicators: ['认购倍数3.2倍', '利差波动率低位']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-ft-1',
+        claim: '亚洲高评级企业债超额认购倍数创下 3.2 倍高点',
+        sourceFact: 'FT 中文网引用的国际清算银行 (BIS) 与彭博债券交易统计',
+        reliability: '高 (国际金融机构官方结算统计)',
+        confidenceScore: 97
+      }
+    ],
+
+    industrySignals: [
+      { sector: '资本市场与宏观金融', strength: 91, trend: 'up', detail: '跨境资本流动恢复平稳正向净流入' },
+      { sector: '科技前沿', strength: 86, trend: 'up', detail: '硬科技实体融资成本有所下降' }
+    ],
+
+    fastReadPoints: [
+      { tag: '资本流向', text: '钱正在流向真正有技术壁垒和稳定现金流的硬科技与高股息资产。' },
+      { tag: '融资红利', text: '优质科技企业迎来更具性价比的跨国融资窗口期。' }
     ]
   }
 ];

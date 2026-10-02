@@ -66,7 +66,18 @@ function defaultSettings(): RuntimeSettings {
     feeds: (process.env.NEWS_FEED_URLS || "")
       .split(",")
       .map((u) => u.trim())
-      .filter(Boolean),
+      .filter(Boolean).length > 0
+      ? (process.env.NEWS_FEED_URLS || "").split(",").map((u) => u.trim()).filter(Boolean)
+      : [
+          "https://feed.36kr.com/feed",
+          "https://rss.cls.cn/rss/feed",
+          "https://www.thepaper.cn/rss/news",
+          "https://www.jiqizhixin.com/rss",
+          "https://www.eefocus.com/rss/news.xml",
+          "https://www.zaobao.com/rss/world",
+          "https://www.ftchinese.com/rss/feed",
+          "https://www.latepost.com/rss",
+        ],
     userName: "",
     sectorOverrides: {},
   };

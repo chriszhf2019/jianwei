@@ -69,21 +69,21 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center space-x-3 lg:space-x-6 min-w-0">
             <button
               onClick={() => onSelectTab('home')}
-              className="flex items-center space-x-3 group text-left"
+              className="flex items-center space-x-3 group text-left shrink-0"
             >
-              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-stone-950 rounded-lg flex items-center justify-center text-white border-2 border-stone-800 shadow-sm group-hover:bg-[#E3120B] transition-colors">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-stone-950 rounded-lg flex items-center justify-center text-white border-2 border-stone-800 shadow-xs group-hover:bg-[#E3120B] transition-colors shrink-0">
                 <span className="font-serif font-black text-xl tracking-tight">微</span>
               </div>
-              <div>
-                <div className="flex items-baseline space-x-1.5">
-                  <span className="text-2xl font-serif font-black tracking-tight text-stone-950">
+              <div className="shrink-0">
+                <div className="flex items-baseline space-x-1.5 whitespace-nowrap">
+                  <span className="text-xl sm:text-2xl font-serif font-black tracking-tight text-stone-950">
                     见微
                   </span>
-                  <span className="hidden sm:inline text-sm font-serif font-bold text-[#E3120B] tracking-wider">
+                  <span className="hidden sm:inline text-xs sm:text-sm font-serif font-bold text-[#E3120B] tracking-wider">
                     Genway
                   </span>
                 </div>
-                <p className="hidden sm:block text-[10px] text-stone-600 font-serif tracking-tight line-clamp-1">
+                <p className="hidden sm:block text-[10px] text-stone-600 font-serif tracking-tight whitespace-nowrap">
                   于细微处 · 读懂新闻背后
                 </p>
               </div>

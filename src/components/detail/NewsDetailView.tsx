@@ -903,7 +903,12 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   </div>
                   <span className="text-[11px] font-mono text-stone-500">AI 客观推演基准</span>
                 </div>
-                <RippleEffectTab rippleEffect={article.rippleEffect} />
+                <RippleEffectTab
+                  rippleEffect={article.rippleEffect}
+                  contextArticles={contextArticles}
+                  onOpenArticle={onOpenArticle}
+                  onOpenTermExplain={onOpenTermExplain}
+                />
               </div>
             ) : null}
 

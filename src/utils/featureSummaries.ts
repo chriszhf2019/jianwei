@@ -19,6 +19,7 @@ export type FeatureSummaryId =
   | 'frequent-pattern'
   | 'topics'
   | 'region-matrix'
+  | 'region-flow'
   | 'region-entities'
   | 'region-drill'
   | 'region-aggregate'
@@ -190,6 +191,13 @@ export const FEATURE_SUMMARIES: Record<FeatureSummaryId, FeatureSummarySpec> = {
     when: '需要定位某地区最集中的产业主题时。',
     output: '地区和行业交叉计数矩阵。',
     boundary: '计数代表当前语料覆盖，不代表现实产业规模。',
+  },
+  'region-flow': {
+    title: '跨区流动与阻尼',
+    purpose: '透视关键制造产能与核心物料如何在不同地理大区之间流动、重构与跨越关税地缘壁垒。',
+    when: '评估出海建厂、原产地规则穿透、供应链关税摩擦与跨国转运风险时。',
+    output: '主干供应链流动拓扑、源头/枢纽/交付三阶段拆解、底层避险机制与代表性承载实体。',
+    boundary: '基于产业战略与已公开关税规则建模，实际物流与交期受突发地缘政策动态影响。',
   },
   'region-entities': {
     title: '主体抽样',

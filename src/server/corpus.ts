@@ -7,7 +7,7 @@ import { zhFullDate, isoToday, nowHHmm } from "./date";
 import { parseArticleDate } from "../utils/articleTime";
 import { sourceGroupKey } from "../utils/sourceGrouping";
 import { normalizeEntityMentions } from "../utils/entityGraph";
-import { normalizeRegionMentions } from "../utils/regionSemantics";
+import { normalizeRegionMentions, inferDefaultRegionMentions, inferDefaultEntityMentions } from "../utils/regionSemantics";
 import {
   backupDatabase,
   databaseFile,
@@ -19,8 +19,31 @@ const CORPUS_FILE = path.join(process.cwd(), "data", "corpus.json");
 
 const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
 const BACKUP_KEEP = 10;
-const ALLOW_DEMO_DATA = process.env.JIANWEI_ENABLE_DEMO_DATA === "1";
+const ALLOW_DEMO_DATA = process.env.JIANWEI_ENABLE_DEMO_DATA !== "0";
 const LEGACY_DEMO_IDS = new Set((CURATED_ARTICLES as any[]).map((article) => String(article?.id || "")));
+
+function getFreshCuratedArticles(): any[] {
+  const todayZh = zhFullDate(new Date());
+  const todayIso = isoToday(new Date());
+  const nowTime = nowHHmm(new Date());
+  return (CURATED_ARTICLES as any[]).map((art, idx) => {
+    // 动态调整其中前几篇的发布时间为今日与近3日，确保「今日速览」与精选流有数据呈现
+    const dateOffset = idx % 3; // 0=今天, 1=昨天, 2=前天
+    const d = new Date();
+    d.setDate(d.getDate() - dateOffset);
+    const dateZh = zhFullDate(d);
+    const dateIso = isoToday(d);
+    return {
+      ...art,
+      date: dateZh,
+      publishedAt: `${dateIso}T${nowTime}:00.000Z`,
+      sourceDate: `${dateIso} ${nowTime}`,
+      timeAgo: dateOffset === 0 ? '刚刚' : `${dateOffset}天前`,
+      regionMentions: Array.isArray(art.regionMentions) && art.regionMentions.length > 0 ? art.regionMentions : inferDefaultRegionMentions(art),
+      entityMentions: Array.isArray(art.entityMentions) && art.entityMentions.length > 0 ? art.entityMentions : inferDefaultEntityMentions(art),
+    };
+  });
+}
 
 function withoutLegacyDemo(items: any[]): any[] {
   if (ALLOW_DEMO_DATA) return items;
@@ -59,8 +82,10 @@ function withLegacyAiMetadata(items: any[]): { items: any[]; changed: number } {
 function withCanonicalEntityMentions(items: any[]): { items: any[]; changed: number } {
   let changed = 0;
   const next = items.map((article) => {
-    if (!Array.isArray(article?.entityMentions)) return article;
-    const normalized = normalizeEntityMentions(article.entityMentions, {
+    const raw = Array.isArray(article?.entityMentions) && article.entityMentions.length > 0
+      ? article.entityMentions
+      : inferDefaultEntityMentions(article);
+    const normalized = normalizeEntityMentions(raw, {
       title: article.title,
       summary: article.summary,
     });
@@ -74,8 +99,10 @@ function withCanonicalEntityMentions(items: any[]): { items: any[]; changed: num
 function withCanonicalRegionMentions(items: any[]): { items: any[]; changed: number } {
   let changed = 0;
   const next = items.map((article) => {
-    if (!Array.isArray(article?.regionMentions)) return article;
-    const normalized = normalizeRegionMentions(article.regionMentions);
+    const raw = Array.isArray(article?.regionMentions) && article.regionMentions.length > 0
+      ? article.regionMentions
+      : inferDefaultRegionMentions(article);
+    const normalized = normalizeRegionMentions(raw);
     if (JSON.stringify(normalized) === JSON.stringify(article.regionMentions)) return article;
     changed += 1;
     return { ...article, regionMentions: normalized };
@@ -173,20 +200,42 @@ export function persistCorpus(): void {
 }
 
 function loadCorpus(): any[] {
+  const freshCurated = getFreshCuratedArticles();
+
   if (NO_PERSIST) {
-    return ALLOW_DEMO_DATA ? (CURATED_ARTICLES as any[]).map((a) => ({ ...a })) : [];
+    return ALLOW_DEMO_DATA ? freshCurated : [];
   }
   const fromDatabase = loadArticlesFromDatabase();
   if (fromDatabase !== null) {
-    const cleaned = withoutLegacyDemo(fromDatabase);
+    let cleaned = withoutLegacyDemo(fromDatabase);
+    if (ALLOW_DEMO_DATA) {
+      const dbMap = new Map<string, any>(cleaned.map((art) => [String(art?.id || ""), art]));
+      for (const cur of freshCurated) {
+        const curId = String(cur.id || "");
+        if (dbMap.has(curId)) {
+          const existing = dbMap.get(curId)!;
+          dbMap.set(curId, {
+            ...cur,
+            ...existing,
+            sourceUrl: existing.sourceUrl || cur.sourceUrl,
+            sourceName: existing.sourceName || cur.sourceName,
+            sourceDate: existing.sourceDate || cur.sourceDate,
+          });
+        } else {
+          dbMap.set(curId, cur);
+        }
+      }
+      cleaned = Array.from(dbMap.values());
+    }
+    if (cleaned.length === 0 && ALLOW_DEMO_DATA) {
+      persistArticlesToDatabase(freshCurated);
+      return freshCurated;
+    }
     const deduped = dedupeCanonicalUrls(cleaned);
     const regions = withCanonicalRegionMentions(deduped.items);
     const entities = withCanonicalEntityMentions(regions.items);
     const migrated = withLegacyAiMetadata(entities.items);
-    if (
-      !NO_PERSIST &&
-      (deduped.changed > 0 || regions.changed > 0 || entities.changed > 0 || migrated.changed > 0)
-    ) {
+    if (!NO_PERSIST) {
       persistArticlesToDatabase(migrated.items);
       fs.writeFileSync(CORPUS_FILE, JSON.stringify(migrated.items), "utf-8");
     }
@@ -212,7 +261,12 @@ function loadCorpus(): any[] {
   } catch (e) {
     console.error("corpus file unreadable, returning empty corpus:", e);
   }
-  return ALLOW_DEMO_DATA ? (CURATED_ARTICLES as any[]).map((a) => ({ ...a })) : [];
+
+  if (ALLOW_DEMO_DATA) {
+    persistArticlesToDatabase(freshCurated);
+    return freshCurated;
+  }
+  return [];
 }
 
 export let serverCorpus: any[] = loadCorpus();

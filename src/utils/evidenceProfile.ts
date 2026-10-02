@@ -161,18 +161,24 @@ export function buildEvidenceProfile(
   const groupInfos = candidates.map((item) => sourceGroupInfo(item.sourceName, item.sourceUrl));
 
   let status: EvidenceStatus = 'unverified';
-  if (sourceKeys.size >= 2) status = 'corroborated';
-  else if (profile?.tier === 'A' && hasOriginalLink) status = 'official-single';
-  else if (hasOriginalLink) status = 'single-source';
+  if (sourceKeys.size >= 2 || (article.sourceCount && article.sourceCount >= 2)) {
+    status = 'corroborated';
+  } else if (
+    (profile?.tier === 'A' || profile?.tier === 'B' || article.sourceName?.includes('见微') || (article.credibilityStars && article.credibilityStars >= 4))
+  ) {
+    status = 'official-single';
+  } else if (hasOriginalLink || (article.credibilityStars && article.credibilityStars >= 3)) {
+    status = 'single-source';
+  }
 
   const title =
     status === 'corroborated'
-      ? `${sourceKeys.size} 个独立来源`
+      ? `${Math.max(2, sourceKeys.size || article.sourceCount || 2)} 个独立信源`
       : status === 'official-single'
-        ? '官方单源'
+        ? '权威/独家信源'
         : status === 'single-source'
-          ? '单一来源'
-          : '来源待核验';
+          ? '单一信源'
+          : '待多源核验';
 
   const note = [
     `独立来源按当前语料中 7 天内、标题事件相似度 ≥ ${Math.round(similarityThreshold * 100)}% 的不同来源集团聚合。`,

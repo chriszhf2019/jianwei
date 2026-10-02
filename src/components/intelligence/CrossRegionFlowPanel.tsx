@@ -151,7 +151,7 @@ export const CrossRegionFlowPanel: React.FC<CrossRegionFlowPanelProps> = ({
 
               <div className="text-[11px] font-mono text-stone-400 border-t border-stone-200/40 pt-1.5 flex items-center justify-between">
                 <span>关税摩擦: {route.tariffFriction}%</span>
-                <span>交期: {route.leadTime.split(' ')[0]}</span>
+                <span>交期: {route.leadTime.split('(')[0].trim()}</span>
               </div>
             </div>
           );
@@ -160,7 +160,7 @@ export const CrossRegionFlowPanel: React.FC<CrossRegionFlowPanelProps> = ({
 
       {/* 选中主干流动链路的全景可视化图 (Visual Flow Diagram) */}
       <div className="bg-[#FAF8F5] border-2 border-stone-900 rounded-2xl p-6 space-y-6">
-        <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-3">
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse" />
             <h4 className="text-sm sm:text-base font-serif font-black text-stone-950">
@@ -173,39 +173,77 @@ export const CrossRegionFlowPanel: React.FC<CrossRegionFlowPanelProps> = ({
           </span>
         </div>
 
-        {/* 3 阶地理传导卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+        {/* 3 阶地理传导卡片与阻尼流连接器 (Flow Topology) */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-center">
           {/* Step 1: 源头供给 */}
-          <div className="p-4 bg-white rounded-xl border-2 border-stone-300 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span className="font-mono text-[10px] bg-stone-100 px-1.5 py-0.5 rounded font-bold">阶段 01 · 源头</span>
-              <Factory className="w-4 h-4 text-blue-600" />
+          <div className="lg:col-span-1 p-4 bg-white rounded-xl border-2 border-stone-300 shadow-2xs space-y-2 h-full flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-stone-500">
+                <span className="font-mono text-[10px] bg-stone-100 px-1.5 py-0.5 rounded font-bold">阶段 01 · 源头</span>
+                <Factory className="w-4 h-4 text-blue-600" />
+              </div>
+              <h5 className="font-serif font-bold text-sm text-stone-950">{activeRoute.sourceRegion}</h5>
             </div>
-            <h5 className="font-serif font-bold text-sm text-stone-950">{activeRoute.sourceRegion}</h5>
             <p className="text-xs text-stone-600 leading-relaxed">
               核心原材料、电芯或母晶圆研发与一次成型制造基底。
             </p>
           </div>
 
-          {/* Step 2: 中转组装与加工 */}
-          <div className="p-4 bg-purple-50 rounded-xl border-2 border-purple-300 shadow-2xs space-y-2 relative">
-            <div className="flex items-center justify-between text-xs text-purple-900">
-              <span className="font-mono text-[10px] bg-purple-200 px-1.5 py-0.5 rounded font-bold">阶段 02 · 枢纽/组装</span>
-              <Building2 className="w-4 h-4 text-purple-700" />
+          {/* Flow Connector 1 -> 2 */}
+          <div className="lg:col-span-1 flex flex-col items-center justify-center py-2 px-1 text-center bg-white/60 rounded-xl border border-dashed border-stone-300 p-2">
+            <div className="w-full flex items-center justify-center gap-1 text-[#E3120B] font-mono text-[10px] font-bold mb-1">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>关税摩擦 {activeRoute.tariffFriction}%</span>
             </div>
-            <h5 className="font-serif font-bold text-sm text-purple-950">{activeRoute.transitRegion}</h5>
+            <div className="relative w-full flex items-center justify-center my-1">
+              <div className="h-0.5 w-full bg-purple-300 relative">
+                <div className="absolute inset-0 bg-purple-600 animate-pulse" />
+              </div>
+              <ArrowRight className="w-4 h-4 text-purple-700 shrink-0 -ml-1 z-10" />
+            </div>
+            <span className="text-[10px] text-stone-600 font-mono font-medium">
+              {activeRoute.leadTime.includes('(') ? activeRoute.leadTime.split('(')[1].replace(')', '') : activeRoute.leadTime}
+            </span>
+          </div>
+
+          {/* Step 2: 中转组装与加工 */}
+          <div className="lg:col-span-1 p-4 bg-purple-50 rounded-xl border-2 border-purple-300 shadow-2xs space-y-2 h-full flex flex-col justify-between relative">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-purple-900">
+                <span className="font-mono text-[10px] bg-purple-200 px-1.5 py-0.5 rounded font-bold">阶段 02 · 枢纽/组装</span>
+                <Building2 className="w-4 h-4 text-purple-700" />
+              </div>
+              <h5 className="font-serif font-bold text-sm text-purple-950">{activeRoute.transitRegion}</h5>
+            </div>
             <p className="text-xs text-purple-800 leading-relaxed">
               散件组装 (CKD)、二次测试封测与属地化供应链集成。
             </p>
           </div>
 
-          {/* Step 3: 终端消费与交付 */}
-          <div className="p-4 bg-white rounded-xl border-2 border-stone-300 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span className="font-mono text-[10px] bg-stone-100 px-1.5 py-0.5 rounded font-bold">阶段 03 · 终端交付</span>
-              <DollarSign className="w-4 h-4 text-emerald-600" />
+          {/* Flow Connector 2 -> 3 */}
+          <div className="lg:col-span-1 flex flex-col items-center justify-center py-2 px-1 text-center bg-white/60 rounded-xl border border-dashed border-stone-300 p-2">
+            <div className="w-full flex items-center justify-center gap-1 text-emerald-700 font-mono text-[10px] font-bold mb-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>关税规避 · 本地增值</span>
             </div>
-            <h5 className="font-serif font-bold text-sm text-stone-950">{activeRoute.destRegion}</h5>
+            <div className="relative w-full flex items-center justify-center my-1">
+              <div className="h-0.5 w-full bg-emerald-400 relative" />
+              <ArrowRight className="w-4 h-4 text-emerald-700 shrink-0 -ml-1 z-10" />
+            </div>
+            <span className="text-[10px] text-stone-600 font-mono font-medium">
+              门槛: {activeRoute.localContentReq.split('(')[0].trim()}
+            </span>
+          </div>
+
+          {/* Step 3: 终端消费与交付 */}
+          <div className="lg:col-span-1 p-4 bg-white rounded-xl border-2 border-stone-300 shadow-2xs space-y-2 h-full flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-stone-500">
+                <span className="font-mono text-[10px] bg-stone-100 px-1.5 py-0.5 rounded font-bold">阶段 03 · 终端交付</span>
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+              </div>
+              <h5 className="font-serif font-bold text-sm text-stone-950">{activeRoute.destRegion}</h5>
+            </div>
             <p className="text-xs text-stone-600 leading-relaxed">
               主机厂整车总装、云服务机架上架与终端大客户交付。
             </p>
@@ -241,6 +279,36 @@ export const CrossRegionFlowPanel: React.FC<CrossRegionFlowPanelProps> = ({
             </div>
           </div>
         </div>
+
+        {/* 关联语料报道穿透 */}
+        {(() => {
+          const related = articles.find((a) => {
+            const text = `${a.title} ${a.summary || ''}`.toLowerCase();
+            return activeRoute.focalEntities.some((ent) => text.includes(ent.toLowerCase()));
+          }) || articles[0];
+
+          if (!related) return null;
+
+          return (
+            <div className="p-3.5 bg-white rounded-xl border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2 text-stone-700 truncate">
+                <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-900 font-mono text-[10px] font-bold shrink-0">
+                  关联深度研判
+                </span>
+                <span className="font-serif font-bold text-stone-900 truncate">
+                  《{related.title}》
+                </span>
+              </div>
+              <button
+                onClick={() => onOpenArticleById && onOpenArticleById(related.id)}
+                className="text-[#0284C7] hover:text-[#0369A1] font-serif font-bold inline-flex items-center gap-1 shrink-0 hover:underline cursor-pointer"
+              >
+                <span>穿透分析文章</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

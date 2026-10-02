@@ -23,6 +23,9 @@ import {
   ListFilter,
   Layers,
   Scale,
+  Briefcase,
+  Rocket,
+  Code2,
 } from 'lucide-react';
 
 import { formatArticleTime, isStaleArticle } from '../../utils/articleTime';
@@ -109,6 +112,18 @@ interface StandardModeFeedProps {
   onOpenAudioBriefing?: () => void;
   onOpenTermExplain?: (term: string) => void;
 }
+
+const renderPersonaIcon = (iconName: string) => {
+  switch (iconName) {
+    case 'TrendingUp': return <TrendingUp className="w-4 h-4 text-emerald-600" />;
+    case 'Briefcase': return <Briefcase className="w-4 h-4 text-amber-600" />;
+    case 'Rocket': return <Rocket className="w-4 h-4 text-purple-600" />;
+    case 'Layers': return <Layers className="w-4 h-4 text-blue-600" />;
+    case 'Code2': return <Code2 className="w-4 h-4 text-indigo-600" />;
+    case 'Target': return <Target className="w-4 h-4 text-rose-600" />;
+    default: return <Briefcase className="w-4 h-4 text-amber-600" />;
+  }
+};
 
 export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
   articles,
@@ -429,7 +444,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                 {personaImpactText && (
                   <div className="bg-amber-100/50 border border-amber-300/80 rounded-xl p-2.5 text-xs text-amber-950 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-base shrink-0">{selectedPersona.avatarIcon}</span>
+                      <span className="shrink-0">{renderPersonaIcon(selectedPersona.avatarIcon)}</span>
                       <p className="font-sans font-medium truncate text-amber-900">
                         <strong className="font-serif text-amber-950 font-bold">{selectedPersona.name}切身影响：</strong>
                         {personaImpactText}
@@ -491,9 +506,9 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   <button
                     onClick={() => onSelectArticle(article)}
                     className="px-3.5 py-1.5 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer"
-                    title="进入四篇章完整深度认知剖析 (耗时约 2.5 分钟)"
+                    title="进入四篇章完整深度认知剖析 (耗时约 3 分钟)"
                   >
-                    <span>完整深度剖析 (2.5分)</span>
+                    <span>深度剖析 · 约 3 分钟</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>

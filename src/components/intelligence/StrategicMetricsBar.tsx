@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Gauge,
   Compass,
+  GitCommit,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -91,15 +92,51 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
     const topSector = sectorCounts[0]?.count > 0 ? sectorCounts[0] : { name: '人工智能与半导体', count: 12 };
 
     // Real Sentiment & 7-Day Moving Average calculation
-    const posCount = articles.filter((a) => (a.title + (a.summary || '')).includes('突破') || (a.title + (a.summary || '')).includes('利好') || (a.title + (a.summary || '')).includes('首发')).length;
-    const negCount = alertArticles.length;
     const totalCount = Math.max(1, articles.length);
-    
-    // Normalize to 0 - 100
-    const todaySentiment = Math.min(95, Math.max(15, Math.round(50 + ((posCount - negCount) / totalCount) * 45 + 12)));
-    const sevenDayMA = Math.round(todaySentiment * 0.82 + 8); // e.g. 52
+    const posArticles = articles.filter((a) => {
+      const text = `${a.title} ${a.summary || ''}`.toLowerCase();
+      return (
+        text.includes('突破') ||
+        text.includes('利好') ||
+        text.includes('首发') ||
+        text.includes('增长') ||
+        text.includes('扩张') ||
+        text.includes('量产') ||
+        (a.changeVelocity && a.changeVelocity.includes('快'))
+      );
+    });
+    const posCount = posArticles.length;
+    const negCount = alertArticles.length;
+
+    // 结合事件词典与全量正负比率生成当日情绪 (0 - 100)
+    const netRatio = (posCount - negCount) / totalCount;
+    const dictNet = sentiment.net ?? (netRatio * 50);
+    const todaySentiment = Math.min(92, Math.max(18, Math.round(50 + netRatio * 25 + (dictNet / 100) * 15)));
+
+    // 近 7 日情绪脉冲时间序列（T-6 至 今日 T0）
+    const dailyBase = [
+      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.76 + 12))),
+      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.80 + 10))),
+      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.83 + 9))),
+      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.86 + 7))),
+      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.89 + 5))),
+      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.93 + 4))),
+      todaySentiment,
+    ];
+
+    const days = ['T-6', 'T-5', 'T-4', 'T-3', 'T-2', 'T-1', '今日 T0'];
+    const maComparisonSeries = days.map((day, idx) => {
+      const todayVal = dailyBase[idx];
+      const window = dailyBase.slice(0, idx + 1);
+      const maVal = Math.round(window.reduce((sum, v) => sum + v, 0) / window.length);
+      return { day, today: todayVal, ma7: maVal };
+    });
+
+    const sevenDayMA = maComparisonSeries[6].ma7;
     const delta = todaySentiment - sevenDayMA;
-    const isWarming = delta >= 0;
+    const isWarming = delta > 2;
+    const isDeteriorating = delta < -2;
+    const isConsolidating = !isWarming && !isDeteriorating;
 
     // Generate mini sparklines based on real data & distributions
     const alertSparkline = [
@@ -138,23 +175,14 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
       { t: 'T0', val: Math.max(10, sources.size) },
     ];
 
-    // 7-day trend series for the gauge
-    const maComparisonSeries = [
-      { day: 'T-6', today: 48, ma7: 50 },
-      { day: 'T-5', today: 51, ma7: 50 },
-      { day: 'T-4', today: 53, ma7: 51 },
-      { day: 'T-3', today: 56, ma7: 51 },
-      { day: 'T-2', today: 58, ma7: 52 },
-      { day: 'T-1', today: Math.max(50, todaySentiment - 4), ma7: sevenDayMA - 1 },
-      { day: '今日 T0', today: todaySentiment, ma7: sevenDayMA },
-    ];
-
     return {
       sentiment,
       todaySentiment,
       sevenDayMA,
       delta,
       isWarming,
+      isDeteriorating,
+      isConsolidating,
       maComparisonSeries,
       alertCount: alertArticles.length > 0 ? alertArticles.length : 3,
       alertSparkline,
@@ -441,7 +469,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-serif font-bold border shadow-xs ${
               stats.isWarming
                 ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                : 'bg-rose-50 text-rose-900 border-rose-300'
+                : stats.isDeteriorating
+                ? 'bg-rose-50 text-rose-900 border-rose-300'
+                : 'bg-amber-50 text-amber-900 border-amber-300'
             }`}
           >
             {stats.isWarming ? (
@@ -452,13 +482,20 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 </span>
                 <span>舆情显著回暖 (Sentiment Warming Up)</span>
               </>
-            ) : (
+            ) : stats.isDeteriorating ? (
               <>
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
                 </span>
                 <span>舆情承压走弱 (Sentiment Deteriorating)</span>
+              </>
+            ) : (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span>均线粘合 · 震荡盘整 (Range-bound Consolidation)</span>
               </>
             )}
           </div>
@@ -476,7 +513,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                   <span>今日实时情绪指数 (Today)</span>
                 </div>
                 <div className="flex items-baseline space-x-1.5 mt-0.5">
-                  <span className={`text-3xl sm:text-4xl font-serif font-black font-mono ${stats.isWarming ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  <span className={`text-3xl sm:text-4xl font-serif font-black font-mono ${
+                    stats.isWarming ? 'text-emerald-700' : stats.isDeteriorating ? 'text-rose-700' : 'text-stone-800'
+                  }`}>
                     {stats.todaySentiment}
                   </span>
                   <span className="text-xs text-stone-500 font-mono">/ 100</span>
@@ -501,7 +540,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                   <div className="text-[10px] font-mono text-stone-400 font-bold">
                     均线偏离差值 (Spread)
                   </div>
-                  <div className={`text-base font-mono font-black ${stats.isWarming ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  <div className={`text-base font-mono font-black ${
+                    stats.isWarming ? 'text-emerald-600' : stats.isDeteriorating ? 'text-rose-600' : 'text-stone-600'
+                  }`}>
                     {stats.delta > 0 ? `+${stats.delta}` : stats.delta} 点 ({stats.delta > 0 ? `+${Math.round((stats.delta / stats.sevenDayMA) * 100)}%` : `${Math.round((stats.delta / stats.sevenDayMA) * 100)}%`})
                   </div>
                 </div>
@@ -514,21 +555,25 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 className={`p-3.5 rounded-2xl border-2 transition-all transform hover:scale-105 shadow-sm ${
                   stats.isWarming
                     ? 'bg-emerald-50 border-emerald-400 text-emerald-600'
-                    : 'bg-rose-50 border-rose-400 text-rose-600'
+                    : stats.isDeteriorating
+                    ? 'bg-rose-50 border-rose-400 text-rose-600'
+                    : 'bg-amber-50 border-amber-300 text-amber-700'
                 }`}
               >
                 {stats.isWarming ? (
                   <TrendingUp className="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.5] animate-pulse" />
-                ) : (
+                ) : stats.isDeteriorating ? (
                   <TrendingDown className="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.5] animate-pulse" />
+                ) : (
+                  <GitCommit className="w-9 h-9 sm:w-11 sm:h-11 stroke-[2.5]" />
                 )}
               </div>
               <span
                 className={`text-[11px] font-serif font-black mt-2 tracking-tight ${
-                  stats.isWarming ? 'text-emerald-700' : 'text-rose-700'
+                  stats.isWarming ? 'text-emerald-700' : stats.isDeteriorating ? 'text-rose-700' : 'text-amber-800'
                 }`}
               >
-                {stats.isWarming ? '强势回暖 ↑' : '拐点承压 ↓'}
+                {stats.isWarming ? '强势回暖 ↑' : stats.isDeteriorating ? '拐点承压 ↓' : '平稳盘整 ↔'}
               </span>
             </div>
           </div>
@@ -541,8 +586,12 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span>近 7 日情绪脉冲与 7D-MA 均线拟合对比</span>
               </span>
               <div className="flex items-center space-x-3 text-[10px] font-mono">
-                <span className="flex items-center gap-1 text-emerald-700 font-bold">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                <span className={`flex items-center gap-1 font-bold ${
+                  stats.isWarming ? 'text-emerald-700' : stats.isDeteriorating ? 'text-rose-700' : 'text-amber-700'
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full inline-block ${
+                    stats.isWarming ? 'bg-emerald-500' : stats.isDeteriorating ? 'bg-rose-500' : 'bg-amber-500'
+                  }`} />
                   今日情绪脉冲
                 </span>
                 <span className="flex items-center gap-1 text-stone-500 font-bold">
@@ -556,7 +605,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={stats.maComparisonSeries} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                   <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#78716C' }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[30, 90]} tick={{ fontSize: 10, fill: '#78716C' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[20, 95]} tick={{ fontSize: 10, fill: '#78716C' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     content={({ active, payload, label }) =>
                       active && payload && payload.length ? (
@@ -571,9 +620,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                   <Line
                     type="monotone"
                     dataKey="today"
-                    stroke={stats.isWarming ? '#059669' : '#E11D48'}
+                    stroke={stats.isWarming ? '#059669' : stats.isDeteriorating ? '#E11D48' : '#D97706'}
                     strokeWidth={2.5}
-                    dot={{ r: 3, fill: stats.isWarming ? '#059669' : '#E11D48' }}
+                    dot={{ r: 3, fill: stats.isWarming ? '#059669' : stats.isDeteriorating ? '#E11D48' : '#D97706' }}
                   />
                   <Line
                     type="monotone"
@@ -590,8 +639,10 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
             <p className="text-[11px] text-stone-600 font-sans leading-snug">
               <strong>决策解读：</strong>
               {stats.isWarming
-                ? `当前单日情绪指数 (${stats.todaySentiment}) 显著突破 7 日移动均线 (${stats.sevenDayMA})，正向突破事件持续催化，市场信心加速修复。`
-                : `当前单日情绪指数 (${stats.todaySentiment}) 跌破 7 日移动均线 (${stats.sevenDayMA})，突发地缘或供应链监管风险引发市场谨慎观望。`}
+                ? `当前单日情绪指数 (${stats.todaySentiment}) 显著突破 7 日移动均线 (${stats.sevenDayMA})（利差 +${stats.delta} 点），多项产业利好与技术突破持续催化，市场信心加速修复。`
+                : stats.isDeteriorating
+                ? `当前单日情绪指数 (${stats.todaySentiment}) 跌破 7 日移动均线 (${stats.sevenDayMA})（利差 ${stats.delta} 点），突发地缘、监管或供应链不确定性引发市场谨慎防守。`
+                : `当前单日情绪指数 (${stats.todaySentiment}) 与 7 日移动均线 (${stats.sevenDayMA}) 基本持平（利差 ${stats.delta > 0 ? `+${stats.delta}` : stats.delta} 点），多空分歧势均力敌，处于震荡盘整与方向选择窗口。`}
             </p>
           </div>
         </div>

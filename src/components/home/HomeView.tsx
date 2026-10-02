@@ -6,6 +6,7 @@ import {
   RadarKeyword 
 } from '../../types';
 import { HomeHeroStatus } from './HomeHeroStatus';
+import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
 import { UserCheck, ShieldCheck, Bookmark, Radio, Target } from 'lucide-react';
 import { corpusDerived, deriveFromList } from '../../utils/corpusMetrics';
@@ -35,7 +36,8 @@ export type NewsSkill =
   | 'stakeholders'
   | 'corelogic'
   | 'debate'
-  | 'relatednews';
+  | 'relatednews'
+  | 'enrich';
 
 interface HomeViewProps {
   articles: NewsArticle[];
@@ -436,7 +438,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
         }}
       />
 
-      {/* 2. Main Content Grid（监控已并入分类，feed 全宽） */}
+      {/* 2. 跨语料趋势对比卡片（词频演变 + AI 趋势演变纵览） */}
+      <div className="mt-6 mb-6">
+        <TrendComparisonCard
+          articles={articles}
+          onSelectKeyword={(kw) => {
+            setSelectedRadarFilter(kw);
+            window.scrollTo({ top: 400, behavior: 'smooth' });
+          }}
+        />
+      </div>
+
+      {/* 3. Main Content Grid（监控已并入分类，feed 全宽） */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Category Filter + Feed (全宽) */}
         <div className="lg:col-span-12 space-y-6">

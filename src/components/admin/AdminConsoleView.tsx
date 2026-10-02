@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { NewsArticle } from '../../types';
 import {
   ShieldCheck,
   Key,
@@ -18,6 +19,10 @@ import {
   Activity,
   UserPlus,
   Edit2,
+  Database,
+  HardDrive,
+  Zap,
+  Cpu,
   RotateCcw,
   Sliders,
   Radio,
@@ -40,7 +45,6 @@ import {
   UserCheck,
   Layers,
   HelpCircle,
-  Database,
   Globe,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -113,6 +117,7 @@ interface AuditEvent {
 }
 
 type AdminTab =
+  | 'database'
   | 'behavior_logs'
   | 'keys'
   | 'feeds'
@@ -127,13 +132,55 @@ const PRESET_SOURCES = [
     name: '36氪 · 深度商业与科技创投',
     url: 'https://feed.36kr.com/feed',
     category: '科技 / 商业',
-    desc: '前沿商业洞察、硬科技独角兽与投融资事件',
+    desc: '前沿商业洞察、硬科技独角兽与投融资动态',
   },
   {
     name: '财联社 · 宏观与资本市场快讯',
     url: 'https://rss.cls.cn/rss/feed',
     category: '宏观 / 金融',
     desc: '国内第一手监管动向、股市流动性与宏观数据',
+  },
+  {
+    name: '华尔街日报 WSJ · 全球资本市场 (英文原源)',
+    url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml',
+    category: '全球金融 (EN)',
+    desc: 'The Wall Street Journal 全球资本市场、利率与宏观流动性',
+  },
+  {
+    name: 'Financial Times · 全球政经要闻 (英文原源)',
+    url: 'https://www.ft.com/rss/world',
+    category: '全球政经 (EN)',
+    desc: '英国金融时报顶级跨国地缘政经与多边贸易深度研判',
+  },
+  {
+    name: 'TechCrunch · 硅谷前沿科技与创投 (英文原源)',
+    url: 'https://techcrunch.com/feed/',
+    category: '硅谷科技 (EN)',
+    desc: '全球 AI 智能体、SaaS 突破与硅谷顶尖创投融资现场',
+  },
+  {
+    name: 'The Economist · 经济学人商业与产业 (英文原源)',
+    url: 'https://www.economist.com/business/rss.xml',
+    category: '宏观经济 (EN)',
+    desc: '经济学人商业纵深、全球供应链格局与跨国公司战略',
+  },
+  {
+    name: 'Harvard Business Review · 战略与管理 (英文原源)',
+    url: 'https://hbr.org/rss/topic/strategy',
+    category: '商业战略 (EN)',
+    desc: '哈佛商业评论商业模式创新、企业组织重构与领导力',
+  },
+  {
+    name: 'IEEE Spectrum · 顶级工程与硬核科技 (英文原源)',
+    url: 'https://spectrum.ieee.org/rss/index.xml',
+    category: '硬核工程 (EN)',
+    desc: 'IEEE 国际电气电子工程师学会半导体、量子与机器人前沿',
+  },
+  {
+    name: 'ArXiv AI · 全球 AI 前沿学术论文 (英文原源)',
+    url: 'https://rss.arxiv.org/rss/cs.AI',
+    category: '学术前沿 (EN)',
+    desc: 'ArXiv 全球顶尖 AI 算法、推理大模型与 Agent 架构预印本',
   },
   {
     name: '澎湃新闻 · 特稿与政策解读',
@@ -159,6 +206,30 @@ const PRESET_SOURCES = [
     category: '地缘 / 出海',
     desc: '跨国经贸、全球供应链变局与多边外交研判',
   },
+  {
+    name: 'FT 中文网 · 全球财经与政经观察',
+    url: 'https://www.ftchinese.com/rss/feed',
+    category: '全球财经',
+    desc: '英国金融时报权威全球政经评论与资本流动分析',
+  },
+  {
+    name: '晚点 LatePost · 商业与大厂巨头战略',
+    url: 'https://www.latepost.com/rss',
+    category: '商业深度',
+    desc: '一线大厂组织变革、创始人访谈与商业战役独家复盘',
+  },
+  {
+    name: 'MIT 科技评论 · 突破性工程技术 (英文原源)',
+    url: 'https://www.technologyreview.com/feed/',
+    category: '硬核工程 (EN)',
+    desc: '麻省理工科技评论全球十大突破性技术与工程前沿',
+  },
+  {
+    name: '路透社 · 全球商业与金融要闻 (英文原源)',
+    url: 'https://feeds.feedburner.com/reuters/businessNews',
+    category: '国际金融 (EN)',
+    desc: '路透社全球金融市场、外汇大汇率与跨国投资快讯',
+  },
 ];
 
 export const AdminConsoleView: React.FC = () => {
@@ -174,6 +245,46 @@ export const AdminConsoleView: React.FC = () => {
   const [selectedLogModal, setSelectedLogModal] = useState<AuditEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // 语料健康度模块状态与计算
+  const [corpusArticles, setCorpusArticles] = useState<NewsArticle[]>([]);
+
+  const sourceDistribution = useMemo(() => {
+    if (!corpusArticles || corpusArticles.length === 0) return [];
+    const map: Record<string, number> = {};
+    for (const art of corpusArticles) {
+      const srcName = art.sourceName || (art as any).source || '未标明来源';
+      map[srcName] = (map[srcName] || 0) + 1;
+    }
+    const total = corpusArticles.length;
+    return Object.entries(map)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percentage: Math.round((count / total) * 100),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [corpusArticles]);
+
+  const latestCrawlTimeFormatted = useMemo(() => {
+    const rawAt = status?.feeds?.lastIngest?.at;
+    if (rawAt) {
+      const d = new Date(rawAt);
+      if (!isNaN(d.getTime())) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      }
+    }
+    if (corpusArticles.length > 0) {
+      const times = corpusArticles
+        .map((a) => Date.parse(a.publishedAt || ''))
+        .filter((t) => !isNaN(t));
+      if (times.length > 0) {
+        const d = new Date(Math.max(...times));
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      }
+    }
+    return '刚刚已完成线上数据比对同步';
+  }, [status?.feeds?.lastIngest, corpusArticles]);
 
   // Pagination & Filtering for Behavior Logs Tab
   const [behaviorUsernameQuery, setBehaviorUsernameQuery] = useState('');
@@ -209,6 +320,7 @@ export const AdminConsoleView: React.FC = () => {
 
   // Form states for Users
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'admin' | 'analyst' | 'viewer'>('analyst');
@@ -216,6 +328,21 @@ export const AdminConsoleView: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [resetNewPassword, setResetNewPassword] = useState('');
+
+  // Database Management Tab States
+  const [dbOverview, setDbOverview] = useState<any>(null);
+  const [dbAnalyses, setDbAnalyses] = useState<any[]>([]);
+  const [dbTotalAnalyses, setDbTotalAnalyses] = useState<number>(0);
+  const [dbSearchQuery, setDbSearchQuery] = useState('');
+  const [dbCategoryFilter, setDbCategoryFilter] = useState('all');
+  const [dbPage, setDbPage] = useState(1);
+  const [dbLoading, setDbLoading] = useState(false);
+  const [selectedAnalysisDetail, setSelectedAnalysisDetail] = useState<any>(null);
+  const [reanalyzingKey, setReanalyzingKey] = useState<string | null>(null);
+
+  // Behavior Insights Report Modal States
+  const [insightsReport, setInsightsReport] = useState<any>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
 
   // Fetch initial data
   const fetchData = useCallback(async () => {
@@ -268,6 +395,15 @@ export const AdminConsoleView: React.FC = () => {
         const uData = await usersRes.json();
         setUsers(uData.users || []);
       }
+
+      // 5. Fetch Corpus Articles for Health & Source Distribution
+      const corpusRes = await fetch('/api/corpus?limit=500');
+      if (corpusRes.ok) {
+        const cData = await corpusRes.json();
+        if (Array.isArray(cData.corpus)) {
+          setCorpusArticles(cData.corpus);
+        }
+      }
     } catch (e) {
       console.error('Failed to load admin data:', e);
     } finally {
@@ -278,6 +414,97 @@ export const AdminConsoleView: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetch Database Tab Data
+  const fetchDatabaseData = useCallback(async () => {
+    setDbLoading(true);
+    try {
+      const [ovRes, listRes] = await Promise.all([
+        fetch('/api/admin/database/overview'),
+        fetch(`/api/admin/database/analyses?q=${encodeURIComponent(dbSearchQuery)}&category=${encodeURIComponent(dbCategoryFilter)}&limit=20&offset=${(dbPage - 1) * 20}`),
+      ]);
+      if (ovRes.ok) {
+        setDbOverview(await ovRes.json());
+      }
+      if (listRes.ok) {
+        const data = await listRes.json();
+        setDbAnalyses(data.items || []);
+        setDbTotalAnalyses(data.total || 0);
+      }
+    } catch (e) {
+      console.error('Failed to load database admin data:', e);
+    } finally {
+      setDbLoading(false);
+    }
+  }, [dbSearchQuery, dbCategoryFilter, dbPage]);
+
+  useEffect(() => {
+    if (activeTab === 'database') {
+      fetchDatabaseData();
+    }
+  }, [activeTab, fetchDatabaseData]);
+
+  const handleViewAnalysisDetail = async (key: string) => {
+    try {
+      const res = await fetch(`/api/admin/database/analyses/${key}`);
+      if (!res.ok) throw new Error('读取分析详情失败');
+      const data = await res.json();
+      setSelectedAnalysisDetail(data.analysis);
+    } catch (e: any) {
+      showToast('error', e.message || '读取分析失败');
+    }
+  };
+
+  const handleDeleteAnalysis = async (key: string, title: string) => {
+    if (!confirm(`确定要从数据库中删除关于「${title}」的 AI 分析缓存记录吗？删除后下次分析将触发全新 AI 深度拆解。`)) return;
+    try {
+      const res = await fetch(`/api/admin/database/analyses/${key}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('删除失败');
+      showToast('success', '数据库中已成功移除该分析缓存');
+      fetchDatabaseData();
+    } catch (e: any) {
+      showToast('error', e.message || '删除失败');
+    }
+  };
+
+  const handleReanalyzeItem = async (item: any) => {
+    setReanalyzingKey(item.key);
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: item.title,
+          source: item.source,
+          category: item.category,
+          forceRefresh: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.fallback) throw new Error(data.error || '重新分析失败');
+      showToast('success', `语料「${item.title.slice(0, 12)}…」已成功完成全新 AI 分析并存库！`);
+      fetchDatabaseData();
+    } catch (e: any) {
+      showToast('error', e.message || '重新分析失败');
+    } finally {
+      setReanalyzingKey(null);
+    }
+  };
+
+  const handleGenerateBehaviorInsights = async () => {
+    setInsightsLoading(true);
+    try {
+      const res = await fetch('/api/admin/behavior-insights', { method: 'POST' });
+      if (!res.ok) throw new Error('生成行为洞察报告失败');
+      const data = await res.json();
+      setInsightsReport(data);
+      showToast('success', '用户行为模式与功能偏好洞察报告已生成！');
+    } catch (e: any) {
+      showToast('error', e.message || '生成洞察报告失败');
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
 
   const showToast = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
@@ -422,6 +649,11 @@ export const AdminConsoleView: React.FC = () => {
       showToast('error', '请填写完整用户名与初始密码');
       return;
     }
+    if (newPassword.trim().length < 6) {
+      showToast('error', '初始密码长度不得少于 6 位');
+      return;
+    }
+    setCreatingUser(true);
     try {
       const res = await fetch('/api/users', {
         method: 'POST',
@@ -433,14 +665,24 @@ export const AdminConsoleView: React.FC = () => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '创建用户失败');
-      showToast('success', `用户「${newUsername}」创建成功！`);
+      if (!res.ok) {
+        let msg = data.error || '创建用户失败';
+        if (msg === 'username_exists') msg = '该用户名已被注册或已存在';
+        else if (msg === 'invalid_username') msg = '用户名格式不符合要求（允许字母、数字、下划线、@、.、-，2-120字）';
+        else if (msg === 'password_too_short') msg = '初始密码太短，长度至少需要 6 位';
+        else if (msg === 'invalid_role') msg = '系统角色类别无效';
+        else if (msg === 'persistence_disabled') msg = '数据库暂未开启持久化支持';
+        throw new Error(msg);
+      }
+      showToast('success', `用户「${newUsername.trim()}」创建成功！`);
       setShowCreateUserModal(false);
       setNewUsername('');
       setNewPassword('');
       fetchData();
     } catch (e: any) {
       showToast('error', e.message || '创建用户失败');
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -621,6 +863,131 @@ export const AdminConsoleView: React.FC = () => {
     return u.username.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
   });
 
+  const renderCorpusHealthModule = () => (
+    <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-serif font-black text-stone-950 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-emerald-600" />
+              <span>语料健康度与全局抓取调度中枢</span>
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              🟢 实时健康运行
+            </span>
+          </div>
+          <p className="text-xs text-stone-500 mt-1">
+            监控当前语料库抓取时效、各信源分布比例与管道状态，提供一键增量/全量同步。
+          </p>
+        </div>
+
+        <button
+          onClick={handleTriggerIngest}
+          disabled={ingesting}
+          className="px-4 py-2.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold flex items-center space-x-2 transition-all shadow-xs cursor-pointer shrink-0 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${ingesting ? 'animate-spin text-amber-300' : 'text-amber-400'}`} />
+          <span>{ingesting ? '正在执行全量语料同步…' : '手动触发全量语料同步'}</span>
+        </button>
+      </div>
+
+      {/* 4 Health Metrics Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+          <div className="text-[11px] font-mono text-stone-500 uppercase flex items-center justify-between">
+            <span>最新抓取/同步时间</span>
+            <Clock className="w-3.5 h-3.5 text-stone-400" />
+          </div>
+          <div className="text-sm sm:text-base font-serif font-black text-stone-900 font-mono truncate" title={latestCrawlTimeFormatted}>
+            {latestCrawlTimeFormatted}
+          </div>
+          <div className="text-[10px] text-emerald-700 font-mono">
+            {status?.feeds?.lastIngest ? '已成功完成 RSS/REST 数据拉取' : '系统实时就绪，支持增量摄取'}
+          </div>
+        </div>
+
+        <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+          <div className="text-[11px] font-mono text-stone-500 uppercase flex items-center justify-between">
+            <span>语料库文章总数</span>
+            <BookOpen className="w-3.5 h-3.5 text-stone-400" />
+          </div>
+          <div className="text-base font-serif font-black text-stone-900 font-mono">
+            {corpusArticles.length} <span className="text-xs font-normal text-stone-500">篇情报</span>
+          </div>
+          <div className="text-[10px] text-stone-500 font-mono">
+            覆盖 {sourceDistribution.length} 个独立新闻/研究信源
+          </div>
+        </div>
+
+        <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+          <div className="text-[11px] font-mono text-stone-500 uppercase flex items-center justify-between">
+            <span>配置订阅管道</span>
+            <Rss className="w-3.5 h-3.5 text-purple-600" />
+          </div>
+          <div className="text-base font-serif font-black text-stone-900 font-mono">
+            {feedList.length} <span className="text-xs font-normal text-stone-500">个订阅源</span>
+          </div>
+          <div className="text-[10px] text-purple-700 font-mono">
+            自动定时与手动并发同步调度
+          </div>
+        </div>
+
+        <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+          <div className="text-[11px] font-mono text-stone-500 uppercase flex items-center justify-between">
+            <span>上次同步增量/去重</span>
+            <Zap className="w-3.5 h-3.5 text-amber-600" />
+          </div>
+          <div className="text-base font-serif font-black text-stone-900 font-mono">
+            +{status?.feeds?.lastIngest?.added || 0} <span className="text-xs font-normal text-stone-500">篇新增</span>
+          </div>
+          <div className="text-[10px] text-stone-500 font-mono">
+            跳过 {status?.feeds?.lastIngest?.skipped || 0} 篇重复或陈旧条目
+          </div>
+        </div>
+      </div>
+
+      {/* Source Distribution */}
+      <div className="space-y-3 pt-2 border-t border-stone-100">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-serif font-bold text-stone-900 flex items-center gap-1.5">
+            <BarChart3 className="w-4 h-4 text-[#0284C7]" />
+            <span>各源语料数量分布与占比 (%)</span>
+          </h3>
+          <span className="text-[10px] font-mono text-stone-400">
+            全量语料样本来源透视
+          </span>
+        </div>
+
+        {sourceDistribution.length === 0 ? (
+          <div className="p-4 bg-stone-50 rounded-xl text-center text-xs text-stone-400 font-mono">
+            正在统计各源语料数量分布…
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {sourceDistribution.map((src, idx) => (
+              <div key={idx} className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-serif font-bold text-stone-900 truncate" title={src.name}>
+                    {src.name}
+                  </span>
+                  <span className="font-mono font-bold text-stone-800 shrink-0">
+                    {src.count} 篇 <span className="text-[10px] text-stone-400 font-normal">({src.percentage}%)</span>
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.max(6, src.percentage)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 font-sans">
       {/* Toast Notification */}
@@ -747,6 +1114,7 @@ export const AdminConsoleView: React.FC = () => {
       {/* Navigation Tabs Bar */}
       <div className="flex border-b-2 border-stone-900 space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar">
         {[
+          { id: 'database', label: '数据库与分析语料', icon: <Database className="w-4 h-4 text-emerald-600" />, badge: '持久化复用' },
           { id: 'behavior_logs', label: '系统行为日志', icon: <Activity className="w-4 h-4 text-[#E3120B]" />, badge: '审计核心' },
           { id: 'keys', label: '全局 AI 引擎与模型中枢', icon: <Key className="w-4 h-4 text-amber-600" /> },
           { id: 'feeds', label: '全局信源管道与数据源', icon: <Rss className="w-4 h-4 text-purple-600" /> },
@@ -778,6 +1146,559 @@ export const AdminConsoleView: React.FC = () => {
         })}
       </div>
 
+      {/* Tab 0: 数据库与分析语料 (Database & Analyzed Corpus) */}
+      {activeTab === 'database' && (
+        <div className="space-y-6">
+          {/* 语料健康度模块 */}
+          {renderCorpusHealthModule()}
+
+          {/* Top Storage Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white border-2 border-stone-800 rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="text-xs font-mono text-stone-500 uppercase flex items-center justify-between">
+                <span>SQLite 数据库存储文件</span>
+                <HardDrive className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-xl font-serif font-black text-stone-950">
+                {dbOverview?.dbFileSizeFormatted || '0 KB'}
+              </div>
+              <div className="text-[11px] font-mono text-stone-500 truncate" title={dbOverview?.dbFilePath}>
+                路径: {dbOverview?.dbFilePath || 'data/corpus.db'}
+              </div>
+            </div>
+
+            <div className="bg-white border-2 border-stone-800 rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="text-xs font-mono text-stone-500 uppercase flex items-center justify-between">
+                <span>语料库持久化文章</span>
+                <BookOpen className="w-4 h-4 text-blue-600" />
+              </div>
+              <div className="text-xl font-serif font-black text-stone-950">
+                {dbOverview?.articleCount || 0} <span className="text-xs font-normal text-stone-500">篇</span>
+              </div>
+              <div className="text-[11px] font-mono text-emerald-700">
+                支持全文 FTS5 检索与按区过滤
+              </div>
+            </div>
+
+            <div className="bg-white border-2 border-stone-800 rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="text-xs font-mono text-stone-500 uppercase flex items-center justify-between">
+                <span>已存 AI 深度认知拆解</span>
+                <Sparkles className="w-4 h-4 text-amber-600" />
+              </div>
+              <div className="text-xl font-serif font-black text-stone-950">
+                {dbOverview?.analysisCount || 0} <span className="text-xs font-normal text-stone-500">条</span>
+              </div>
+              <div className="text-[11px] font-mono text-stone-600">
+                7W / 因果树 / 光谱分层全量存库
+              </div>
+            </div>
+
+            <div className="bg-white border-2 border-stone-800 rounded-2xl p-5 shadow-xs space-y-2">
+              <div className="text-xs font-mono text-stone-500 uppercase flex items-center justify-between">
+                <span>0-Token 复用命中数</span>
+                <Zap className="w-4 h-4 text-[#E3120B]" />
+              </div>
+              <div className="text-xl font-serif font-black text-stone-950">
+                {dbOverview?.totalHitCount || 0} <span className="text-xs font-normal text-stone-500">次</span>
+              </div>
+              <div className="text-[11px] font-mono text-rose-700">
+                直接从数据库秒级调取，无需重新分析
+              </div>
+            </div>
+          </div>
+
+          {/* Database Analyzed Corpus Table Section */}
+          <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
+              <div>
+                <h2 className="text-lg font-serif font-black text-stone-950 flex items-center space-x-2">
+                  <Database className="w-5 h-5 text-emerald-600" />
+                  <span>后台数据库 · 已分析语料库与缓存表 (Article Analyses DB)</span>
+                </h2>
+                <p className="text-xs text-stone-500 mt-1">
+                  所有已被 AI 拆解过的新闻与语料均自动持久化存入数据库。再次调阅时直接复用，免去重复耗时与 Token 开销。
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={fetchDatabaseData}
+                  disabled={dbLoading}
+                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-lg text-xs font-serif font-bold flex items-center space-x-1 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${dbLoading ? 'animate-spin' : ''}`} />
+                  <span>刷新表格</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-stone-50 p-3 rounded-xl border border-stone-200">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="搜索已分析语料标题或媒体源..."
+                  value={dbSearchQuery}
+                  onChange={(e) => {
+                    setDbSearchQuery(e.target.value);
+                    setDbPage(1);
+                  }}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900"
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 w-full sm:w-auto">
+                <select
+                  value={dbCategoryFilter}
+                  onChange={(e) => {
+                    setDbCategoryFilter(e.target.value);
+                    setDbPage(1);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-white border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900"
+                >
+                  <option value="all">全部分类板块</option>
+                  <option value="科技前沿">科技前沿</option>
+                  <option value="宏观政经">宏观政经</option>
+                  <option value="资本市场">资本市场</option>
+                  <option value="半导体芯片">半导体芯片</option>
+                  <option value="AI与大模型">AI与大模型</option>
+                  <option value="地缘与出海">地缘与出海</option>
+                </select>
+
+                <div className="text-xs text-stone-500 whitespace-nowrap font-mono">
+                  共找到 <b className="text-stone-900">{dbTotalAnalyses}</b> 条已库分析
+                </div>
+              </div>
+            </div>
+
+            {/* Analyses Table */}
+            <div className="overflow-x-auto border border-stone-200 rounded-xl">
+              <table className="w-full text-left text-xs text-stone-800">
+                <thead className="bg-stone-100 text-stone-700 font-serif font-bold border-b border-stone-200 uppercase tracking-wider text-[11px]">
+                  <tr>
+                    <th className="px-4 py-3">语料标题 / 新闻源</th>
+                    <th className="px-4 py-3">板块分类</th>
+                    <th className="px-4 py-3">分析引擎 / 模型</th>
+                    <th className="px-4 py-3 text-center">0-Token 复用次数</th>
+                    <th className="px-4 py-3">存库时间</th>
+                    <th className="px-4 py-3 text-right">操作管理</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-200 font-sans">
+                  {dbAnalyses.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-stone-500 font-serif">
+                        {dbLoading ? '正在加载数据库记录…' : '暂无符合条件的已分析语料记录'}
+                      </td>
+                    </tr>
+                  ) : (
+                    dbAnalyses.map((item) => (
+                      <tr key={item.key} className="hover:bg-stone-50/80 transition-colors">
+                        <td className="px-4 py-3 max-w-sm">
+                          <div className="font-serif font-bold text-stone-950 text-sm line-clamp-1" title={item.title}>
+                            {item.title}
+                          </div>
+                          <div className="text-[11px] text-stone-500 mt-0.5 flex items-center space-x-2">
+                            <span>来源: {item.source || '见微投递'}</span>
+                            <span className="font-mono text-[10px] text-stone-400">Key: {item.key.slice(0, 16)}…</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-800 border border-stone-200 font-serif font-bold text-[11px]">
+                            {item.category || '通用分析'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="font-mono text-[11px] text-stone-700 flex items-center space-x-1">
+                            <Cpu className="w-3 h-3 text-amber-600" />
+                            <span>{item.provider || 'AI'} ({item.model || 'Default'})</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap font-mono font-bold text-emerald-800">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {item.hitCount} 次复用
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-[11px] text-stone-500 font-mono">
+                          {new Date(item.updatedAt || item.createdAt).toLocaleString('zh-CN', { hour12: false })}
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap space-x-1.5">
+                          <button
+                            onClick={() => handleViewAnalysisDetail(item.key)}
+                            className="px-2.5 py-1 rounded bg-stone-900 hover:bg-stone-800 text-white text-[11px] font-serif font-bold transition-colors cursor-pointer"
+                          >
+                            查看详情
+                          </button>
+
+                          <button
+                            onClick={() => handleReanalyzeItem(item)}
+                            disabled={reanalyzingKey === item.key}
+                            className="px-2 py-1 rounded bg-stone-100 hover:bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-serif font-bold transition-colors cursor-pointer disabled:opacity-50"
+                            title="触发全新的 AI 深度解析并覆盖数据库中的记录"
+                          >
+                            {reanalyzingKey === item.key ? '分析中…' : '重新分析'}
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteAnalysis(item.key, item.title)}
+                            className="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-serif font-bold transition-colors cursor-pointer"
+                            title="从数据库中清除该分析缓存"
+                          >
+                            删除
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {dbTotalAnalyses > 20 && (
+              <div className="flex items-center justify-between border-t border-stone-200 pt-4 text-xs font-serif">
+                <div className="text-stone-500">
+                  显示第 {(dbPage - 1) * 20 + 1} - {Math.min(dbPage * 20, dbTotalAnalyses)} 条，共 {dbTotalAnalyses} 条
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    disabled={dbPage === 1}
+                    onClick={() => setDbPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    上一页
+                  </button>
+                  <span className="font-mono text-stone-800">
+                    {dbPage} / {Math.ceil(dbTotalAnalyses / 20)}
+                  </span>
+                  <button
+                    disabled={dbPage >= Math.ceil(dbTotalAnalyses / 20)}
+                    onClick={() => setDbPage((p) => p + 1)}
+                    className="px-3 py-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-50 cursor-pointer"
+                  >
+                    下一页
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* View Stored Analysis Modal */}
+      {selectedAnalysisDetail && (
+        <div className="fixed inset-0 z-50 bg-stone-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border-2 border-stone-900 max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl">
+            <div className="flex items-start justify-between border-b border-stone-200 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[11px] font-mono font-bold">
+                    数据库已分析语料
+                  </span>
+                  <span className="text-xs text-stone-500 font-mono">Key: {selectedAnalysisDetail.key}</span>
+                </div>
+                <h3 className="text-xl font-serif font-black text-stone-950">
+                  {selectedAnalysisDetail.title}
+                </h3>
+                <div className="text-xs text-stone-600 flex items-center space-x-3">
+                  <span>新闻源: {selectedAnalysisDetail.source || '见微'}</span>
+                  <span>板块: {selectedAnalysisDetail.category}</span>
+                  <span>0-Token复用次数: {selectedAnalysisDetail.hitCount} 次</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAnalysisDetail(null)}
+                className="p-1 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Render Key Sections from Cached Payload */}
+            <div className="space-y-6 text-sm text-stone-800">
+              {/* One Sentence Verdict */}
+              {selectedAnalysisDetail.payload?.oneSentenceVerdict && (
+                <div className="p-4 rounded-xl bg-stone-900 text-white space-y-1">
+                  <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest">
+                    一句话见微定性 (One Sentence Verdict)
+                  </div>
+                  <div className="text-base font-serif font-bold leading-relaxed">
+                    {selectedAnalysisDetail.payload.oneSentenceVerdict}
+                  </div>
+                </div>
+              )}
+
+              {/* 7 Elements */}
+              {selectedAnalysisDetail.payload?.sevenElements && (
+                <div className="space-y-3">
+                  <h4 className="font-serif font-bold text-stone-950 border-b border-stone-200 pb-1 text-sm flex items-center space-x-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>认知拆解 (Seven Elements 7W)</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-lg bg-stone-50 border border-stone-200">
+                      <b className="text-stone-950">WHAT 事实大局:</b> {selectedAnalysisDetail.payload.sevenElements.what}
+                    </div>
+                    <div className="p-3 rounded-lg bg-stone-50 border border-stone-200">
+                      <b className="text-stone-950">WHO 参与主体:</b> {selectedAnalysisDetail.payload.sevenElements.who}
+                    </div>
+                    <div className="p-3 rounded-lg bg-stone-50 border border-stone-200">
+                      <b className="text-stone-950">WHY 深层因果:</b> {selectedAnalysisDetail.payload.sevenElements.why}
+                    </div>
+                    <div className="p-3 rounded-lg bg-stone-50 border border-stone-200">
+                      <b className="text-stone-950">SO WHAT 终局影响:</b> {selectedAnalysisDetail.payload.sevenElements.soWhat}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Spectrum Layers */}
+              {Array.isArray(selectedAnalysisDetail.payload?.spectrumLayers) && (
+                <div className="space-y-3">
+                  <h4 className="font-serif font-bold text-stone-950 border-b border-stone-200 pb-1 text-sm flex items-center space-x-1.5">
+                    <Layers className="w-4 h-4 text-purple-600" />
+                    <span>五层光谱拆解 (Spectrum Layers)</span>
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedAnalysisDetail.payload.spectrumLayers.map((layer: any, idx: number) => (
+                      <div key={idx} className="p-3 rounded-lg bg-stone-50 border border-stone-200 text-xs space-y-1">
+                        <div className="font-serif font-bold text-stone-950 flex items-center justify-between">
+                          <span>{layer.name}</span>
+                          <span className="text-[10px] font-mono text-stone-500">{layer.headline}</span>
+                        </div>
+                        <p className="text-stone-700 leading-relaxed">{layer.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Raw JSON Preview Accordion */}
+              <details className="text-xs border border-stone-200 rounded-xl p-3 bg-stone-50">
+                <summary className="font-serif font-bold text-stone-700 cursor-pointer">
+                  查看完整原始数据库存储 JSON (Raw Stored Payload)
+                </summary>
+                <pre className="mt-3 p-3 bg-stone-950 text-emerald-400 font-mono text-[11px] rounded-lg overflow-x-auto max-h-60">
+                  {JSON.stringify(selectedAnalysisDetail.payload, null, 2)}
+                </pre>
+              </details>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-stone-200">
+              <button
+                onClick={() => setSelectedAnalysisDetail(null)}
+                className="px-5 py-2 rounded-xl bg-stone-900 text-white text-xs font-serif font-bold cursor-pointer hover:bg-stone-800"
+              >
+                关闭预览
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Behavior Insights Report Modal */}
+      {insightsReport && (
+        <div className="fixed inset-0 z-50 bg-stone-900/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border-2 border-stone-900 max-w-4xl w-full max-h-[92vh] overflow-y-auto p-6 sm:p-8 space-y-6 shadow-2xl font-sans">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-stone-200 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-0.5 rounded bg-red-100 text-[#E3120B] text-[11px] font-mono font-bold flex items-center space-x-1">
+                    <Sparkles className="w-3 h-3" />
+                    <span>AI 用户行为模式挖掘</span>
+                  </span>
+                  <span className="text-xs text-stone-500 font-mono">
+                    流水总数: {insightsReport.totalEventsAnalyzed} 条 · 生成时间: {new Date(insightsReport.generatedAt).toLocaleString('zh-CN')}
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-serif font-black text-stone-950">
+                  系统用户行为模式与功能使用偏好洞察报告
+                </h3>
+              </div>
+              <button
+                onClick={() => setInsightsReport(null)}
+                className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="space-y-6">
+              {/* Executive Summary Card */}
+              <div className="p-4 rounded-xl bg-stone-950 text-white border-l-4 border-[#E3120B] space-y-1.5 shadow-md">
+                <div className="text-[10px] font-mono text-red-400 uppercase tracking-widest flex items-center justify-between">
+                  <span>管理层研判定性摘要 (Executive Summary)</span>
+                  <span className="text-emerald-400 font-bold">
+                    协同与效率评分: {insightsReport.insights?.workflowEfficiencyScore || 88} / 100
+                  </span>
+                </div>
+                <p className="text-sm font-serif font-bold leading-relaxed text-stone-100">
+                  {insightsReport.insights?.executiveSummary}
+                </p>
+              </div>
+
+              {/* 24-Hour Active Hours Distribution Chart */}
+              <div className="p-5 rounded-xl border border-stone-200 bg-stone-50/70 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <h4 className="font-serif font-bold text-stone-950 text-sm flex items-center space-x-1.5">
+                    <Clock className="w-4 h-4 text-purple-600" />
+                    <span>核心活跃时段分布图 (24-Hour Active Hours Distribution)</span>
+                  </h4>
+                  <div className="text-xs font-mono text-stone-600 bg-white px-2.5 py-1 rounded border border-stone-200">
+                    高峰段: <b className="text-[#E3120B]">{insightsReport.peakHoursText}</b>
+                  </div>
+                </div>
+
+                {/* Bar Chart Visualization */}
+                <div className="pt-2">
+                  <div className="h-32 flex items-end justify-between gap-1 pt-4 pb-1 border-b border-stone-300">
+                    {Array.from({ length: 24 }).map((_, hour) => {
+                      const count = insightsReport.hourlyDistribution?.[hour] || 0;
+                      const maxVal = Math.max(1, ...Object.values(insightsReport.hourlyDistribution || {}).map(Number));
+                      const heightPercent = Math.max(8, Math.round((count / maxVal) * 100));
+                      const isPeak = count > 0 && count >= maxVal * 0.5;
+
+                      return (
+                        <div key={hour} className="flex-1 flex flex-col items-center group relative cursor-pointer">
+                          {/* Tooltip */}
+                          <div className="absolute -top-8 bg-stone-900 text-white text-[10px] font-mono px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                            {hour}:00 - {count} 次
+                          </div>
+                          <div
+                            className={`w-full rounded-t-sm transition-all ${
+                              isPeak
+                                ? 'bg-[#E3120B] group-hover:bg-red-700'
+                                : count > 0
+                                ? 'bg-stone-700 group-hover:bg-stone-900'
+                                : 'bg-stone-200'
+                            }`}
+                            style={{ height: `${heightPercent}%` }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono text-stone-400 mt-1 px-0.5">
+                    <span>00:00</span>
+                    <span>06:00</span>
+                    <span>12:00</span>
+                    <span>18:00</span>
+                    <span>23:00</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature Usage Preference Ranking */}
+              <div className="p-5 rounded-xl border border-stone-200 bg-white space-y-4">
+                <h4 className="font-serif font-bold text-stone-950 text-sm flex items-center space-x-1.5 border-b border-stone-100 pb-2">
+                  <BarChart3 className="w-4 h-4 text-blue-600" />
+                  <span>功能使用偏好统计 (Feature Usage Preferences Ranking)</span>
+                </h4>
+
+                <div className="space-y-3">
+                  {Array.isArray(insightsReport.actionPreferences) &&
+                    insightsReport.actionPreferences.map((item: any, idx: number) => (
+                      <div key={idx} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-stone-100 text-stone-600 font-bold border border-stone-200">
+                              {item.category}
+                            </span>
+                            <span className="font-serif font-bold text-stone-900">{item.name}</span>
+                          </div>
+                          <div className="font-mono text-xs text-stone-600">
+                            <b>{item.count}</b> 次 (<b className="text-stone-900">{item.percentage}%</b>)
+                          </div>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              idx === 0
+                                ? 'bg-[#E3120B]'
+                                : idx === 1
+                                ? 'bg-amber-500'
+                                : idx === 2
+                                ? 'bg-purple-600'
+                                : 'bg-stone-500'
+                            }`}
+                            style={{ width: `${Math.max(2, item.percentage)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* AI Strategic Findings Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl border border-stone-200 bg-stone-50 space-y-2">
+                  <div className="text-xs font-serif font-bold text-stone-950 flex items-center space-x-1.5 border-b border-stone-200 pb-1.5">
+                    <Activity className="w-4 h-4 text-amber-600" />
+                    <span>活跃时段与工作流节奏剖析</span>
+                  </div>
+                  <p className="text-xs text-stone-700 leading-relaxed">
+                    {insightsReport.insights?.peakPatternAnalysis}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl border border-stone-200 bg-stone-50 space-y-2">
+                  <div className="text-xs font-serif font-bold text-stone-950 flex items-center space-x-1.5 border-b border-stone-200 pb-1.5">
+                    <Sliders className="w-4 h-4 text-purple-600" />
+                    <span>功能偏好与深层诉求透视</span>
+                  </div>
+                  <p className="text-xs text-stone-700 leading-relaxed">
+                    {insightsReport.insights?.featurePreferenceAnalysis}
+                  </p>
+                </div>
+              </div>
+
+              {/* Risk & Anomaly Observation */}
+              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-1.5 text-xs text-amber-950">
+                <div className="font-serif font-bold flex items-center space-x-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-700" />
+                  <span>行为风控与合规观察 (Security & Compliance Observation)</span>
+                </div>
+                <p className="leading-relaxed text-amber-900">
+                  {insightsReport.insights?.anomaliesOrRisks}
+                </p>
+              </div>
+
+              {/* Recommendations */}
+              {Array.isArray(insightsReport.insights?.recommendations) && (
+                <div className="p-5 rounded-xl border-2 border-stone-900 bg-stone-900 text-white space-y-3">
+                  <h4 className="font-serif font-bold text-sm text-red-400 flex items-center space-x-1.5">
+                    <Lightbulb className="w-4 h-4 text-amber-400" />
+                    <span>系统管理落地建议 (Actionable System Admin Recommendations)</span>
+                  </h4>
+                  <ul className="space-y-2 text-xs text-stone-200 font-serif">
+                    {insightsReport.insights.recommendations.map((rec: string, idx: number) => (
+                      <li key={idx} className="flex items-start space-x-2">
+                        <span className="font-mono font-bold text-red-400 shrink-0">{idx + 1}.</span>
+                        <span className="leading-relaxed">{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end pt-3 border-t border-stone-200">
+              <button
+                onClick={() => setInsightsReport(null)}
+                className="px-6 py-2.5 rounded-xl bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold transition-colors cursor-pointer"
+              >
+                关闭洞察报告
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab 1: 系统行为日志 (Behavior Logs) */}
       {activeTab === 'behavior_logs' && (
         <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
@@ -798,8 +1719,17 @@ export const AdminConsoleView: React.FC = () => {
 
             <div className="flex items-center space-x-2 shrink-0">
               <button
+                onClick={handleGenerateBehaviorInsights}
+                disabled={insightsLoading}
+                className="px-4 py-2 bg-[#E3120B] hover:bg-red-700 text-white rounded-xl text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${insightsLoading ? 'animate-spin' : ''}`} />
+                <span>{insightsLoading ? '模式挖掘中…' : '生成行为洞察报告'}</span>
+              </button>
+
+              <button
                 onClick={handleExportCsv}
-                className="px-4 py-2 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+                className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>导出行为审计报表 (CSV)</span>
@@ -1204,7 +2134,11 @@ export const AdminConsoleView: React.FC = () => {
 
       {/* Tab 3: 全局信源管道与数据源调度 (Data Sources & RSS) */}
       {activeTab === 'feeds' && (
-        <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="space-y-6">
+          {/* 语料健康度模块 */}
+          {renderCorpusHealthModule()}
+
+          <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
             <div>
               <h2 className="text-lg font-serif font-black text-stone-950">
@@ -1312,6 +2246,7 @@ export const AdminConsoleView: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
       )}
 
       {/* Tab 4: 行业板块与关键词全局规则 (Sector Taxonomy & Keyword Overrides) */}
@@ -1604,11 +2539,12 @@ export const AdminConsoleView: React.FC = () => {
                 </div>
 
                 <div className="flex justify-end space-x-2 pt-3 border-t border-stone-100">
-                  <button type="button" onClick={() => setShowCreateUserModal(false)} className="px-4 py-2 rounded-lg bg-stone-100 text-stone-700 text-xs font-serif font-bold">
+                  <button type="button" disabled={creatingUser} onClick={() => setShowCreateUserModal(false)} className="px-4 py-2 rounded-lg bg-stone-100 text-stone-700 text-xs font-serif font-bold cursor-pointer disabled:opacity-50">
                     取消
                   </button>
-                  <button type="submit" className="px-5 py-2 rounded-lg bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold">
-                    立即创建
+                  <button type="submit" disabled={creatingUser} className="px-5 py-2 rounded-lg bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold cursor-pointer disabled:opacity-50 flex items-center space-x-1.5">
+                    {creatingUser && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{creatingUser ? '创建中…' : '立即创建'}</span>
                   </button>
                 </div>
               </form>

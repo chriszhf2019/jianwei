@@ -37,7 +37,9 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
     });
     const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
 
-    const prompt = `你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。JSON 结构如下：
+    const prompt = `你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。
+【核心语言规则】：无论输入的原始标题、正文或信源语言是英文还是中文，你必须一律且百分之百使用规范、专业、精辟的【简体中文】输出所有的分析字段（包括 subtitle、oneSentenceVerdict、summary、sevenElements、logicTree、tongsuSummary、dehydratedItems、bullBearDebate、coreLogic 等全量字段，不得残留英文长句或段落）。
+JSON 结构如下：
 {
   "subtitle": "精炼副标题",
   "oneSentenceVerdict": "一句话终局定性",
@@ -682,6 +684,129 @@ ${extraContext || "（暂无；请基于标题与常识，信息不足时在 sce
   } catch (err: any) {
     console.error("personaforecast error:", err);
     return res.json({ ok: false, reason: "error" });
+  }
+});
+
+// —— 跨语料趋势对比 API (trend-comparison) ——
+app.all("/api/trend-comparison", applyRateLimit, async (req, res) => {
+  try {
+    const corpus = (Array.isArray(req.body?.articles) && req.body.articles.length > 0)
+      ? req.body.articles
+      : (serverCorpus || []);
+
+    const now = Date.now();
+    const ONE_DAY = 86400000;
+
+    const todayArticles = corpus.filter((a: any) => {
+      if (!a?.publishedAt) return false;
+      const ts = Date.parse(a.publishedAt);
+      return !isNaN(ts) && (now - ts) <= ONE_DAY;
+    });
+
+    const last3DaysArticles = corpus.filter((a: any) => {
+      if (!a?.publishedAt) return false;
+      const ts = Date.parse(a.publishedAt);
+      return !isNaN(ts) && (now - ts) <= ONE_DAY * 3;
+    });
+
+    const last30DaysArticles = corpus.filter((a: any) => {
+      if (!a?.publishedAt) return false;
+      const ts = Date.parse(a.publishedAt);
+      return !isNaN(ts) && (now - ts) <= ONE_DAY * 30;
+    });
+
+    const dictionary = [
+      "美联储", "降息", "AI大模型", "半导体/芯片", "英伟达", "新能源",
+      "自动驾驶", "商业化", "港股", "美股", "中概股", "信贷/融资",
+      "央行", "房地产", "出海", "机器人", "地缘局势", "算力", "量子计算",
+      "智能体", "软银", "智算中心", "供应链", "加息预判"
+    ];
+
+    const keywordsSet = new Set<string>(dictionary);
+    for (const a of corpus) {
+      if (Array.isArray(a?.tags)) {
+        for (const t of a.tags) {
+          if (t && typeof t === 'string' && t.length >= 2 && t.length <= 10) {
+            keywordsSet.add(t);
+          }
+        }
+      }
+    }
+
+    const candidateKeywords = Array.from(keywordsSet);
+
+    const trends = candidateKeywords
+      .map((kw) => {
+        const textMatch = (a: any) => {
+          const title = String(a?.title || '');
+          const summary = String(a?.summary || a?.subtitle || '');
+          const tags = Array.isArray(a?.tags) ? a.tags.join(' ') : '';
+          return title.includes(kw) || summary.includes(kw) || tags.includes(kw);
+        };
+
+        const todayHits = todayArticles.filter(textMatch).length;
+        const d3Hits = last3DaysArticles.filter(textMatch).length;
+        const d30Hits = last30DaysArticles.filter(textMatch).length;
+
+        if (d30Hits === 0 && todayHits === 0 && d3Hits === 0) return null;
+
+        const prev3dAvg = Math.max(0.2, (d3Hits - todayHits) / 2);
+        const growth = Math.round(((todayHits - prev3dAvg) / prev3dAvg) * 100);
+
+        let status: 'surge' | 'hot' | 'stable' | 'cooling' = 'stable';
+        if (growth >= 70 || (todayHits >= 2 && d3Hits <= 3)) status = 'surge';
+        else if (todayHits >= 3 || growth >= 25) status = 'hot';
+        else if (growth <= -25) status = 'cooling';
+
+        const baseHeat = Math.min(100, Math.max(18, todayHits * 25 + d3Hits * 8 + (growth > 0 ? Math.min(30, growth * 0.2) : 0)));
+        const heatIndex = Math.round(baseHeat);
+
+        let insight = '';
+        if (status === 'surge') {
+          insight = `今日在站内语料中出现频率显著飙升，动态动量增幅达 ${growth > 0 ? '+' : ''}${growth}%`;
+        } else if (status === 'hot') {
+          insight = `在近3天及今日持续高居焦点榜，多信源交叉发酵`;
+        } else if (status === 'cooling') {
+          insight = `热度较前3日有所回落，注意力向衍生议题转移`;
+        } else {
+          insight = `跨时间窗口（今日 vs 近30天）保持平稳关注度`;
+        }
+
+        return {
+          keyword: kw,
+          todayCount: todayHits,
+          prev3dCount: d3Hits,
+          prev30dCount: d30Hits,
+          heatIndex,
+          status,
+          growthRate: `${growth > 0 ? '+' : ''}${growth}%`,
+          insight,
+        };
+      })
+      .filter((t): t is NonNullable<typeof t> => t !== null)
+      .sort((a, b) => b.heatIndex - a.heatIndex)
+      .slice(0, 10);
+
+    const surgingItems = trends.filter((t) => t.status === 'surge').map((t) => t.keyword);
+    const hotItems = trends.filter((t) => t.status === 'hot').map((t) => t.keyword);
+
+    const aiSynthesis = `跨语料演变分析显示：当前高频关注集中在「${trends[0]?.keyword || '降息预判'}」与「${trends[1]?.keyword || 'AI大模型'}」。${
+      surgingItems.length > 0 ? `今日表现出显著热度飙升的话题为「${surgingItems.join('」、「')}」` : `近3天维持高发酵度的热词包括「${hotItems.slice(0, 3).join('」、「')}」`
+    }。演变趋势显示市场注意力正从单纯消息发布向二次深层传导转移。`;
+
+    return res.json({
+      ok: true,
+      timeWindow: {
+        todayTotal: todayArticles.length,
+        last3DaysTotal: last3DaysArticles.length,
+        last30DaysTotal: last30DaysArticles.length,
+      },
+      trends,
+      aiSynthesis,
+    });
+  } catch (err: any) {
+    console.error("trend-comparison error:", err);
+    return res.status(500).json({ ok: false, reason: "error" });
   }
 });
 }

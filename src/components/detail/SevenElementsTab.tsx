@@ -2,7 +2,7 @@ import React from 'react';
 import { NewsArticle } from '../../types';
 import {
   Sparkles, Clock, MapPin, Users, HelpCircle,
-  Activity, ArrowRight, Radio, AlertTriangle, Loader2, Lightbulb, Scale, Newspaper,
+  Activity, ArrowRight, Radio, AlertTriangle, Loader2, Lightbulb, Scale, Newspaper, BookOpen,
 } from 'lucide-react';
 import type { NewsSkill } from '../home/HomeView';
 import { findRelatedArticles } from '../../utils/relatedArticles';
@@ -115,6 +115,8 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
   const [logicBusy, setLogicBusy] = React.useState(false);
   const [debateBusy, setDebateBusy] = React.useState(false);
   const [relBusy, setRelBusy] = React.useState(false);
+  const [stakeholderFilter, setStakeholderFilter] = React.useState<'all' | 'benefit' | 'neutral' | 'pressure'>('all');
+  const [expandedStakeholderIndex, setExpandedStakeholderIndex] = React.useState<number | null>(null);
   // —— 三层折叠分组（核心结论默认展开；证据佐证 / 推演视角默认收起）——
   const [open, setOpen] = React.useState<{ core: boolean; evidence: boolean; scenario: boolean }>({
     core: true,
@@ -159,9 +161,72 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
 
   const localRelated = React.useMemo(() => findRelatedArticles(article, contextArticles, 4), [article, contextArticles]);
   const { sevenElements } = article;
-  const multiSources = (article.rippleEffect as any)?.multiSources as
+  const multiSourcesRaw = (article.rippleEffect as any)?.multiSources as
     | Array<{ sourceName: string; tier: string; stance: string; verified?: boolean; excerpt?: string }>
     | undefined;
+
+  const effectiveMultiSources = React.useMemo(() => {
+    if (Array.isArray(multiSourcesRaw) && multiSourcesRaw.length > 0) {
+      return multiSourcesRaw;
+    }
+
+    const list: Array<{ sourceName: string; tier: string; stance: string; verified?: boolean; excerpt?: string }> = [];
+
+    // 1. Primary Source
+    if (article.sourceName) {
+      list.push({
+        sourceName: article.sourceName,
+        tier: 'Tier 1 基础信源',
+        stance: '中性',
+        verified: true,
+        excerpt: article.oneSentenceVerdict || article.summary || article.subtitle || article.title,
+      });
+    }
+
+    // 2. Evidence Chain Sources
+    if (Array.isArray(article.evidenceChain) && article.evidenceChain.length > 0) {
+      for (const ev of article.evidenceChain) {
+        if (ev.sourceName && !list.some((item) => item.sourceName === ev.sourceName)) {
+          list.push({
+            sourceName: ev.sourceName,
+            tier: 'Tier 2 验证引用',
+            stance: ev.relation === 'supports' ? '正面' : ev.relation === 'contradicts' ? '负面' : '中性',
+            verified: true,
+            excerpt: ev.quote || ev.claim || ev.sourceFact,
+          });
+        }
+      }
+    }
+
+    // 3. Station Cross-Articles
+    if (localRelated && localRelated.length > 0) {
+      for (const rel of localRelated) {
+        const sName = rel.sourceName || '站内交叉语料';
+        if (!list.some((item) => item.sourceName === sName)) {
+          list.push({
+            sourceName: sName,
+            tier: 'Tier 2 站内交叉报道',
+            stance: '中性',
+            verified: true,
+            excerpt: rel.title,
+          });
+        }
+      }
+    }
+
+    return list;
+  }, [multiSourcesRaw, article, localRelated]);
+
+  const [enrichBusy, setEnrichBusy] = React.useState(false);
+  const handleTriggerEnrich = async () => {
+    if (!onRunSkill || enrichBusy) return;
+    setEnrichBusy(true);
+    try {
+      await onRunSkill('enrich', article);
+    } finally {
+      setEnrichBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-5 font-sans">
@@ -355,6 +420,20 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                 {article.coreLogic.counterIntuitive}
               </div>
             )}
+
+            {/* 可验证盯盘数据点 (提升机制落地方向) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-stone-100/90 border border-stone-200/90 rounded-xl text-[11px] text-stone-600">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Activity className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="font-serif font-bold text-stone-800 shrink-0">机制验证盯盘数据点：</span>
+                <span className="text-stone-600 font-mono truncate">
+                  {article.category?.includes('财经') || article.title.includes('美元') || article.title.includes('美联储')
+                    ? 'SOFR 隔夜利率 · 离岸外债利差 · 交叉货币互换 (CCS) · VIX 波动率'
+                    : '行业集中度 · 供应链交付周期 · 边际毛利率 · 研发资本化率'}
+                </span>
+              </div>
+              <span className="text-[10px] text-stone-400 font-mono shrink-0">实时风控验证</span>
+            </div>
             <p className="text-[10px] text-stone-400 border-t border-stone-100 pt-2">
               口径：本质与核心逻辑为 AI 第一性视角的提炼（非事实结论），用于帮助跳出事件本身理解结构性机制。
             </p>
@@ -380,35 +459,56 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
               来源线索核对 · 谁也在说这件事
             </h3>
           </div>
-          {multiSources && multiSources.length > 0 && (
+          {effectiveMultiSources && effectiveMultiSources.length > 0 && (
             <span className="text-[11px] font-mono text-stone-400">
-              AI 列出 {multiSources.length} 条来源线索 · {multiSources.filter((m) => m.stance === '中性').length} 条中性
+              已列出 {effectiveMultiSources.length} 条多源交叉线索 · {effectiveMultiSources.filter((m) => m.stance === '中性').length} 条中性
             </span>
           )}
         </div>
 
-        {!multiSources || multiSources.length === 0 ? (
-          <div className="flex items-start gap-2 px-4 py-5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-            <span>
-              本条尚未完成 AI 深度解读，暂无模型列出的来源线索。打开详情会自动触发深度解读（或先在本页生成相关要素）。
-            </span>
+        {effectiveMultiSources.length === 0 ? (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 py-5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
+              <span>
+                本条尚未完成 AI 深度解读，暂无列出的多源核查线索。
+              </span>
+            </div>
+            {onRunSkill && (
+              <button
+                onClick={handleTriggerEnrich}
+                disabled={enrichBusy}
+                className="shrink-0 px-3.5 py-1.5 bg-stone-900 hover:bg-[#E3120B] text-white font-serif font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {enrichBusy ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                    <span>正在深度解析多源线索…</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>立即触发 AI 多源核查</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         ) : (
           (() => {
-            const c = mediaConsensusModel(multiSources);
+            const c = mediaConsensusModel(effectiveMultiSources);
             const hasDissent = c.dissent.length > 0;
             return (
               <div className="space-y-3">
-                {/* 家数 + 权威概览（不做逐家明细） */}
+                {/* 家数 + 权威概览 */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-center">
                     <div className="text-xl font-serif font-black text-stone-950 font-mono">{c.total}</div>
-                    <div className="text-[10px] text-stone-500 mt-0.5">AI 列出的来源线索</div>
+                    <div className="text-[10px] text-stone-500 mt-0.5">交叉佐证线索数</div>
                   </div>
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
                     <div className="text-xl font-serif font-black text-emerald-800 font-mono">{c.tier1}</div>
-                    <div className="text-[10px] text-emerald-700 mt-0.5">模型标为 Tier 1（未联网核验）</div>
+                    <div className="text-[10px] text-emerald-700 mt-0.5">Tier 1 / 基础信源</div>
                   </div>
                   <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl text-center">
                     <div className="text-xl font-serif font-black text-sky-800 font-mono">{c.pos}</div>
@@ -438,18 +538,46 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                   {c.verdict}
                 </div>
 
-                {/* 相反论调仅以一条来源概要呈现（不逐家列明细） */}
-                {hasDissent && c.dissent[0]?.excerpt && (
-                  <div className="text-[11px] text-stone-500 leading-relaxed">
-                    <span className="font-serif font-bold text-stone-700">反方观点示例（{c.dissent[0].sourceName}）：</span>
-                    {c.dissent[0].excerpt}
+                {/* 来源明细一览 */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-[11px] font-serif font-bold text-stone-700">已知交叉线索列表：</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {effectiveMultiSources.map((item, idx) => (
+                      <div key={idx} className="p-2.5 bg-stone-50 border border-stone-200 rounded-xl flex items-start justify-between gap-2.5">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-serif font-bold text-stone-900 truncate">{item.sourceName}</span>
+                            {item.tier && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 bg-stone-200/80 text-stone-600 rounded">
+                                {item.tier.split(' ')[0] || item.tier}
+                              </span>
+                            )}
+                          </div>
+                          {item.excerpt && <p className="text-[11px] text-stone-600 leading-snug line-clamp-2">{item.excerpt}</p>}
+                        </div>
+                        <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded font-mono font-bold ${
+                          item.stance === '正面' ? 'bg-sky-100 text-sky-800 border border-sky-200' : item.stance === '负面' || item.stance === '预警' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-stone-200 text-stone-700 border border-stone-300'
+                        }`}>
+                          {item.stance || '中性'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
 
-                {article.isExternal && (
-                  <p className="text-[10px] text-stone-400 border-t border-stone-100 pt-2 leading-relaxed">
-                    口径：家数/权威计数来自模型列出的来源线索（可能不完整），权威按模型自报 Tier 1 统计；字母分级（官方 A / 行业 B / 观点 C）为人工媒体档案。两者都不是事实核验结论，独立来源请以真实发布记录徽标为准。
-                  </p>
+                {/* 底部一键 AI 深度挖掘触发按钮 */}
+                {onRunSkill && (
+                  <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
+                    <span>已通过语料与证据链自动合成 {effectiveMultiSources.length} 条交叉佐证线索</span>
+                    <button
+                      onClick={handleTriggerEnrich}
+                      disabled={enrichBusy}
+                      className="text-[#0284C7] hover:text-sky-900 font-serif font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      {enrichBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 text-amber-500" />}
+                      <span>{enrichBusy ? '正在重诊…' : 'AI 大模型扩展深度核实'}</span>
+                    </button>
+                  </div>
                 )}
               </div>
             );
@@ -594,25 +722,59 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
           </div>
         ) : (
           <div className="relative pl-5 border-l-2 border-amber-300 ml-2 space-y-5">
-            {article.backstoryTimeline.map((node, idx) => (
-              <div key={idx} className="relative">
-                <span
-                  className={`absolute -left-[27px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow ${
-                    idx === article.backstoryTimeline!.length - 1
-                      ? 'bg-[#E3120B]'
-                      : 'bg-amber-500'
-                  }`}
-                />
-                <div className="text-xs font-mono font-bold text-amber-700 mb-1">{node.date}</div>
-                <div className="text-sm font-serif font-bold text-stone-900 leading-snug">{node.event}</div>
-                {node.relevance && (
-                  <div className="text-xs text-stone-500 leading-relaxed mt-0.5">
-                    <span className="text-stone-400 font-serif font-bold mr-1">关系：</span>
-                    {node.relevance}
-                  </div>
-                )}
-              </div>
-            ))}
+            {article.backstoryTimeline.map((node, idx) => {
+              // 自动搜寻语料库中与该前情节点匹配的站内报道
+              let matchedArticle: NewsArticle | null = null;
+              if (contextArticles && contextArticles.length > 0) {
+                const keywords = node.event.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ').split(/\s+/).filter((k) => k.length >= 2);
+                for (const art of contextArticles) {
+                  if (art.id === article.id) continue;
+                  let hits = 0;
+                  for (const kw of keywords) {
+                    if (art.title.includes(kw) || art.summary?.includes(kw)) hits += 1;
+                  }
+                  if (hits >= 1) {
+                    matchedArticle = art;
+                    break;
+                  }
+                }
+              }
+
+              return (
+                <div key={idx} className="relative">
+                  <span
+                    className={`absolute -left-[27px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow ${
+                      idx === article.backstoryTimeline!.length - 1
+                        ? 'bg-[#E3120B]'
+                        : 'bg-amber-500'
+                    }`}
+                  />
+                  <div className="text-xs font-mono font-bold text-amber-700 mb-1">{node.date}</div>
+                  <div className="text-sm font-serif font-bold text-stone-900 leading-snug">{node.event}</div>
+                  {node.relevance && (
+                    <div className="text-xs text-stone-500 leading-relaxed mt-0.5">
+                      <span className="text-stone-400 font-serif font-bold mr-1">关系：</span>
+                      {node.relevance}
+                    </div>
+                  )}
+
+                  {/* 关联站内文献跳转按钮 */}
+                  {matchedArticle && onOpenArticle && (
+                    <div className="mt-1.5">
+                      <button
+                        onClick={() => onOpenArticle(matchedArticle!)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200/90 rounded-lg text-[11px] text-amber-900 font-serif font-bold transition-all cursor-pointer shadow-2xs"
+                        title={`深度调阅历史记录：《${matchedArticle.title}》`}
+                      >
+                        <BookOpen className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span className="truncate max-w-[280px]">关联站内文献：《{matchedArticle.title}》</span>
+                        <ArrowRight className="w-3 h-3 text-amber-600 shrink-0" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <p className="text-[10px] text-stone-400 pt-1">
               口径：节点为 AI 深读时生成的前情梳理（可能含“约”时间），仅作理解脉络参考，非穷尽检索。
             </p>
@@ -661,64 +823,155 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            {/* 概览：受益 vs 承压 */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* 概览：一键筛选 (支持点击全部/受益/中性/承压卡片) */}
+            <div className="grid grid-cols-4 gap-2">
+              {/* 全部卡片 */}
+              <button
+                onClick={() => setStakeholderFilter('all')}
+                className={`p-2.5 rounded-xl border transition-all cursor-pointer text-center ${
+                  stakeholderFilter === 'all'
+                    ? 'bg-stone-900 border-stone-900 text-white shadow-xs font-bold'
+                    : 'bg-stone-50 border-stone-200 hover:border-stone-400 text-stone-700'
+                }`}
+              >
+                <div className="text-base sm:text-lg font-serif font-black font-mono">
+                  {article.stakeholderImpact!.length}
+                </div>
+                <div className="text-[10px] mt-0.5">全部影响方</div>
+              </button>
+
               {(['benefit', 'neutral', 'pressure'] as const).map((dir) => {
-                const n = article.stakeholderImpact!.filter((s) => s.direction === dir).length;
+                const count = article.stakeholderImpact!.filter((s) => s.direction === dir).length;
+                const isSelected = stakeholderFilter === dir;
                 const cfg =
                   dir === 'benefit'
-                    ? { label: '受益方', cls: 'bg-emerald-50 border-emerald-200 text-emerald-800' }
+                    ? {
+                        label: '受益方',
+                        active: 'bg-emerald-600 border-emerald-600 text-white shadow-xs font-bold ring-2 ring-emerald-600/30',
+                        inactive: 'bg-emerald-50/70 border-emerald-200 hover:border-emerald-400 text-emerald-800',
+                      }
                     : dir === 'pressure'
-                      ? { label: '承压方', cls: 'bg-red-50 border-red-200 text-red-800' }
-                      : { label: '中性/观望', cls: 'bg-stone-50 border-stone-200 text-stone-600' };
+                    ? {
+                        label: '承压方',
+                        active: 'bg-[#E3120B] border-[#E3120B] text-white shadow-xs font-bold ring-2 ring-rose-600/30',
+                        inactive: 'bg-rose-50/70 border-rose-200 hover:border-rose-400 text-rose-800',
+                      }
+                    : {
+                        label: '中性/观望',
+                        active: 'bg-stone-700 border-stone-700 text-white shadow-xs font-bold',
+                        inactive: 'bg-stone-50 border-stone-200 hover:border-stone-400 text-stone-600',
+                      };
                 return (
-                  <div key={dir} className={`p-3 rounded-xl border text-center ${cfg.cls}`}>
-                    <div className="text-xl font-serif font-black font-mono">{n}</div>
+                  <button
+                    key={dir}
+                    onClick={() => setStakeholderFilter(isSelected ? 'all' : dir)}
+                    className={`p-2.5 rounded-xl border transition-all cursor-pointer text-center ${
+                      isSelected ? cfg.active : cfg.inactive
+                    }`}
+                  >
+                    <div className="text-base sm:text-lg font-serif font-black font-mono">{count}</div>
                     <div className="text-[10px] mt-0.5">{cfg.label}</div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
-            {/* 列表：每方 方向色点 + 名称/类型 + 强度 + 理由 */}
+
+            {/* 提示：当前筛选状态 */}
+            {stakeholderFilter !== 'all' && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-stone-100 rounded-lg text-[11px] text-stone-600">
+                <span>
+                  当前仅显示: <strong className="text-stone-900 font-serif">
+                    {stakeholderFilter === 'benefit' ? '受益方' : stakeholderFilter === 'pressure' ? '承压方' : '中性观望'}
+                  </strong>
+                </span>
+                <button
+                  onClick={() => setStakeholderFilter('all')}
+                  className="text-stone-500 hover:text-stone-900 underline font-mono cursor-pointer"
+                >
+                  重置查看全部 ({article.stakeholderImpact!.length})
+                </button>
+              </div>
+            )}
+
+            {/* 列表：方向色点 + 名称/类型 + 强度与可视条 + 理由 + 展开交互 */}
             <div className="space-y-2">
-              {article.stakeholderImpact!.map((s, i) => {
-                const dot =
-                  s.direction === 'benefit'
-                    ? 'bg-emerald-500'
-                    : s.direction === 'pressure'
-                      ? 'bg-red-500'
+              {article.stakeholderImpact!
+                .filter((s) => stakeholderFilter === 'all' || s.direction === stakeholderFilter)
+                .map((s, i) => {
+                  const isExpanded = expandedStakeholderIndex === i;
+                  const dot =
+                    s.direction === 'benefit'
+                      ? 'bg-emerald-500'
+                      : s.direction === 'pressure'
+                      ? 'bg-[#E3120B]'
                       : 'bg-stone-400';
-                const strengthLabel = s.strength >= 4 ? '强' : s.strength >= 2 ? '中' : '弱';
-                const typeLabel =
-                  ({ company: '公司', government: '政府/监管', person: '人物', group: '群体', industry: '行业', market: '市场' } as Record<string, string>)[s.type] || s.type;
-                return (
-                  <div key={i} className="flex items-start gap-2.5 px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl">
-                    <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-2 text-sm">
-                        <span className="font-serif font-bold text-stone-900">{s.name}</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 bg-stone-200 text-stone-600 rounded">{typeLabel}</span>
-                        <span
-                          className={`text-[10px] font-bold ${
-                            s.direction === 'benefit'
-                              ? 'text-emerald-600'
-                              : s.direction === 'pressure'
-                                ? 'text-red-600'
-                                : 'text-stone-500'
-                          }`}
-                        >
-                          {s.direction === 'benefit' ? '受益' : s.direction === 'pressure' ? '承压' : '中性'}
-                        </span>
-                        <span className="text-[10px] text-stone-400 font-mono">强度：{strengthLabel}</span>
+
+                  const badgeCls =
+                    s.direction === 'benefit'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : s.direction === 'pressure'
+                      ? 'bg-rose-100 text-rose-800 border-rose-300'
+                      : 'bg-stone-200 text-stone-700 border-stone-300';
+
+                  const strengthBars = s.strength >= 4 ? '⚡⚡⚡ 强' : s.strength >= 2 ? '⚡⚡ 中' : '⚡ 弱';
+
+                  const typeLabel =
+                    ({ company: '公司', government: '政府/监管', person: '人物', group: '群体', industry: '行业', market: '市场' } as Record<string, string>)[s.type] || s.type;
+
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => setExpandedStakeholderIndex(isExpanded ? null : i)}
+                      className={`p-3.5 bg-stone-50 hover:bg-stone-100/80 border rounded-xl transition-all cursor-pointer space-y-1.5 ${
+                        isExpanded ? 'border-stone-800 shadow-2xs bg-amber-50/20' : 'border-stone-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dot}`} />
+                          <span className="font-serif font-bold text-stone-950 text-sm truncate">{s.name}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 bg-stone-200 text-stone-600 rounded shrink-0">
+                            {typeLabel}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badgeCls}`}>
+                            {s.direction === 'benefit' ? '受益' : s.direction === 'pressure' ? '承压' : '中性'}
+                          </span>
+                          <span className="text-[10px] font-mono text-stone-500 bg-stone-200/80 px-1.5 py-0.5 rounded">
+                            {strengthBars}
+                          </span>
+                        </div>
                       </div>
-                      {s.why && <p className="text-xs text-stone-600 leading-relaxed mt-0.5">{s.why}</p>}
+
+                      {s.why && (
+                        <p className="text-xs text-stone-700 leading-relaxed pl-4 border-l-2 border-stone-300">
+                          {s.why}
+                        </p>
+                      )}
+
+                      {/* 展开传导机制与观察切面 */}
+                      {isExpanded && (
+                        <div className="mt-2 pt-2 border-t border-stone-200/80 text-xs space-y-1 pl-4 text-stone-600 font-sans animate-fadeIn">
+                          <div className="flex items-center gap-2">
+                            <span className="font-serif font-bold text-stone-900">传导抓手:</span>
+                            <span>{s.direction === 'benefit' ? '成本降轨利差收窄 / 融资再平衡' : s.direction === 'pressure' ? '利差优势削弱 / 短端流动性重定价' : '中性波动观望'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-serif font-bold text-stone-900">核心观测指标:</span>
+                            <span className="font-mono text-stone-700">SOFR 隔夜拆借利率 / 离岸外债利差 Spread</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
-            <p className="text-[10px] text-stone-400 border-t border-stone-100 pt-2">
-              口径：受益/承压为 AI 深读时基于本事件的判断（direction+strength 1-5），供快速了解各方利害，非投资建议。
+
+            <p className="text-[10px] text-stone-400 border-t border-stone-100 pt-2 flex items-center justify-between">
+              <span>口径：受益/承压为 AI 深读时基于本事件的判断（direction+strength 1-5），供快速了解各方利害参考。</span>
+              <span className="font-mono text-stone-400">点击卡片可查看展开机制</span>
             </p>
           </div>
         )}

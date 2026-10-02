@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import localforage from 'localforage';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, X, ArrowRight, Tag, Newspaper, Radio, Clock, Trash2, CornerDownLeft } from 'lucide-react';
+import { Search, X, ArrowRight, Tag, Newspaper, Radio, Clock, Trash2, CornerDownLeft, Database, Sparkles, Cpu } from 'lucide-react';
 import { NewsArticle, RadarKeyword, TopicCluster } from '../types';
 import { formatArticleTime } from '../utils/articleTime';
 import { keywordHits } from '../utils/corpusMetrics';
@@ -17,6 +18,15 @@ interface SearchModalProps {
 }
 
 type SearchTab = 'all' | 'articles' | 'topics' | 'radars';
+
+const INDEXED_DB_CORPUS_KEY = 'jianwei:indexeddb-corpus-v2';
+
+// 创建 IndexedDB 全量语料库读取实例
+const corpusDB = localforage.createInstance({
+  name: 'JianWeiIntelligenceDB',
+  storeName: 'articles_corpus',
+  description: '大规模新闻语料与 AI 认知拆解的 IndexedDB 持久化存储库',
+});
 
 /** 文本高亮组件：将匹配子串用醒目底色标出，保留周围文本 */
 function HighlightMatch({ text, query }: { text: string; query: string }) {
@@ -42,6 +52,77 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   );
 }
 
+/** 截取包含关键词的文本片段 */
+function extractSnippet(text: string | undefined, query: string, maxLen = 100): string {
+  if (!text) return '';
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return text.slice(0, maxLen);
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(trimmed);
+  if (idx === -1) return text.slice(0, maxLen);
+
+  const start = Math.max(0, idx - 25);
+  const end = Math.min(text.length, idx + maxLen - 25);
+  const prefix = start > 0 ? '...' : '';
+  const suffix = end < text.length ? '...' : '';
+  return prefix + text.slice(start, end) + suffix;
+}
+
+/** 提取文章多层文本字段用于全文模糊检索 */
+function extractArticleTexts(article: NewsArticle) {
+  const title = article.title || '';
+  const subtitle = article.subtitle || '';
+  const summary = article.summary || '';
+  const verdict = article.oneSentenceVerdict || '';
+
+  // 通俗解读
+  const tongsu = article.tongsuSummary
+    ? `${article.tongsuSummary.simpleSay || ''} ${article.tongsuSummary.whyExplanation || ''} ${article.tongsuSummary.whatItMeans || ''}`
+    : '';
+
+  // AI 综合解读
+  let aiInterp = '';
+  if (article.aiInterpretation) {
+    if (typeof article.aiInterpretation === 'string') {
+      aiInterp = article.aiInterpretation;
+    } else {
+      aiInterp = `${article.aiInterpretation.core || ''} ${article.aiInterpretation.basis || ''} ${article.aiInterpretation.impact || ''} ${article.aiInterpretation.limits || ''}`;
+    }
+  }
+
+  // 底层逻辑
+  const coreLogic = article.coreLogic
+    ? `${article.coreLogic.essence || ''} ${(article.coreLogic.points || []).join(' ')} ${article.coreLogic.counterIntuitive || ''}`
+    : '';
+
+  // 正反方博弈
+  const bullBear = article.bullBearDebate
+    ? `${article.bullBearDebate.coreDispute || ''} ${article.bullBearDebate.read || ''} ${(article.bullBearDebate.bull || []).map((b) => b.point).join(' ')} ${(article.bullBearDebate.bear || []).map((b) => b.point).join(' ')}`
+    : '';
+
+  // 标签与分类
+  const tags = (article.tags || []).join(' ');
+
+  return {
+    title,
+    subtitle,
+    summary,
+    verdict,
+    tongsu,
+    aiInterp,
+    coreLogic,
+    bullBear,
+    tags,
+  };
+}
+
+interface ArticleSearchResult {
+  article: NewsArticle;
+  score: number;
+  hitReasons: string[];
+  matchedSnippet: string;
+}
+
 const QUICK_TAGS = ['NVIDIA', '台积电', '降息', '关税', 'AI Agent', '出海', '半导体'];
 const RECENT_KEY = 'jianwei:recent-searches';
 
@@ -59,6 +140,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [activeTab, setActiveTab] = useState<SearchTab>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // IndexedDB 异步语料库状态
+  const [idbCorpus, setIdbCorpus] = useState<NewsArticle[]>([]);
+
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(RECENT_KEY);
@@ -69,6 +154,41 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   });
 
   const listRef = useRef<HTMLDivElement>(null);
+
+  // 弹窗打开时加载 IndexedDB 中的全量缓存语料
+  useEffect(() => {
+    if (!isOpen) return;
+    let alive = true;
+    corpusDB
+      .getItem<NewsArticle[]>(INDEXED_DB_CORPUS_KEY)
+      .then((cached) => {
+        if (!alive) return;
+        if (Array.isArray(cached) && cached.length > 0) {
+          setIdbCorpus(cached);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [isOpen]);
+
+  // 合并内存传入的 articles 与 IndexedDB 的全量语料，去重保留完整 AI 拆解字段
+  const mergedCorpus = useMemo(() => {
+    const map = new Map<string, NewsArticle>();
+    for (const art of articles) {
+      map.set(art.id, art);
+    }
+    for (const art of idbCorpus) {
+      if (!map.has(art.id)) {
+        map.set(art.id, art);
+      } else {
+        const existing = map.get(art.id)!;
+        map.set(art.id, { ...existing, ...art });
+      }
+    }
+    return Array.from(map.values());
+  }, [articles, idbCorpus]);
 
   // 150ms 防抖：避免高频击键卡顿
   useEffect(() => {
@@ -103,17 +223,105 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     setRecentSearches([]);
   };
 
-  const filteredArticles = useMemo(() => {
+  // 核心：基于 IndexedDB 全量语料库的全文与 AI 解读摘要模糊检索
+  const filteredArticleResults = useMemo<ArticleSearchResult[]>(() => {
     if (!debouncedQuery.trim()) return [];
-    const q = debouncedQuery.toLowerCase();
-    return articles.filter(
-      (a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.subtitle?.toLowerCase().includes(q) ||
-        a.summary?.toLowerCase().includes(q) ||
-        a.tags?.some((t) => t.toLowerCase().includes(q))
-    );
-  }, [debouncedQuery, articles]);
+    const q = debouncedQuery.trim().toLowerCase();
+    const tokens = q.split(/\s+/).filter(Boolean);
+
+    const results: ArticleSearchResult[] = [];
+
+    for (const article of mergedCorpus) {
+      const texts = extractArticleTexts(article);
+
+      const titleLower = texts.title.toLowerCase();
+      const subtitleLower = texts.subtitle.toLowerCase();
+      const summaryLower = texts.summary.toLowerCase();
+      const verdictLower = texts.verdict.toLowerCase();
+      const tongsuLower = texts.tongsu.toLowerCase();
+      const aiInterpLower = texts.aiInterp.toLowerCase();
+      const coreLogicLower = texts.coreLogic.toLowerCase();
+      const bullBearLower = texts.bullBear.toLowerCase();
+      const tagsLower = texts.tags.toLowerCase();
+
+      // 多词 AND 匹配判定
+      const matchesAllTokens = tokens.every(
+        (token) =>
+          titleLower.includes(token) ||
+          subtitleLower.includes(token) ||
+          summaryLower.includes(token) ||
+          verdictLower.includes(token) ||
+          tongsuLower.includes(token) ||
+          aiInterpLower.includes(token) ||
+          coreLogicLower.includes(token) ||
+          bullBearLower.includes(token) ||
+          tagsLower.includes(token)
+      );
+
+      if (!matchesAllTokens) continue;
+
+      let score = 0;
+      const hitReasons = new Set<string>();
+      let matchedSnippet = '';
+
+      // 算分逻辑与命中域标记
+      if (titleLower.includes(q)) {
+        score += 100;
+        hitReasons.add('标题');
+        if (!matchedSnippet) matchedSnippet = article.title;
+      }
+      if (subtitleLower.includes(q)) {
+        score += 50;
+        hitReasons.add('副标题');
+        if (!matchedSnippet) matchedSnippet = article.subtitle || '';
+      }
+      if (verdictLower.includes(q) || tongsuLower.includes(q) || aiInterpLower.includes(q)) {
+        score += 80;
+        hitReasons.add('AI解读摘要');
+        if (!matchedSnippet) {
+          const matchSource = article.oneSentenceVerdict || texts.tongsu || texts.aiInterp;
+          matchedSnippet = extractSnippet(matchSource, q);
+        }
+      }
+      if (coreLogicLower.includes(q) || bullBearLower.includes(q)) {
+        score += 60;
+        hitReasons.add('底层逻辑');
+        if (!matchedSnippet) {
+          const matchSource = texts.coreLogic || texts.bullBear;
+          matchedSnippet = extractSnippet(matchSource, q);
+        }
+      }
+      if (summaryLower.includes(q)) {
+        score += 40;
+        hitReasons.add('正文语料');
+        if (!matchedSnippet) {
+          matchedSnippet = extractSnippet(article.summary, q);
+        }
+      }
+      if (tagsLower.includes(q)) {
+        score += 30;
+        hitReasons.add('标签');
+      }
+
+      if (hitReasons.size === 0) {
+        hitReasons.add('模糊匹配');
+      }
+
+      if (!matchedSnippet) {
+        matchedSnippet = article.oneSentenceVerdict || article.subtitle || article.summary || article.title;
+      }
+
+      results.push({
+        article,
+        score,
+        hitReasons: Array.from(hitReasons),
+        matchedSnippet,
+      });
+    }
+
+    // 按得分由高到低排序
+    return results.sort((a, b) => b.score - a.score);
+  }, [debouncedQuery, mergedCorpus]);
 
   const filteredTopics = useMemo(() => {
     if (!debouncedQuery.trim()) return [];
@@ -136,22 +344,22 @@ export const SearchModal: React.FC<SearchModalProps> = ({
   const radarCounts = useMemo(() => {
     const map = new Map<string, number>();
     for (const r of radarKeywords) {
-      map.set(r.id, keywordHits(r.keyword, articles).total);
+      map.set(r.id, keywordHits(r.keyword, mergedCorpus).total);
     }
     return map;
-  }, [radarKeywords, articles]);
+  }, [radarKeywords, mergedCorpus]);
 
   // 合并可见条目供键盘导航
   const navigableItems = useMemo(() => {
     const items: Array<
-      | { type: 'article'; data: NewsArticle }
+      | { type: 'article'; data: ArticleSearchResult }
       | { type: 'topic'; data: TopicCluster }
       | { type: 'radar'; data: RadarKeyword }
     > = [];
 
     if (activeTab === 'all' || activeTab === 'articles') {
-      for (const art of filteredArticles.slice(0, 30)) {
-        items.push({ type: 'article', data: art });
+      for (const item of filteredArticleResults.slice(0, 30)) {
+        items.push({ type: 'article', data: item });
       }
     }
     if (activeTab === 'all' || activeTab === 'topics') {
@@ -165,7 +373,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
       }
     }
     return items;
-  }, [activeTab, filteredArticles, filteredTopics, filteredRadars]);
+  }, [activeTab, filteredArticleResults, filteredTopics, filteredRadars]);
 
   // 键盘导航 (上下箭头、回车打开)
   useEffect(() => {
@@ -186,7 +394,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
           const target = navigableItems[selectedIndex];
           saveSearchTerm(debouncedQuery);
           if (target.type === 'article') {
-            onSelectArticle(target.data);
+            onSelectArticle(target.data.article);
             onClose();
           } else if (target.type === 'topic') {
             onSelectTopic(target.data.id);
@@ -202,7 +410,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, navigableItems, selectedIndex, debouncedQuery, onSelectArticle, onSelectTopic, onClose]);
 
-  const totalMatches = filteredArticles.length + filteredTopics.length + filteredRadars.length;
+  const totalMatches = filteredArticleResults.length + filteredTopics.length + filteredRadars.length;
 
   return (
     <AnimatePresence>
@@ -221,7 +429,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索微观线索、公司（NVIDIA/台积电）、政策（降息/关税）、术语..."
+                placeholder="全文检索新闻内容、AI解读摘要、底层逻辑（例：NVIDIA / 降息 / 关税）..."
                 autoFocus
                 className="flex-1 text-base bg-transparent border-none outline-hidden text-stone-900 placeholder:text-stone-400 font-sans"
               />
@@ -263,7 +471,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                       : 'text-stone-600 hover:bg-stone-200'
                   }`}
                 >
-                  情报报告 ({filteredArticles.length})
+                  情报与AI解读 ({filteredArticleResults.length})
                 </button>
                 <button
                   onClick={() => setActiveTab('topics')}
@@ -368,18 +576,26 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 </div>
               ) : (
                 <>
-                  {/* 文章列表 */}
-                  {(activeTab === 'all' || activeTab === 'articles') && filteredArticles.length > 0 && (
+                  {/* 文章及 AI 解读全文匹配列表 */}
+                  {(activeTab === 'all' || activeTab === 'articles') && filteredArticleResults.length > 0 && (
                     <div className="space-y-3">
-                      <div className="flex items-center space-x-2 text-xs font-serif font-bold text-stone-700 uppercase tracking-wide">
-                        <Newspaper className="w-4 h-4 text-[#E3120B]" />
-                        <span>情报报告 ({filteredArticles.length})</span>
+                      <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                        <div className="flex items-center space-x-2 text-xs font-serif font-bold text-stone-700 uppercase tracking-wide">
+                          <Newspaper className="w-4 h-4 text-[#E3120B]" />
+                          <span>情报与 AI 解读全文匹配 ({filteredArticleResults.length})</span>
+                        </div>
+                        <span className="text-[10px] text-stone-400 font-mono flex items-center gap-1">
+                          <Database className="w-3 h-3 text-emerald-600" />
+                          已检索 IndexedDB 全量语料
+                        </span>
                       </div>
+
                       <div className="space-y-2">
-                        {filteredArticles.slice(0, 30).map((article, idx) => {
+                        {filteredArticleResults.slice(0, 30).map((res) => {
+                          const article = res.article;
                           const isHighlighted =
                             navigableItems[selectedIndex]?.type === 'article' &&
-                            (navigableItems[selectedIndex]?.data as NewsArticle).id === article.id;
+                            (navigableItems[selectedIndex]?.data as ArticleSearchResult).article.id === article.id;
 
                           return (
                             <div
@@ -395,8 +611,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                                   : 'bg-white border-stone-200 hover:border-stone-400 hover:shadow-xs'
                               }`}
                             >
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center space-x-2">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="text-[10px] font-mono px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded">
                                     {article.category}
                                   </span>
@@ -404,20 +620,43 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                                   {article.sourceName && (
                                     <span className="text-xs text-stone-400">· {article.sourceName}</span>
                                   )}
+
+                                  {/* 匹配命中理由标签 */}
+                                  {res.hitReasons.map((reason) => (
+                                    <span
+                                      key={reason}
+                                      className={`text-[9px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+                                        reason === 'AI解读摘要'
+                                          ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                          : reason === '底层逻辑'
+                                          ? 'bg-blue-100 text-blue-900 border-blue-300'
+                                          : reason === '标题'
+                                          ? 'bg-red-100 text-red-900 border-red-300'
+                                          : 'bg-stone-100 text-stone-600 border-stone-300'
+                                      }`}
+                                    >
+                                      {reason === 'AI解读摘要' && <Sparkles className="w-2.5 h-2.5 inline mr-0.5 text-amber-600" />}
+                                      {reason === '底层逻辑' && <Cpu className="w-2.5 h-2.5 inline mr-0.5 text-blue-600" />}
+                                      {reason}匹配
+                                    </span>
+                                  ))}
                                 </div>
+
                                 {isHighlighted && (
-                                  <span className="text-[10px] font-mono text-stone-400 flex items-center gap-0.5">
+                                  <span className="text-[10px] font-mono text-stone-400 flex items-center gap-0.5 shrink-0">
                                     <CornerDownLeft className="w-3 h-3" />
                                     回车打开
                                   </span>
                                 )}
                               </div>
+
                               <h4 className="text-sm font-serif font-bold text-stone-950 mb-1 leading-snug">
                                 <HighlightMatch text={article.title} query={debouncedQuery} />
                               </h4>
-                              <p className="text-xs text-stone-600 line-clamp-1">
+
+                              <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed bg-stone-50/70 p-2 rounded-lg border border-stone-100 mt-1">
                                 <HighlightMatch
-                                  text={article.oneSentenceVerdict || article.subtitle || article.summary || ''}
+                                  text={res.matchedSnippet}
                                   query={debouncedQuery}
                                 />
                               </p>
@@ -498,7 +737,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   {totalMatches === 0 && (
                     <div className="text-center py-12 text-stone-400 font-sans space-y-2">
                       <p className="text-sm text-stone-600">
-                        未检索到与「<strong>{query}</strong>」直接匹配的情报
+                        未检索到与「<strong>{query}</strong>」直接匹配的情报或 AI 解读
                       </p>
                       <p className="text-xs text-stone-400">
                         您可以尝试更宽泛的关键词、切换搜索标签，或在顶部点击「AI 提交分析」摄取新内容。
@@ -526,8 +765,9 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                   关闭
                 </span>
               </div>
-              <div>
-                共 {articles.length} 篇语料库情报
+              <div className="flex items-center gap-1.5 text-emerald-800 font-mono">
+                <Database className="w-3.5 h-3.5 text-emerald-600" />
+                <span>IndexedDB 语料库：共 {mergedCorpus.length} 篇新闻 & AI 拆解</span>
               </div>
             </div>
           </motion.div>

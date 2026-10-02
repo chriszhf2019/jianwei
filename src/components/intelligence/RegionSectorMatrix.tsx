@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { NewsArticle } from '../../types';
 import { Grid3x3 } from 'lucide-react';
 import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
-import { primaryRegionMention } from '../../utils/regionSemantics';
+import { primaryRegionMention, inferDefaultRegionMentions } from '../../utils/regionSemantics';
 
 interface RegionSectorMatrixProps {
   articles: NewsArticle[];
@@ -16,7 +16,8 @@ export const RegionSectorMatrix: React.FC<RegionSectorMatrixProps> = ({ articles
     const regionCount = new Map<string, number>();
     const cross = new Map<string, Map<string, number>>();
     for (const a of articles) {
-      const top = primaryRegionMention(a.regionMentions);
+      const mentions = a.regionMentions && a.regionMentions.length > 0 ? a.regionMentions : inferDefaultRegionMentions(a);
+      const top = primaryRegionMention(mentions);
       if (!top) continue;
       regionCount.set(top.region, (regionCount.get(top.region) || 0) + 1);
       for (const id of detectSectors(a)) {

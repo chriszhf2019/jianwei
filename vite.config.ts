@@ -1,12 +1,16 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     build: {
+      target: 'esnext',
+      minify: 'esbuild',
+      cssMinify: true,
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
           manualChunks(id) {
@@ -20,7 +24,10 @@ export default defineConfig(() => {
             if (id.includes('/lucide-react/')) {
               return 'icons-vendor';
             }
-            return undefined;
+            if (id.includes('/localforage/')) {
+              return 'storage-vendor';
+            }
+            return 'vendor';
           },
         },
       },
@@ -34,10 +41,7 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       port: 3000,
       allowedHosts: true,
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Note: file watching is disabled when DISABLE_HMR=true to save CPU during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };

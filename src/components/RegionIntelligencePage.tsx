@@ -8,7 +8,14 @@ import { ComboAggregate } from './intelligence/ComboAggregate';
 import { CrossRegionFlowPanel } from './intelligence/CrossRegionFlowPanel';
 import { MapPin, X, ArrowRight, Download, Info, RefreshCw, Sparkles, Loader2, Globe2 } from 'lucide-react';
 import { buildIntelCsv, downloadCsv } from '../utils/intelExport';
-import { primaryRegionMention, regionScopeOf, REGION_SCOPE_LABELS } from '../utils/regionSemantics';
+import { articleSortTime } from '../utils/articleTime';
+import {
+  primaryRegionMention,
+  regionScopeOf,
+  REGION_SCOPE_LABELS,
+  inferDefaultRegionMentions,
+  inferDefaultEntityMentions,
+} from '../utils/regionSemantics';
 import type { RegionScope } from '../types';
 import { MethodBadge } from './common/MethodBadge';
 import { KeyTermHighlight } from './common/KeyTermHighlight';
@@ -56,7 +63,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
   onOpenArticleById,
 }) => {
   // 页面级筛选：时间范围 + AI 模型自评分阈值（非校准概率）
-  const [range, setRange] = useState<'all' | '7d' | '30d'>('30d');
+  const [range, setRange] = useState<'all' | '7d' | '30d'>('all');
   const [confMin, setConfMin] = useState(0);
   const [regionScope, setRegionScope] = useState<RegionScope | 'all'>('all');
   const [section, setSection] = useState<RegionSection>('matrix');
@@ -71,24 +78,42 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
   const [regionReadoutError, setRegionReadoutError] = useState('');
   const reloadedRef = useRef(false);
 
-  const externalCount = useMemo(() => articles.filter((a) => a.isExternal).length, [articles]);
+  const enrichedArticles = useMemo(() => {
+    return articles.map((article) => {
+      const regionMentions =
+        Array.isArray(article.regionMentions) && article.regionMentions.length > 0
+          ? article.regionMentions
+          : inferDefaultRegionMentions(article);
+      const entityMentions =
+        Array.isArray(article.entityMentions) && article.entityMentions.length > 0
+          ? article.entityMentions
+          : inferDefaultEntityMentions(article);
+      return {
+        ...article,
+        regionMentions,
+        entityMentions,
+      };
+    });
+  }, [articles]);
+
+  const externalCount = useMemo(() => enrichedArticles.filter((a) => a.isExternal).length, [enrichedArticles]);
   const regionAnnotatedCount = useMemo(
-    () => articles.filter((a) => Array.isArray(a.regionMentions) && a.regionMentions.length > 0).length,
-    [articles]
+    () => enrichedArticles.filter((a) => Array.isArray(a.regionMentions) && a.regionMentions.length > 0).length,
+    [enrichedArticles]
   );
   const entityAnnotatedCount = useMemo(
-    () => articles.filter((a) => Array.isArray(a.entityMentions) && a.entityMentions.length > 0).length,
-    [articles]
+    () => enrichedArticles.filter((a) => Array.isArray(a.entityMentions) && a.entityMentions.length > 0).length,
+    [enrichedArticles]
   );
   const scopedRegionCount = useMemo(
     () =>
-      articles.filter(
+      enrichedArticles.filter(
         (a) =>
           Array.isArray(a.regionMentions) &&
           a.regionMentions.length > 0 &&
           a.regionMentions.every((item) => regionScopeOf(item) !== 'unspecified')
       ).length,
-    [articles]
+    [enrichedArticles]
   );
   const needsAnnotation =
     externalCount > 0 &&
@@ -175,7 +200,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
   const filtered = useMemo(() => {
     const now = Date.now();
     const cutoff = range === 'all' ? 0 : now - (range === '7d' ? 7 : 30) * 24 * 3600 * 1000;
-    return articles
+    return enrichedArticles
       .filter((a) => {
         if (!a.regionMentions || a.regionMentions.length === 0) return false;
         const mentions =
@@ -185,8 +210,8 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
         if (mentions.length === 0) return false;
         if (confMin > 0 && !mentions.some((r) => r.confidence >= confMin)) return false;
         if (range !== 'all') {
-          const t = a.publishedAt ? new Date(a.publishedAt).getTime() : NaN;
-          if (Number.isNaN(t) || t < cutoff) return false;
+          const t = articleSortTime(a);
+          if (t > 0 && t < cutoff) return false;
         }
         return true;
       })
@@ -199,7 +224,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
           ),
         };
       });
-  }, [articles, range, confMin, regionScope]);
+  }, [enrichedArticles, range, confMin, regionScope]);
 
   const chip = (active: boolean) =>
     `px-2.5 py-1 rounded-full text-[11px] font-serif font-bold border transition-colors ${
@@ -260,7 +285,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
   ];
   const sectionFeatureId: Record<RegionSection, FeatureSummaryId> = {
     matrix: 'region-matrix',
-    flow: 'region-matrix',
+    flow: 'region-flow',
     entities: 'region-entities',
     drill: 'region-drill',
     aggregate: 'region-aggregate',
@@ -591,7 +616,9 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
       {section === 'drill' && (
         <ThreeLevelDrill articles={filtered} onOpenArticleById={onOpenArticleById} />
       )}
-      {section === 'aggregate' && <ComboAggregate articles={filtered} />}
+      {section === 'aggregate' && (
+        <ComboAggregate articles={filtered} onOpenArticleById={onOpenArticleById} />
+      )}
     </div>
   );
 };

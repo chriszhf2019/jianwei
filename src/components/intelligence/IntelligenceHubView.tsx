@@ -64,9 +64,12 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
   const [section, setSection] = useState<HubSection>('overview');
   const categoryCount = snapshot ? Object.keys(snapshot.derived.categoryCounts || {}).length : 0;
-  const traceableCount = contextArticles.filter(
-    (article) => Boolean(article.sourceUrl) && articleSortTime(article) > 0
-  ).length;
+  const totalCorpusCount = snapshot?.meta?.corpusSize ?? contextArticles.length;
+  const traceableCount = snapshot?.derived?.traceableCount !== undefined
+    ? snapshot.derived.traceableCount
+    : contextArticles.filter(
+        (article) => (Boolean(article.sourceUrl) || Boolean(article.sourceName && (article.sourceDate || article.date))) && articleSortTime(article) > 0
+      ).length;
 
   const sections: Array<{ id: HubSection; label: string; icon: React.ReactNode }> = [
     { id: 'overview', label: '态势总览', icon: <Activity className="w-4 h-4" /> },
@@ -242,7 +245,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
               <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg">
                 <div className="text-stone-500 font-mono text-[10px]">原文+时间可追溯</div>
                 <div className="text-xl font-serif font-black text-stone-900 font-mono">
-                  {traceableCount}/{contextArticles.length}
+                  {traceableCount}/{totalCorpusCount}
                 </div>
               </div>
               <div className="p-3 bg-stone-50 border border-stone-200 rounded-lg">

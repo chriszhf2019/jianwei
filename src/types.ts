@@ -754,6 +754,7 @@ export interface SnapshotDerived {
   velocityCounts: Record<string, number>;
   tagFrequency: Array<{ tag: string; count: number }>;
   sourceStats: { total: number; avgPerArticle: number };
+  traceableCount?: number;
   /** AI 涉事地区标注（/api/regions/annotate 写回后才有） */
   regionMentionDistribution?: Array<{ region: string; weight: number }>;
   regionAnnotatedCount?: number;
