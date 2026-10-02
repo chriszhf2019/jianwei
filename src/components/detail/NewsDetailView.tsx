@@ -96,6 +96,7 @@ function mergeDeep(article: NewsArticle, overrides: Record<string, unknown>): Ne
 
 interface NewsDetailViewProps {
   article: NewsArticle;
+  initialTab?: CognitiveDetailTab;
   onBack: () => void;
   isBookmarked: boolean;
   onToggleBookmark: () => void;
@@ -117,6 +118,7 @@ interface NewsDetailViewProps {
 
 export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   article,
+  initialTab = 'seven_elements',
   onBack,
   isBookmarked,
   onToggleBookmark,
@@ -132,7 +134,14 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   onOpenArticle,
   onOpenShareCard,
 }) => {
-  const [activeTab, setActiveTab] = useState<CognitiveDetailTab>('seven_elements');
+  const [activeTab, setActiveTab] = useState<CognitiveDetailTab>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, article.id]);
+
   const [probeQuestion, setProbeQuestion] = useState('');
   const [probeAnswer, setProbeAnswer] = useState<string | null>(null);
   const [probeFallback, setProbeFallback] = useState(false);
@@ -228,16 +237,16 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const latestAiMeta = Object.entries(article.aiFieldMeta || {})
     .sort((a, b) => String(b[1]?.generatedAt || '').localeCompare(String(a[1]?.generatedAt || '')))[0];
 
-  // 详情认知路径（去重整合版）：事实 → 因果+涟漪 → 与我何干 → 预测擂台 → 深度全览
-  // 注：五层光谱的 interests/logic/deduction 与下方因果/涟漪/预测同源，故此处不再单独重复；
-  //     光谱层作为第 5 页的“通读排版”整合呈现。
+  // 详情认知路径（4大严谨逻辑篇章 + 1通读附录）：
+  // 第一篇：事实全貌与溯源 ➔ 第二篇：底层逻辑与博弈 ➔ 第三篇：未来推演与预测 ➔ 第四篇：切身决策与行动
   const tabsList: Array<{ id: CognitiveDetailTab; label: string; icon: React.ReactNode; step: string }> = [
-    { id: 'seven_elements', label: '七要素事实', icon: <Sparkles className="w-4 h-4 text-[#E3120B]" />, step: '1 · 事实' },
-    { id: 'logic_tree', label: '因果与涟漪', icon: <GitFork className="w-4 h-4 text-purple-600" />, step: '2 · 推演' },
-    { id: 'relevance_identity', label: '与我何干', icon: <UserCheck className="w-4 h-4 text-emerald-600" />, step: '3 · 身份' },
-    { id: 'forecast_arena', label: '人机预测擂台', icon: <Crosshair className="w-4 h-4 text-red-600" />, step: '4 · 前瞻' },
-    { id: 'deep_spectrum', label: '深度全览', icon: <Layers className="w-4 h-4 text-amber-600" />, step: '5 · 通读' },
+    { id: 'seven_elements', label: '事实全貌与溯源', icon: <Sparkles className="w-4 h-4 text-[#E3120B]" />, step: '第一篇 · 事实' },
+    { id: 'logic_tree', label: '底层逻辑与博弈', icon: <GitFork className="w-4 h-4 text-purple-600" />, step: '第二篇 · 博弈' },
+    { id: 'forecast_arena', label: '未来推演与预测', icon: <Crosshair className="w-4 h-4 text-red-600" />, step: '第三篇 · 推演' },
+    { id: 'relevance_identity', label: '切身决策与行动', icon: <UserCheck className="w-4 h-4 text-emerald-600" />, step: '第四篇 · 决策' },
+    { id: 'deep_spectrum', label: '五层通读全览', icon: <Layers className="w-4 h-4 text-amber-600" />, step: '附录 · 通读' },
   ];
+
   const tabFeatureId: Record<CognitiveDetailTab, FeatureSummaryId> = {
     seven_elements: 'detail-seven',
     logic_tree: 'detail-logic',
@@ -620,31 +629,63 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         </div>
       )}
       <div className="min-h-[400px]">
-        {activeTab === 'seven_elements' && <SevenElementsTab article={article} onRunSkill={onRunSkill} contextArticles={contextArticles} onOpenArticle={onOpenArticle} />}
+        {/* 第一篇：事实全貌与溯源 */}
+        {activeTab === 'seven_elements' && (
+          <SevenElementsTab
+            article={article}
+            onRunSkill={onRunSkill}
+            contextArticles={contextArticles}
+            onOpenArticle={onOpenArticle}
+          />
+        )}
 
+        {/* 第二篇：底层逻辑与多方博弈 */}
         {activeTab === 'logic_tree' && (
           <div className="space-y-6">
-            {/* 因果逻辑树 */}
             {article.logicTree ? (
               <LogicTreeTab logicTree={article.logicTree} />
             ) : (
-              <MissingDeep feature="因果逻辑树" note={deepNote} />
-            )}
-            {/* 涟漪效应与多源验证（合并进同一“因果与涟漪”页） */}
-            {article.rippleEffect ? (
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-xs font-serif font-bold text-[#0284C7] uppercase tracking-wider">
-                  <Waves className="w-4 h-4" />
-                  <span>传导与涟漪（二）· 承接上面的因果链看影响如何扩散</span>
-                </div>
-                <RippleEffectTab rippleEffect={article.rippleEffect} />
-              </div>
-            ) : (
-              <MissingDeep feature="涟漪效应与多源验证" note={deepNote} />
+              <MissingDeep feature="底层逻辑与因果树" note={deepNote} />
             )}
           </div>
         )}
 
+        {/* 第三篇：未来推演与走势研判（宏观三阶涟漪 + 人机走势预测对赌） */}
+        {activeTab === 'forecast_arena' && (
+          <div className="space-y-8">
+            {/* 上半部：AI 宏观三阶涟漪效应与产业链演变 */}
+            {article.rippleEffect ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#0284C7] uppercase tracking-wider">
+                    <Waves className="w-4 h-4" />
+                    <span>宏观演变沙盘 · 1-3月 / 3-12月 / 1-3年 级联反应与失效条件</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-stone-500">AI 客观推演基准</span>
+                </div>
+                <RippleEffectTab rippleEffect={article.rippleEffect} />
+              </div>
+            ) : null}
+
+            {/* 下半部：人机独立预测研判与对账擂台 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-serif font-bold text-red-700 uppercase tracking-wider">
+                  <Crosshair className="w-4 h-4" />
+                  <span>独立研判与人机对账 · 设定验证日期与客观标准，立项存证</span>
+                </div>
+                <span className="text-[11px] font-mono text-stone-500">超级预测学 (Superforecasting)</span>
+              </div>
+              <ForecastArenaTab
+                article={article}
+                onSaveContract={onSaveContract}
+                onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 第四篇：切身决策与行动指南 */}
         {activeTab === 'relevance_identity' && (
           <RelevanceIdentityTab
             article={article}
@@ -655,14 +696,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           />
         )}
 
-        {activeTab === 'forecast_arena' && (
-          <ForecastArenaTab
-            article={article}
-            onSaveContract={onSaveContract}
-            onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
-          />
-        )}
-
+        {/* 附录：五层通读全览 */}
         {activeTab === 'deep_spectrum' &&
           ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
             <DeepSpectrumTab article={article} />
@@ -671,41 +705,43 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           ))}
       </div>
 
+
       {/* Continuous Cognitive Progression Guide (Next-Step Journey Card) */}
-      <div className="py-3 px-1 border-t border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans">
+      <div className="py-3.5 px-4 bg-white border-2 border-stone-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans shadow-xs">
         <div className="space-y-0.5">
-          <div className="text-xs font-serif font-bold text-stone-700">
-            {activeTab === 'seven_elements' && '事实已结构化拆解完毕 ➔ 下一步：进入「因果与涟漪」，先看始发因果，再看影响如何扩散'}
-            {activeTab === 'logic_tree' && '因果链与涟漪传导已清晰 ➔ 下一步：切换为您的决策角色，评估机会与风险'}
-            {activeTab === 'relevance_identity' && '决策身份影响已明确 ➔ 下一步：进入「人机预测擂台」，提出您的独立预判与 AI 对抗'}
-            {activeTab === 'forecast_arena' && '预测契约已拟定 ➔ 下一步：查阅「深度全览」，用五层光谱通读全文'}
-            {activeTab === 'deep_spectrum' && '您已完整掌握该事件的全部认知维度 ➔ 可前往「我的关注」沉淀行动备忘录'}
+          <div className="text-xs font-serif font-bold text-stone-900">
+            {activeTab === 'seven_elements' && '第一篇 事实已结构化拆解完毕 ➔ 下一步：进入「第二篇 · 底层逻辑与博弈」，剖析始发根因与利益格局'}
+            {activeTab === 'logic_tree' && '第二篇 因果链与博弈格局已摸清 ➔ 下一步：进入「第三篇 · 未来推演与预测」，评估 1-3 年连锁影响并立项对赌'}
+            {activeTab === 'forecast_arena' && '第三篇 走势研判与预测对赌已确立 ➔ 下一步：进入「第四篇 · 切身决策与行动」，生成您的专属行动清单'}
+            {activeTab === 'relevance_identity' && '第四篇 决策行动清单已生成 ➔ 下一步：查阅「附录 · 五层通读全览」或沉淀至个人备忘录'}
+            {activeTab === 'deep_spectrum' && '您已完整掌握该事件的全部深度认知 ➔ 可前往「我的关注」查阅历史预测台账与备忘录'}
           </div>
         </div>
 
         <button
           onClick={() => {
             if (activeTab === 'seven_elements') setActiveTab('logic_tree');
-            else if (activeTab === 'logic_tree') setActiveTab('relevance_identity');
-            else if (activeTab === 'relevance_identity') setActiveTab('forecast_arena');
-            else if (activeTab === 'forecast_arena') setActiveTab('deep_spectrum');
+            else if (activeTab === 'logic_tree') setActiveTab('forecast_arena');
+            else if (activeTab === 'forecast_arena') setActiveTab('relevance_identity');
+            else if (activeTab === 'relevance_identity') setActiveTab('deep_spectrum');
             else if (activeTab === 'deep_spectrum' && onNavigateTab) {
               onNavigateTab('my_focus');
             }
             window.scrollTo({ top: 400, behavior: 'smooth' });
           }}
-          className="px-3 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-auto"
+          className="px-3.5 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
         >
           <span>
-            {activeTab === 'seven_elements' && '进入因果与涟漪'}
-            {activeTab === 'logic_tree' && '进入身份透镜 (与我何干)'}
-            {activeTab === 'relevance_identity' && '进入人机预测擂台'}
-            {activeTab === 'forecast_arena' && '进入深度全览'}
-            {activeTab === 'deep_spectrum' && '沉淀至决策工作台'}
+            {activeTab === 'seven_elements' && '进入第二篇：底层逻辑与博弈 ➔'}
+            {activeTab === 'logic_tree' && '进入第三篇：未来推演与预测 ➔'}
+            {activeTab === 'forecast_arena' && '进入第四篇：切身决策与行动 ➔'}
+            {activeTab === 'relevance_identity' && '查阅附录：五层通读全览 ➔'}
+            {activeTab === 'deep_spectrum' && '前往决策与对账台账 ➔'}
           </span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+
 
       {/* Nuance In-depth Probe ("微观探针 / 针对本篇新闻向 AI 追问") */}
       <div className="bg-white border border-stone-300 rounded-xl overflow-hidden font-sans">

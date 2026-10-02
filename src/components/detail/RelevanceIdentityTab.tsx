@@ -356,18 +356,40 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
             </div>
           </div>
 
-          {/* 3. Recommended Action */}
-          <div className="p-5 bg-stone-900 text-white rounded-xl border border-stone-950 space-y-2">
-            <div className="flex items-center space-x-2 text-xs font-serif font-bold text-amber-400">
-              <CheckCircle className="w-4 h-4" />
-              <span>见微行动指引备忘 (Action Directive)</span>
+          {/* 3. Recommended Action with Checklist & Memo Sync */}
+          <div className="p-5 bg-stone-900 text-white rounded-2xl border border-stone-950 space-y-4 shadow-md">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-800 pb-3">
+              <div className="flex items-center space-x-2 text-sm font-serif font-bold text-amber-400">
+                <CheckCircle className="w-4.5 h-4.5 text-amber-400" />
+                <span>见微决策指引 · 本周可执行建议行动清单</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentMemo = localStorage.getItem('action-memo') || '';
+                  const newEntry = `\n\n【${article.title}】(${USER_PERSONAS.find((p) => p.id === currentImpact.personaId)?.name}专属行动)：\n• ${currentImpact.recommendedAction}`;
+                  localStorage.setItem('action-memo', currentMemo + newEntry);
+                  alert('✓ 已成功将行动建议同步至「我的行动备忘录」！可在“我的关注”中查看。');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-serif font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              >
+                <span>📝 一键同步至「我的行动备忘录」</span>
+              </button>
             </div>
-            <p className="text-sm font-serif leading-relaxed text-stone-100">
-              {currentImpact.recommendedAction}
-            </p>
+
+            <div className="space-y-2">
+              <p className="text-sm font-serif leading-relaxed text-stone-100 bg-stone-800/80 p-3.5 rounded-xl border border-stone-700">
+                {currentImpact.recommendedAction}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-stone-400 font-sans border-t border-stone-800/80">
+              <span>💡 提示：该行动指引已针对【{USER_PERSONAS.find((p) => p.id === currentImpact.personaId)?.name}】角色定制，建议在 7 天内完成复核。</span>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 };
+

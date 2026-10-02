@@ -6,8 +6,10 @@ import {
   UserPersonaId, 
   NewsArticle, 
   RadarKeyword,
-  PredictionContract
+  PredictionContract,
+  CognitiveDetailTab
 } from './types';
+
 import { 
   USER_PERSONAS, 
   INITIAL_RADAR_KEYWORDS, 
@@ -140,10 +142,12 @@ export const App: React.FC = () => {
   // Core Data State
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
+  const [detailInitialTab, setDetailInitialTab] = useState<CognitiveDetailTab>('seven_elements');
   const articlesRef = useRef<NewsArticle[]>(articles);
   useEffect(() => {
     articlesRef.current = articles;
   }, [articles]);
+
   // 持久化用户数据：以下状态自动写入 localStorage（useLocalState）
   const [radarKeywords, setRadarKeywords] = useLocalState<RadarKeyword[]>(
     'radar-keywords',
@@ -481,9 +485,18 @@ export const App: React.FC = () => {
   // Handlers
   const handleSelectArticle = (art: NewsArticle) => {
     setSelectedArticle(art);
+    setDetailInitialTab('seven_elements');
     setActiveTab('detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleSelectArticleWithTab = (art: NewsArticle, tab: CognitiveDetailTab = 'seven_elements') => {
+    setSelectedArticle(art);
+    setDetailInitialTab(tab);
+    setActiveTab('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
 
   const handleBackToList = () => {
     setActiveTab('home');
@@ -891,6 +904,7 @@ export const App: React.FC = () => {
         {activeTab === 'detail' && selectedArticle && (
           <NewsDetailView
             article={selectedArticle}
+            initialTab={detailInitialTab}
             onBack={handleBackToList}
             isBookmarked={bookmarkedIds.includes(selectedArticle.id)}
             onToggleBookmark={() => handleToggleBookmark(selectedArticle.id)}
@@ -924,6 +938,7 @@ export const App: React.FC = () => {
             followedTags={followedTags}
             interestGroups={interestGroups}
             onSelectArticle={handleSelectArticle}
+            onSelectArticleWithTab={handleSelectArticleWithTab}
             onToggleBookmark={handleToggleBookmark}
             onToggleFollowTag={handleToggleFollowTag}
             onRunSkill={runNewsSkill}
@@ -935,6 +950,7 @@ export const App: React.FC = () => {
             onOpenShareCard={(art) => setShareCardArticle(art)}
           />
         )}
+
 
         {/* Intelligence Center Hub */}
         {activeTab === 'intelligence' && (

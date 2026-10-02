@@ -48,6 +48,7 @@ interface HomeViewProps {
   /** 用户设置中的兴趣领域；非空时首页默认进入「我的领域」。 */
   interestGroups: string[];
   onSelectArticle: (article: NewsArticle) => void;
+  onSelectArticleWithTab?: (article: NewsArticle, tab?: import('../../types').CognitiveDetailTab) => void;
   onToggleBookmark: (articleId: string) => void;
   onToggleFollowTag: (tag: string) => void;
   /** 技能型单项生成：sevenw=7W事件模型 / trend=趋势情景 / risk=风险审稿；成功返回更新后文章，失败返回 null */
@@ -70,6 +71,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   followedTags,
   interestGroups,
   onSelectArticle,
+  onSelectArticleWithTab,
   onToggleBookmark,
   onToggleFollowTag,
   onRunSkill,
@@ -80,6 +82,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenSettings,
   onOpenShareCard,
 }) => {
+
   const [selectedCategory, setSelectedCategory] = useState<string>(() =>
     interestGroups.length > 0 ? '我的领域' : '全部'
   );
@@ -619,7 +622,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
               articles={displayFeed}
               bookmarkedIds={bookmarkedIds}
               followedTags={followedTags}
+              selectedPersona={selectedPersona}
               onSelectArticle={onSelectArticle}
+              onSelectArticleWithTab={onSelectArticleWithTab}
               onToggleBookmark={onToggleBookmark}
               onToggleFollowTag={onToggleFollowTag}
               radarKeywords={radarKeywords}
@@ -627,8 +632,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
               onRunSkill={onRunSkill}
               contextArticles={articles}
               onOpenShareCard={onOpenShareCard}
+              onOpenAudioBriefing={onOpenAudioBriefing}
+              onOpenTermExplain={onOpenTermExplain}
             />
           )}
+
 
           {readingMode === 'tongsu' && (
             <Suspense fallback={<div className="py-10 text-center text-xs text-stone-400">正在加载阅读模式…</div>}>
