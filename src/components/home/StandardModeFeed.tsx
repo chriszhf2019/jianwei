@@ -22,7 +22,9 @@ import {
   BookOpen,
   ListFilter,
   Layers,
+  Scale,
 } from 'lucide-react';
+
 import { formatArticleTime, isStaleArticle } from '../../utils/articleTime';
 import { monitorHits } from '../../utils/monitorKeywords';
 import { POSITIVE_WORDS, NEGATIVE_WORDS } from '../../utils/corpusMetrics';
@@ -389,24 +391,39 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
                 </div>
 
-                {/* 7. 各方立场温差速览 */}
-                <div className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-[11px] flex flex-wrap items-center justify-between gap-2 font-sans">
-                  <span className="font-serif font-bold text-stone-700">立场温差：</span>
-                  <span className="inline-flex items-center gap-1 text-stone-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span>官方：技术普惠</span>
-                  </span>
-                  <span className="text-stone-300">·</span>
-                  <span className="inline-flex items-center gap-1 text-stone-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    <span>智库：警惕超售</span>
-                  </span>
-                  <span className="text-stone-300">·</span>
-                  <span className="inline-flex items-center gap-1 text-stone-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                    <span>同业：毛利承压</span>
-                  </span>
+                {/* 7. 各方立场温差图示能量条 */}
+                <div className="bg-[#FAF8F5] border border-stone-200/90 rounded-xl p-3 text-xs space-y-2 font-sans">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-serif font-bold text-stone-800 flex items-center gap-1.5">
+                      <Scale className="w-3.5 h-3.5 text-stone-600" />
+                      <span>多方立场温差图示 (Consensus Spectrum)</span>
+                    </span>
+                    <span className="text-stone-400 font-mono text-[10px]">乐观 60% · 观望 25% · 承压 15%</span>
+                  </div>
+
+                  {/* 堆叠色彩能量条 */}
+                  <div className="h-2 w-full rounded-full bg-stone-200 overflow-hidden flex shadow-inner">
+                    <div className="h-full bg-emerald-500 transition-all hover:opacity-90" style={{ width: '60%' }} title="官方/当事方：极度乐观 (60%)" />
+                    <div className="h-full bg-amber-400 transition-all hover:opacity-90" style={{ width: '25%' }} title="独立智库：谨慎观望 (25%)" />
+                    <div className="h-full bg-rose-500 transition-all hover:opacity-90" style={{ width: '15%' }} title="同业/竞品：承压跟进 (15%)" />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-stone-600 pt-0.5">
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span>官方：技术普惠</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                      <span>智库：警惕算力超售</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                      <span>同业：毛利承压跟降</span>
+                    </span>
+                  </div>
                 </div>
+
 
                 {/* 8. 切身影响胶囊 */}
                 {personaImpactText && (

@@ -4,6 +4,7 @@ import {
   GitFork, 
   ArrowDown, 
   ArrowUp, 
+  ArrowRight,
   Minus, 
   Sparkles, 
   Layers, 
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   Bookmark
 } from 'lucide-react';
+
 
 interface LogicTreeTabProps {
   logicTree: LogicTreeData;
@@ -207,7 +209,7 @@ export const LogicTreeTab: React.FC<LogicTreeTabProps> = ({ logicTree }) => {
 
         {/* Root Cause Banner */}
         <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-center space-x-3">
-          <span className="px-2 py-1 bg-red-600 text-white text-xs font-serif font-bold rounded shrink-0">
+          <span className="px-2.5 py-1 bg-red-600 text-white text-xs font-serif font-bold rounded shrink-0">
             始发根因 (Root Cause)
           </span>
           <span className="text-sm font-serif font-bold text-red-950 leading-snug">
@@ -215,7 +217,25 @@ export const LogicTreeTab: React.FC<LogicTreeTabProps> = ({ logicTree }) => {
           </span>
         </div>
 
+        {/* 极简传导拓扑示意图 (Simple Clean Pipeline) */}
+        <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-serif font-bold text-stone-700">
+          <div className="bg-white border border-stone-300 px-3 py-1.5 rounded-lg text-center w-full sm:w-auto">
+            <span>🎯 动因触发</span>
+          </div>
+          <ArrowDown className="w-4 h-4 text-stone-400 sm:hidden" />
+          <ArrowRight className="w-4 h-4 text-stone-400 hidden sm:block" />
+          <div className="bg-white border border-stone-300 px-3 py-1.5 rounded-lg text-center w-full sm:w-auto">
+            <span>⚙️ 产业链逻辑传导</span>
+          </div>
+          <ArrowDown className="w-4 h-4 text-stone-400 sm:hidden" />
+          <ArrowRight className="w-4 h-4 text-stone-400 hidden sm:block" />
+          <div className="bg-stone-900 text-white px-3 py-1.5 rounded-lg text-center w-full sm:w-auto shadow-xs">
+            <span>💥 终局市场冲击</span>
+          </div>
+        </div>
+
         {/* Transmission Nodes */}
+
         <div className="space-y-3 relative pl-4 border-l-2 border-stone-300 ml-4">
           {logicTree.nodes.map((node, idx) => {
             const isLast = idx === logicTree.nodes.length - 1;
