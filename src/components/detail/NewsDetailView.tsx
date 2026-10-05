@@ -685,7 +685,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                 <p className="text-sm sm:text-base font-serif font-bold text-stone-900 leading-relaxed">
                   {article.oneSentenceVerdict || article.summary}
                 </p>
-                <p className="text-[10px] text-stone-400 mt-1">打开详情会自动触发 AI 深度解读；完成后此卡将填充七要素模型。</p>
+                <p className="text-[10px] text-stone-400 mt-1">深度解读不会自动开始。点击「生成深度分析」后才会调用模型，完成后这里显示七要素。</p>
               </div>
             )}
 

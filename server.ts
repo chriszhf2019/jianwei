@@ -16,6 +16,7 @@ import {
   settings,
   persistSettings,
   feedUrls,
+  feedMaxAgeDays,
   NO_PERSIST,
   isDemoDataEnabled,
 } from "./src/server/settings";
@@ -133,11 +134,14 @@ import { rankEventCandidates } from "./src/utils/eventCandidates";
 import { krippendorffAlphaNominal, macroF1 } from "./src/utils/evaluationMetrics";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 const serverStartTime = Date.now();
 const AUTH_TOKEN = process.env.JIANWEI_AUTH_TOKEN || "";
 const AUTH_ENABLED = !!AUTH_TOKEN;
-const BIND_HOST = "0.0.0.0";
+const BIND_HOST =
+  process.env.JIANWEI_BIND_HOST ||
+  process.env.BIND_HOST ||
+  (AUTH_ENABLED ? "0.0.0.0" : "127.0.0.1");
 const DEMO_DATA_ENABLED = isDemoDataEnabled();
 const SOURCE_CHECK_TTL_MS = Number(process.env.SOURCE_CHECK_TTL_MS || 24 * 60 * 60 * 1000);
 const BOOTSTRAP_ADMIN_USER = process.env.JIANWEI_ADMIN_USER || "";
@@ -1269,8 +1273,8 @@ app.post("/api/briefing/chat", applyRateLimit, async (req, res) => {
     const personaName = persona?.name || '资深决策者';
 
     if (!provider) {
-      const answer = generateBriefingAnswer(question, personaName);
-      return res.json({ answer, fallback: true });
+      const answer = generateBriefingAnswer(question);
+      return res.json({ answer, fallback: true, fallbackReason: "no_api_key", fallbackNote: FALLBACK_NOTE });
     }
 
     const prompt = `你作为《见微 Genway》的晨间情报高级研讨顾问（Chief Intelligence Advisor）。
@@ -1293,29 +1297,21 @@ ${articlesDigest}
     res.json({ answer: text });
   } catch (err: any) {
     console.error("Briefing chat error:", err);
-    const personaName = req.body?.persona?.name || '资深决策者';
-    const fallbackAnswer = generateBriefingAnswer(req.body?.question || '', personaName);
+    const fallbackAnswer = generateBriefingAnswer(req.body?.question || "");
     res.json({
       answer: fallbackAnswer,
       fallback: true,
+      fallbackReason: "upstream_failed",
+      fallbackNote: FALLBACK_NOTE,
     });
   }
 });
 
-function generateBriefingAnswer(question: string, personaName: string) {
-  let answer = `针对您关于“${question}”的追问，见微智库从【${personaName}】透镜为您做如下结构性拆解：\n\n`;
-  if (question.includes('通胀') || question.includes('物价') || question.includes('具体行业') || question.includes('行业影响')) {
-    answer += `1. **制造业与硬件科技**：核心零部件与大宗原材料的输入型通胀，正在压缩中游二阶供应商的毛利缓冲。若下游议价能力较弱，单季度净利率可能面临 1.5%~2.2% 的结构性挤压。\n2. **终端消费与出海渠道**：通胀预期下消费者对非刚需科技消费品的置换周期进一步拉长，海外分销商正从“主动补库”延后为“观望去库”，周转天数略有拉长。\n3. **应对抓手**：从【${personaName}】角度，应重点锁定中上游长期供货长协价，并利用备品冗余对冲汇率与海运运费的双重溢价。`;
-  } else if (question.includes('反常') || question.includes('细节')) {
-    answer += `1. **核心反常点核验**：今日最值得警惕的不是宏观层面的政策表态，而是财报附注与供应链交付排期中的公差收窄。数据显示二阶供应商良率与周转天数呈现非对称波动。\n2. **敏感变量穿透**：核心驱动变量在于关键设备通关阻尼与关税传导时滞。一旦现货库存消耗跨过安全红线，边际溢价将迅速沿产业链向下游转移。`;
-  } else if (question.includes('避险') || question.includes('行动') || question.includes('建议')) {
-    answer += `1. **开盘与工作日避险抓手**：从【${personaName}】切身利益看，首要动作是隔离高敏感度敞口，避免单纯根据情绪面做追涨杀跌。\n2. **前置防线构建**：核查跨国交付走廊的备货冗余度，对冲潜在的流动性与汇率波动，建立双周可证伪的验证里程碑。`;
-  } else if (question.includes('供应链') || question.includes('阻尼') || question.includes('走廊')) {
-    answer += `1. **战略阻尼动态**：东亚至北美战略电子走廊摩擦系数升至 0.68，主要受制于合规申报和边境抽检频次提升，平均通关延误已拉长至 4-6 个工作日。\n2. **替代路径与成本**：部分厂商正加速向东南亚中转仓分散备货，但短线仓储成本与跨境转运保费已上浮约 12%。`;
-  } else {
-    answer += `1. **多重信号交叉验证**：今日监测到的多条要情具有深层共性——均反映出头部主体在面对外部不确定性时，正从“扩张型研发”转向“防守型冗余建设”。\n2. **未来72小时关键线索**：密切观察主要监管方与产业链二阶龙头在公开发言中的措辞微调，这将成为验证下一阶段行情拐点的关键指标。`;
-  }
-  return answer;
+function generateBriefingAnswer(question: string): string {
+  const q = String(question || "").trim();
+  return q
+    ? `未生成回答。问题「${q.slice(0, 80)}」没有可用模型结果，这里不提供模板数字或行动建议。`
+    : "未生成回答。没有可用模型结果。";
 }
 
 // —— 本地启发式基准推演（服务端兜底，与前端 computeLocalPrediction 同一口径） ——
@@ -1610,7 +1606,7 @@ app.post("/api/feeds/ingest", applyRateLimit, async (_req, res) => {
   }
   try {
     const { items, result } = await ingestAllFeeds(feedUrls());
-    const maxAgeDays = Number(process.env.FEED_MAX_AGE_DAYS || 30);
+    const maxAgeDays = feedMaxAgeDays();
     appendFeedItems(items, maxAgeDays, {
       urls: result.urls,
       errors: result.errors,

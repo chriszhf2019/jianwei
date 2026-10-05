@@ -165,57 +165,59 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
     | Array<{ sourceName: string; tier: string; stance: string; verified?: boolean; excerpt?: string }>
     | undefined;
 
-  const effectiveMultiSources = React.useMemo(() => {
+  const sourceMatrix = React.useMemo(() => {
     if (Array.isArray(multiSourcesRaw) && multiSourcesRaw.length > 0) {
-      return multiSourcesRaw;
+      return {
+        synthesized: false,
+        items: multiSourcesRaw.map((item) => ({ ...item, verified: item.verified === true })),
+      };
     }
 
     const list: Array<{ sourceName: string; tier: string; stance: string; verified?: boolean; excerpt?: string }> = [];
 
-    // 1. Primary Source
     if (article.sourceName) {
       list.push({
         sourceName: article.sourceName,
-        tier: 'Tier 1 基础信源',
-        stance: '中性',
-        verified: true,
-        excerpt: article.oneSentenceVerdict || article.summary || article.subtitle || article.title,
+        tier: '本文来源',
+        stance: '未判断',
+        verified: false,
+        excerpt: article.summary || article.title,
       });
     }
 
-    // 2. Evidence Chain Sources
     if (Array.isArray(article.evidenceChain) && article.evidenceChain.length > 0) {
       for (const ev of article.evidenceChain) {
         if (ev.sourceName && !list.some((item) => item.sourceName === ev.sourceName)) {
           list.push({
             sourceName: ev.sourceName,
-            tier: 'Tier 2 验证引用',
-            stance: ev.relation === 'supports' ? '正面' : ev.relation === 'contradicts' ? '负面' : '中性',
-            verified: true,
+            tier: '证据链',
+            stance: '未判断',
+            verified: ev.verificationStatus === 'linked',
             excerpt: ev.quote || ev.claim || ev.sourceFact,
           });
         }
       }
     }
 
-    // 3. Station Cross-Articles
     if (localRelated && localRelated.length > 0) {
       for (const rel of localRelated) {
-        const sName = rel.sourceName || '站内交叉语料';
+        const sName = rel.sourceName || '站内相关稿';
         if (!list.some((item) => item.sourceName === sName)) {
           list.push({
             sourceName: sName,
-            tier: 'Tier 2 站内交叉报道',
-            stance: '中性',
-            verified: true,
+            tier: '站内相关',
+            stance: '未判断',
+            verified: false,
             excerpt: rel.title,
           });
         }
       }
     }
 
-    return list;
+    return { synthesized: true, items: list };
   }, [multiSourcesRaw, article, localRelated]);
+  const effectiveMultiSources = sourceMatrix.items;
+  const sourcesSynthesized = sourceMatrix.synthesized;
 
   const [enrichBusy, setEnrichBusy] = React.useState(false);
   const handleTriggerEnrich = async () => {
@@ -500,7 +502,13 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
             const hasDissent = c.dissent.length > 0;
             return (
               <div className="space-y-3">
-                {/* 家数 + 权威概览 */}
+                {sourcesSynthesized && (
+                  <p className="text-[11px] leading-relaxed text-amber-950 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    这些条目来自本文来源、证据链和站内相关稿。这里不做媒体一致性判断，引句也只有核验通过才算已核对。
+                  </p>
+                )}
+                {!sourcesSynthesized && (
+                <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-center">
                     <div className="text-xl font-serif font-black text-stone-950 font-mono">{c.total}</div>
@@ -537,6 +545,8 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                   </span>
                   {c.verdict}
                 </div>
+                </>
+                )}
 
                 {/* 来源明细一览 */}
                 <div className="space-y-1.5 pt-1">
@@ -568,7 +578,11 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                 {/* 底部一键 AI 深度挖掘触发按钮 */}
                 {onRunSkill && (
                   <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
-                    <span>已通过语料与证据链自动合成 {effectiveMultiSources.length} 条交叉佐证线索</span>
+                    <span>
+                      {sourcesSynthesized
+                        ? `已列出 ${effectiveMultiSources.length} 条线索，不是多源核验结论`
+                        : `模型列出 ${effectiveMultiSources.length} 条来源线索`}
+                    </span>
                     <button
                       onClick={handleTriggerEnrich}
                       disabled={enrichBusy}

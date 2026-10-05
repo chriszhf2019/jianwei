@@ -29,6 +29,17 @@ export function demoDataEnabledFrom(flag: string | undefined): boolean {
 export function isDemoDataEnabled(): boolean {
   return demoDataEnabledFrom(process.env.JIANWEI_ENABLE_DEMO_DATA);
 }
+
+/** 摄取与定时清理共用的发布日窗口。非法值回落到 30 天。 */
+export function feedMaxAgeDaysFrom(flag: string | undefined, fallback = 30): number {
+  if (flag == null || flag.trim() === "") return fallback;
+  const n = Number(flag);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+export function feedMaxAgeDays(): number {
+  return feedMaxAgeDaysFrom(process.env.FEED_MAX_AGE_DAYS);
+}
 export const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
 const ENCRYPTION_SECRET = process.env.JIANWEI_SECRET || "";
 

@@ -43,7 +43,10 @@ interface ChatMessage {
   sender: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  fallback?: boolean;
 }
+
+const BRIEFING_UNAVAILABLE = '这次没有生成回答。未配置可用模型，或请求失败。不会用模板数字代替结论。';
 
 export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
   isOpen,
@@ -320,31 +323,31 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
       });
 
       const data = await res.json();
-      const assistantAnswer =
-        data.answer ||
-        '根据今日晨间情报，核心异动已在逻辑链中显现。建议您重点关注二阶供应链公差与政策窗口期的兑现节奏。';
+      const unavailable = !res.ok || data?.fallback || !data?.answer;
+      const assistantAnswer = unavailable
+        ? String(data?.answer || data?.fallbackNote || BRIEFING_UNAVAILABLE)
+        : String(data.answer);
 
       const assistantMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'assistant',
         content: assistantAnswer,
         timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        fallback: unavailable,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-
-      // Automatically speak the targeted AI voice answer!
       speakCustomText(assistantAnswer, assistantMsg.id);
     } catch {
-      const fallbackText = `从【${selectedPersona?.name || '资深决策者'}】视角研判，此问题涉及当前关键走廊的摩擦系数与边际溢价传导。建议建立双周敏感度跟踪红线，避免受短期情绪盘误导。`;
       const fallbackMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'assistant',
-        content: fallbackText,
+        content: BRIEFING_UNAVAILABLE,
         timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        fallback: true,
       };
       setMessages((prev) => [...prev, fallbackMsg]);
-      speakCustomText(fallbackText, fallbackMsg.id);
+      speakCustomText(BRIEFING_UNAVAILABLE, fallbackMsg.id);
     } finally {
       setIsAnswering(false);
     }
@@ -814,7 +817,9 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
                       className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                     >
                       <div className="flex items-center space-x-2 text-[10px] text-stone-400 mb-1 px-1">
-                        <span>{msg.sender === 'user' ? '我的提问' : '见微智库特约顾问'}</span>
+                        <span>
+                          {msg.sender === 'user' ? '我的提问' : msg.fallback ? '未生成' : '见微智库特约顾问'}
+                        </span>
                         <span>{msg.timestamp}</span>
                       </div>
 

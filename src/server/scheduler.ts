@@ -1,10 +1,18 @@
 import { ingestAllFeeds } from "./feeds";
 import { appendFeedItems, pruneExternalCorpus } from "./corpus";
-import { feedUrls } from "./settings";
+import { feedMaxAgeDays, feedUrls } from "./settings";
 import { recordAuditEvent } from "./database";
 
 const FEED_INTERVAL_MS = Number(process.env.FEED_INGEST_INTERVAL_MS || 6 * 60 * 60 * 1000);
-const FEED_CLEANUP_MAX_AGE_DAYS = Number(process.env.FEED_CLEANUP_MAX_AGE_DAYS || 45);
+
+function scheduledMaxAgeDays(): number {
+  const override = process.env.FEED_CLEANUP_MAX_AGE_DAYS;
+  if (override != null && override.trim() !== "") {
+    const n = Number(override);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return feedMaxAgeDays();
+}
 
 let running = false;
 
@@ -46,13 +54,14 @@ export async function runScheduledIngest(): Promise<{
   running = true;
   try {
     const { items, result } = await ingestAllFeeds(urls);
-    const stats = appendFeedItems(items, FEED_CLEANUP_MAX_AGE_DAYS, {
+    const maxAgeDays = scheduledMaxAgeDays();
+    const stats = appendFeedItems(items, maxAgeDays, {
       urls: result.urls,
       errors: result.errors,
       dedupedSkipped: result.skipped,
       sourceResults: result.sourceResults,
     });
-    const pruned = pruneExternalCorpus(FEED_CLEANUP_MAX_AGE_DAYS);
+    const pruned = pruneExternalCorpus(maxAgeDays);
     recordAuditEvent({
       actor: "scheduler",
       action: "feeds.scheduled_ingest",

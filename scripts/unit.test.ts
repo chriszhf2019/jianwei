@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { parseArticleDate, articleSortTime, formatArticleTime, isStaleArticle } from '../src/utils/articleTime';
 import { appendActionMemo } from '../src/utils/actionMemo';
-import { demoDataEnabledFrom } from '../src/server/settings';
+import { demoDataEnabledFrom, feedMaxAgeDaysFrom } from '../src/server/settings';
 import { sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../src/utils/corpusMetrics';
 import { monitorHits } from '../src/utils/monitorKeywords';
 import { mediaProfile, tierBadge, mediaKey } from '../src/utils/mediaAuthority';
@@ -960,6 +960,13 @@ test('demoDataEnabledFrom: 只有显式 1 才加载演示语料', () => {
   assert.equal(demoDataEnabledFrom('0'), false);
   assert.equal(demoDataEnabledFrom('true'), false);
   assert.equal(demoDataEnabledFrom('1'), true);
+});
+
+test('feedMaxAgeDaysFrom: 摄取与清理共用同一默认窗口', () => {
+  assert.equal(feedMaxAgeDaysFrom(undefined), 30);
+  assert.equal(feedMaxAgeDaysFrom(''), 30);
+  assert.equal(feedMaxAgeDaysFrom('45'), 45);
+  assert.equal(feedMaxAgeDaysFrom('nope'), 30);
 });
 
 test('appendActionMemo: 追加行动备忘并跳过重复', () => {

@@ -84,7 +84,7 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
         id: `user-art-${Date.now()}`,
         title: articleData.title || title,
         subtitle: articleData.subtitle || '深度认知拆解完成',
-        oneSentenceVerdict: articleData.oneSentenceVerdict || '经见微多源认知引擎解析完成。',
+        oneSentenceVerdict: articleData.oneSentenceVerdict || articleData.summary || content.slice(0, 120) || title,
         readTimeMinutes: articleData.readTimeMinutes || 4,
         category: articleData.category || category,
         tags: articleData.tags || ['用户提交', category, '深度解读'],
@@ -95,65 +95,27 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
         publishedAt: new Date().toISOString(),
         sourceDate: articleData.sourceDate || `${isoToday()} ${nowHHmm()}`,
         sourceCount: articleData.sourceCount || 1,
-        impactScope: articleData.impactScope || '全球',
+        impactScope: articleData.impactScope || '未标注',
         summary: articleData.summary || content.slice(0, 120),
         coreQuote: articleData.coreQuote || articleData.oneSentenceVerdict,
-        quoteAuthor: articleData.quoteAuthor || '见微·特约观察员',
+        quoteAuthor: articleData.quoteAuthor || source || '',
         tongsuSummary: articleData.tongsuSummary || {
-          simpleSay: content.slice(0, 80),
-          whyExplanation: '各方在技术与利益博弈下的自然选择。',
-          whatItMeans: '为相关产业带来结构性变化。',
-          jargonTerms: ['公差', '先进封装']
+          simpleSay: content.slice(0, 180) || title,
+          whyExplanation: '',
+          whatItMeans: '',
+          jargonTerms: [],
         },
         dehydratedItems: articleData.dehydratedItems || {
-          coreEntity: title.slice(0, 15),
-          keyAction: '完成关键战略推进与量产验证',
-          relatedCount: 5,
-          coreShifts: ['核心技术良率提升', '交付周期缩短', '头部客户锁定配额'],
-          impactHighlights: ['中长尾开发商成本受影响', '上游供应链享受高溢价']
+          coreEntity: source || '未标注',
+          keyAction: title,
+          relatedCount: 0,
+          coreShifts: [],
+          impactHighlights: [],
         },
-        sevenElements: articleData.sevenElements || {
-          what: title,
-          who: source || '行业龙头与监管主体',
-          when: '当前周期',
-          where: '全球核心市场',
-          why: '底层物理或经济规律驱动',
-          how: '通过供应链协同与资本开支落地',
-          soWhat: '确立长期竞争壁垒',
-          aiVerdict: {
-            confidenceScore: 92,
-            volatility: '中',
-            actionLevel: '关注',
-            verdictSummary: '确定性较高，建议持续跟进后续周度核心指标。'
-          }
-        },
-        logicTree: articleData.logicTree || {
-          rootCause: '底层供需或物理极限驱动',
-          nodes: [
-            { id: 'n-1', label: '始发触发因', category: 'cause', description: '技术或政策触发点' },
-            { id: 'n-2', label: '中游产业链传导', category: 'mid_effect', description: '成本与配额重新分配' },
-            { id: 'n-3', label: '市场终端重塑', category: 'market_impact', description: '终局格局确立' }
-          ],
-          variableWeights: [
-            { name: '产能良率', weight: 40, impactDirection: 'up', description: '影响实际供货' },
-            { name: '监管合规', weight: 35, impactDirection: 'neutral', description: '政策准入门槛' },
-            { name: '终端ROI', weight: 25, impactDirection: 'down', description: '下游投资意愿' }
-          ]
-        },
+        sevenElements: articleData.sevenElements,
+        logicTree: articleData.logicTree,
         personaImpacts: articleData.personaImpacts || [],
-        rippleEffect: articleData.rippleEffect || {
-          stages: [
-            { stage: '一阶影响', title: '直接影响', timeframe: '1-3个月', items: ['供应链订单锁定'], severity: '高' },
-            { stage: '二阶影响', title: '产业链波及', timeframe: '3-9个月', items: ['成本结构传导'], severity: '中' },
-            { stage: '三阶影响', title: '宏观生态', timeframe: '1-3年', items: ['行业标准重构'], severity: '低' }
-          ],
-          knowledgeGraph: [
-            { id: 'kg-u1', name: title.slice(0, 10), type: 'company', relationToMain: '主体' }
-          ],
-          multiSources: [
-            { sourceName: source || '主流媒体', tier: 'Tier 1', stance: '正面', verified: true, excerpt: '公开披露信息' }
-          ]
-        },
+        rippleEffect: articleData.rippleEffect,
         spectrumLayers: articleData.spectrumLayers || [],
         evidenceChain: articleData.evidenceChain || [],
         industrySignals: articleData.industrySignals || [],
