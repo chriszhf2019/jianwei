@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPersona, NewsArticle, SnapshotResponse } from '../../types';
+import { UserPersona, NewsArticle, SnapshotResponse, type PredictionContract } from '../../types';
 import { StrategicMetricsBar } from './StrategicMetricsBar';
 import { SituationReadoutPanel } from './SituationReadoutPanel';
 import { FrequentPatternPanel } from './FrequentPatternPanel';
@@ -46,6 +46,7 @@ interface IntelligenceHubViewProps {
   onOpenSettings?: () => void;
   onSelectArticleTitle?: (title: string) => void;
   onOpenArticleById?: (articleId: string) => void;
+  predictionContracts?: PredictionContract[];
   /** 跳转「地区情报」深潜工作台（主体×矩阵×三级下钻×组合） */
   onGoRegion?: () => void;
 }
@@ -59,6 +60,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   onOpenSettings,
   onSelectArticleTitle,
   onOpenArticleById,
+  predictionContracts = [],
   onGoRegion,
 }) => {
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
@@ -460,7 +462,12 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       {/* 6. 2-Columns: Today's Blindspots + Tomorrow's Watchlist */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <TodayBlindspotWidget articles={contextArticles} blindspots={snapshot?.derived.blindspots} onOpenSettings={onOpenSettings} />
-        <TomorrowWatchlistWidget articles={contextArticles} tomorrowWatch={snapshot?.derived.tomorrowWatch} />
+        <TomorrowWatchlistWidget
+          articles={contextArticles}
+          tomorrowWatch={snapshot?.derived.tomorrowWatch}
+          predictionContracts={predictionContracts}
+          onOpenArticleById={onOpenArticleById}
+        />
       </div>
       </>
       )}

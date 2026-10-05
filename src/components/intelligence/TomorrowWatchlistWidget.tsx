@@ -1,18 +1,27 @@
 import React, { useMemo } from 'react';
-import { NewsArticle } from '../../types';
+import { NewsArticle, type PredictionContract } from '../../types';
 import { CalendarClock, AlertTriangle, Info } from 'lucide-react';
 import { deriveTomorrowHeat, type TomorrowHeatSnapshot } from '../../utils/corpusSnapshot';
+import { dueWatchItems } from '../../utils/forecastReference';
 
 interface TomorrowWatchlistWidgetProps {
   articles: NewsArticle[];
   tomorrowWatch?: TomorrowHeatSnapshot | null;
+  predictionContracts?: PredictionContract[];
+  onOpenArticleById?: (articleId: string) => void;
 }
 
-export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = ({ articles, tomorrowWatch }) => {
+export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = ({
+  articles,
+  tomorrowWatch,
+  predictionContracts = [],
+  onOpenArticleById,
+}) => {
   const watchlist = useMemo(
     () => tomorrowWatch ?? deriveTomorrowHeat(articles),
     [articles, tomorrowWatch],
   );
+  const dueItems = useMemo(() => dueWatchItems(predictionContracts), [predictionContracts]);
 
   return (
     <div className="bg-white border-2 border-stone-800 rounded-xl p-6 shadow-xs font-sans space-y-6">
@@ -35,6 +44,34 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
           <AlertTriangle className="w-3 h-3 text-stone-500" />
           <span>热度口径 · 非概率预测</span>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-sm font-serif font-bold text-stone-950">核验日程</h4>
+        <p className="text-xs text-stone-500">
+          只列出未回测、且到期日是今天、明天或已经逾期的契约。日程没有发生概率。
+        </p>
+        {dueItems.length === 0 ? (
+          <p className="text-xs text-stone-400">没有今日、明日或逾期未回测的契约。</p>
+        ) : (
+          <div className="space-y-2">
+            {dueItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenArticleById?.(item.articleId)}
+                className="w-full text-left p-3 bg-[#FAF8F5] border border-stone-300 rounded-lg hover:border-stone-800"
+              >
+                <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-stone-500">
+                  <span>{item.targetVerificationDate}</span>
+                  <span className="text-[#E3120B]">{item.label}</span>
+                </div>
+                <p className="mt-1 text-sm font-serif font-bold text-stone-950">{item.question}</p>
+                <p className="mt-0.5 text-[11px] text-stone-500 truncate">{item.articleTitle}</p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {watchlist.corpusSize === 0 || watchlist.list.length === 0 ? (
@@ -79,8 +116,7 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
       <div className="text-[11px] text-stone-500 border-t border-stone-200 pt-2 flex items-start space-x-1.5">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>
-          真实“概率化明早点名”需要日历事件与历史基准率建模（见 DATA_PIPELINE_DESIGN.md §5/M2）；
-          当前以语料热度口径提供可复核的明日跟踪候选，不编造概率。
+          赛道排名是最近窗口的热度占比。核验日程来自已保存契约的到期日。某一分类已确认且能判定正负的回测不足 20 条时，不计算基准率。
         </span>
       </div>
     </div>

@@ -65,6 +65,8 @@ import { certificationSpec } from '../src/utils/methodRegistry';
 import { articleIdsToHash, planArticlePersistence } from '../src/server/database';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 import { deriveBlindspots, deriveSourceHealth, deriveTomorrowHeat } from '../src/utils/corpusSnapshot';
+import { categoryBaseRate, dueWatchItems } from '../src/utils/forecastReference';
+import type { PredictionContract } from '../src/types';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
   assert.equal(parseArticleDate('Fri, 04 Sep 2026 02:33:08 +0000')! > 0, true);
@@ -1100,4 +1102,122 @@ test('articleIdsToHash: 只重算脏文章和没有哈希的新文章', () => {
   assert.deepEqual([...ids], ['edit', 'fresh', 'blank']);
   assert.deepEqual([...articleIdsToHash(['keep', 'edit'], known, null)], ['keep', 'edit']);
   assert.deepEqual([...articleIdsToHash(['keep'], known, new Set())], []);
+});
+
+function referenceContract(id: string, overrides: Partial<PredictionContract> = {}): PredictionContract {
+  return {
+    id,
+    articleId: 'a',
+    articleTitle: '标题',
+    articleCategory: '科技',
+    question: `问题 ${id}`,
+    createdAt: '2026-01-01',
+    targetVerificationDate: '2026-10-05',
+    userPred: {
+      direction: 'positive',
+      directionText: '是',
+      confidence: 60,
+      premises: [],
+      falsifiableIndicator: '指标',
+    },
+    aiPred: {
+      modelName: '模型',
+      direction: 'negative',
+      directionText: '否',
+      confidence: 40,
+      verdict: '判断',
+    },
+    gapSummary: '',
+    status: 'verified_hit_user',
+    actualOutcome: '已发生',
+    ledger: 'server',
+    integrityValid: true,
+    reviewStatus: 'confirmed',
+    ...overrides,
+  };
+}
+
+test('forecastReference: 样本不足不给基准率，到期日程不含概率', () => {
+  const shortSample = Array.from({ length: 19 }, (_, index) => referenceContract(`short-${index}`));
+  shortSample.push(
+    referenceContract('miss', { status: 'verified_both_miss', actualOutcome: '都未中' }),
+    referenceContract('local', { ledger: 'local' }),
+    referenceContract('unconfirmed', { reviewStatus: 'provisional' }),
+    referenceContract('neutral', {
+      userPred: {
+        direction: 'neutral',
+        directionText: '中性',
+        confidence: 50,
+        premises: [],
+        falsifiableIndicator: '指标',
+      },
+      status: 'verified_both_win',
+    }),
+    referenceContract('other', { articleCategory: '宏观' }),
+  );
+  const short = categoryBaseRate(shortSample, '科技');
+  assert.equal(short.binaryCount, 19);
+  assert.equal(short.positiveRate, null);
+  assert.equal(short.note.includes('不计算基准率'), true);
+
+  const enough = [
+    ...Array.from({ length: 8 }, (_, index) => referenceContract(`pos-${index}`)),
+    ...Array.from({ length: 12 }, (_, index) =>
+      referenceContract(`neg-${index}`, {
+        userPred: {
+          direction: 'negative',
+          directionText: '否',
+          confidence: 70,
+          premises: [],
+          falsifiableIndicator: '指标',
+        },
+        status: 'verified_hit_user',
+      }),
+    ),
+  ];
+  const rate = categoryBaseRate(enough, '科技');
+  assert.equal(rate.binaryCount, 20);
+  assert.equal(rate.positiveCount, 8);
+  assert.equal(rate.positiveRate, 40);
+
+  const aiPositive = categoryBaseRate(
+    [
+      referenceContract('ai-pos', {
+        status: 'verified_hit_ai',
+        userPred: {
+          direction: 'negative',
+          directionText: '否',
+          confidence: 30,
+          premises: [],
+          falsifiableIndicator: '指标',
+        },
+        aiPred: {
+          modelName: '模型',
+          direction: 'positive',
+          directionText: '是',
+          confidence: 80,
+          verdict: '判断',
+        },
+      }),
+    ],
+    '科技',
+  );
+  assert.equal(aiPositive.binaryCount, 1);
+  assert.equal(aiPositive.positiveCount, 1);
+  assert.equal(aiPositive.positiveRate, null);
+
+  const now = new Date(2026, 9, 5, 12, 0, 0);
+  const due = dueWatchItems(
+    [
+      referenceContract('overdue', { status: 'pending', targetVerificationDate: '2026-10-04', actualOutcome: '' }),
+      referenceContract('today', { status: 'pending', targetVerificationDate: '2026-10-05', actualOutcome: '' }),
+      referenceContract('tomorrow', { status: 'pending', targetVerificationDate: '2026-10-06', actualOutcome: '' }),
+      referenceContract('later', { status: 'pending', targetVerificationDate: '2026-10-07', actualOutcome: '' }),
+      referenceContract('done', { status: 'verified_hit_user', targetVerificationDate: '2026-10-05' }),
+    ],
+    now,
+  );
+  assert.deepEqual(due.map((item) => item.id), ['overdue', 'today', 'tomorrow']);
+  assert.deepEqual(due.map((item) => item.state), ['overdue', 'due_today', 'due_tomorrow']);
+  assert.equal(due.some((item) => 'probability' in item), false);
 });

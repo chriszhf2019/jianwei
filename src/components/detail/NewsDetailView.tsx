@@ -198,6 +198,7 @@ interface NewsDetailViewProps {
   onOpenTermExplain: (term: string) => void;
   onNavigateTab?: (tab: PrimaryNavTab) => void;
   onSaveContract?: (contract: PredictionContract) => Promise<boolean>;
+  predictionContracts?: PredictionContract[];
   onEnrichArticle?: (updated: NewsArticle) => void;
   /** 按需技能（timeline 等） */
   onRunSkill?: (skill: import('../home/HomeView').NewsSkill, article: NewsArticle) => Promise<NewsArticle | null>;
@@ -225,6 +226,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   onOpenTermExplain,
   onNavigateTab,
   onSaveContract,
+  predictionContracts = [],
   onEnrichArticle,
   onRunSkill,
   onRunPersonaForecast,
@@ -1121,6 +1123,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                 </div>
                 <ForecastArenaTab
                   article={article}
+                  predictionContracts={predictionContracts}
                   onSaveContract={onSaveContract}
                   onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
                 />

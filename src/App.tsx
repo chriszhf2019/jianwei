@@ -1145,6 +1145,7 @@ export const App: React.FC = () => {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onSaveContract={handleSaveContract}
+            predictionContracts={predictionContracts}
             onEnrichArticle={handleEnrichArticle}
             onRunSkill={runNewsSkill}
             onRunPersonaForecast={runPersonaForecast}
@@ -1208,6 +1209,7 @@ export const App: React.FC = () => {
                 handleSelectArticle(matched);
               }
             }}
+            predictionContracts={predictionContracts}
             onGoRegion={() => {
               setActiveTab('region');
               setSelectedArticle(null);
