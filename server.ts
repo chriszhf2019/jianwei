@@ -31,6 +31,7 @@ import {
   backupCorpus,
   backupDirectory,
   getCorpusRevision,
+  flushCorpusSnapshot,
 } from "./src/server/corpus";
 import {
   activeProvider,
@@ -109,6 +110,7 @@ import {
   revokeUserSession,
   persistPredictionLedgerSnapshot,
   restoreDatabaseBackup,
+  closeDatabase,
   verifyDatabaseBackup,
   resolvePredictionContract,
   updateUser,
@@ -3187,5 +3189,22 @@ async function startServer() {
     }
   });
 }
+
+function shutdownProcess(signal: "SIGINT" | "SIGTERM"): void {
+  try {
+    flushCorpusSnapshot();
+  } catch (error) {
+    console.error("failed to flush corpus snapshot:", error);
+  }
+  try {
+    closeDatabase();
+  } catch (error) {
+    console.error("failed to close database:", error);
+  }
+  process.exit(signal === "SIGINT" ? 130 : 143);
+}
+
+process.once("SIGINT", () => shutdownProcess("SIGINT"));
+process.once("SIGTERM", () => shutdownProcess("SIGTERM"));
 
 startServer();

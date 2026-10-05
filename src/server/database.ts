@@ -6,17 +6,32 @@ import { parseArticleDate } from "../utils/articleTime";
 import { predictionDueInfo } from "../utils/predictionLedger";
 import { NO_PERSIST } from "./settings";
 
-const DB_FILE = process.env.JIANWEI_DB_FILE || path.join(process.cwd(), "data", "corpus.db");
+function databasePath(): string {
+  return process.env.JIANWEI_DB_FILE || path.join(process.cwd(), "data", "corpus.db");
+}
 
-function ensureDirectory(): void {
-  fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+type OpenDatabase = { path: string; db: DatabaseSync };
+let openDatabaseCache: OpenDatabase | null = null;
+
+/** 释放当前共享连接。恢复备份前必须调用，否则 Linux 上已打开的文件描述符仍指向旧 inode。 */
+export function closeDatabase(): void {
+  if (!openDatabaseCache) return;
+  try {
+    openDatabaseCache.db.close();
+  } catch {
+    /* 连接已关闭时忽略。 */
+  }
+  openDatabaseCache = null;
 }
 
 function openDatabase(): DatabaseSync {
-  ensureDirectory();
-  const db = new DatabaseSync(DB_FILE);
+  const file = databasePath();
+  if (openDatabaseCache?.path === file) return openDatabaseCache.db;
+  closeDatabase();
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const db = new DatabaseSync(file);
   try {
-    fs.chmodSync(DB_FILE, 0o600);
+    fs.chmodSync(file, 0o600);
   } catch {
     /* 某些文件系统不支持 POSIX 权限。 */
   }
@@ -281,6 +296,7 @@ function openDatabase(): DatabaseSync {
       throw error;
     }
   }
+  openDatabaseCache = { path: file, db };
   return db;
 }
 
@@ -299,25 +315,21 @@ function articleSortTime(article: any): number {
 }
 
 export function databaseFile(): string {
-  return DB_FILE;
+  return databasePath();
 }
 
 /** 返回 null 表示数据库尚未初始化，区别于“已初始化但内容为空”。 */
 export function loadArticlesFromDatabase(): any[] | null {
-  if (!fs.existsSync(DB_FILE)) return null;
+  if (!fs.existsSync(databasePath())) return null;
   const db = openDatabase();
-  try {
-    const rows = db.prepare("SELECT payload FROM articles ORDER BY sort_time DESC").all() as Array<{ payload: string }>;
-    return rows.flatMap((row) => {
-      try {
-        return [JSON.parse(row.payload)];
-      } catch {
-        return [];
-      }
-    });
-  } finally {
-    db.close();
-  }
+  const rows = db.prepare("SELECT payload FROM articles ORDER BY sort_time DESC").all() as Array<{ payload: string }>;
+  return rows.flatMap((row) => {
+    try {
+      return [JSON.parse(row.payload)];
+    } catch {
+      return [];
+    }
+  });
 }
 
 export function queryArticlesPage(input: {
@@ -326,7 +338,7 @@ export function queryArticlesPage(input: {
   limit: number;
   offset: number;
 }): { items: any[]; total: number; filteredTotal: number } | null {
-  if (!fs.existsSync(DB_FILE)) return null;
+  if (!fs.existsSync(databasePath())) return null;
   const db = openDatabase();
   try {
     const conditions: string[] = [];
@@ -384,77 +396,71 @@ export function queryArticlesPage(input: {
     };
   } catch {
     return null;
-  } finally {
-    db.close();
   }
 }
 
 export function persistArticlesToDatabase(articles: any[]): void {
   const db = openDatabase();
+  db.exec("BEGIN IMMEDIATE");
   try {
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      db.exec("CREATE TEMP TABLE IF NOT EXISTS current_article_ids (id TEXT PRIMARY KEY)");
-      db.exec("DELETE FROM current_article_ids");
-      const markCurrent = db.prepare("INSERT OR IGNORE INTO current_article_ids (id) VALUES (?)");
-      const upsert = db.prepare(`
-        INSERT INTO articles (
-          id, sort_time, source_name, published_at, is_external, payload, updated_at, payload_hash
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          sort_time = excluded.sort_time,
-          source_name = excluded.source_name,
-          published_at = excluded.published_at,
-          is_external = excluded.is_external,
-          payload = excluded.payload,
-          updated_at = excluded.updated_at,
-          payload_hash = excluded.payload_hash
-        WHERE articles.payload_hash IS NULL OR articles.payload_hash != excluded.payload_hash
-      `);
-      const deleteRegions = db.prepare("DELETE FROM article_regions WHERE article_id = ?");
-      const insertRegion = db.prepare(
-        "INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)"
+    db.exec("CREATE TEMP TABLE IF NOT EXISTS current_article_ids (id TEXT PRIMARY KEY)");
+    db.exec("DELETE FROM current_article_ids");
+    const markCurrent = db.prepare("INSERT OR IGNORE INTO current_article_ids (id) VALUES (?)");
+    const upsert = db.prepare(`
+      INSERT INTO articles (
+        id, sort_time, source_name, published_at, is_external, payload, updated_at, payload_hash
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        sort_time = excluded.sort_time,
+        source_name = excluded.source_name,
+        published_at = excluded.published_at,
+        is_external = excluded.is_external,
+        payload = excluded.payload,
+        updated_at = excluded.updated_at,
+        payload_hash = excluded.payload_hash
+      WHERE articles.payload_hash IS NULL OR articles.payload_hash != excluded.payload_hash
+    `);
+    const deleteRegions = db.prepare("DELETE FROM article_regions WHERE article_id = ?");
+    const insertRegion = db.prepare(
+      "INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)"
+    );
+    const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
+    const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
+    const now = new Date().toISOString();
+    for (const article of articles) {
+      const id = String(article?.id || "");
+      if (!id) continue;
+      const payload = JSON.stringify(article);
+      const payloadHash = crypto.createHash("sha256").update(payload).digest("hex");
+      markCurrent.run(id);
+      upsert.run(
+        id,
+        articleSortTime(article),
+        String(article?.sourceName || ""),
+        article?.publishedAt ? String(article.publishedAt) : null,
+        article?.isExternal === true ? 1 : 0,
+        payload,
+        now,
+        payloadHash
       );
-      const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
-      const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
-      const now = new Date().toISOString();
-      for (const article of articles) {
-        const id = String(article?.id || "");
-        if (!id) continue;
-        const payload = JSON.stringify(article);
-        const payloadHash = crypto.createHash("sha256").update(payload).digest("hex");
-        markCurrent.run(id);
-        upsert.run(
-          id,
-          articleSortTime(article),
-          String(article?.sourceName || ""),
-          article?.publishedAt ? String(article.publishedAt) : null,
-          article?.isExternal === true ? 1 : 0,
-          payload,
-          now,
-          payloadHash
-        );
-        deleteRegions.run(id);
-        const regions = new Set<string>(
-          (Array.isArray(article?.regionMentions) ? article.regionMentions : [])
-            .map((item: any) => String(item?.region || "").trim())
-            .filter(Boolean)
-        );
-        for (const region of regions) insertRegion.run(id, region);
-        deleteSearch.run(id);
-        insertSearch.run(id, articleSearchBody(article));
-      }
-      db.exec("DELETE FROM articles WHERE id NOT IN (SELECT id FROM current_article_ids)");
-      db.exec("DELETE FROM article_regions WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
-      db.exec("DELETE FROM article_search WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
-      db.exec("COMMIT");
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
+      deleteRegions.run(id);
+      const regions = new Set<string>(
+        (Array.isArray(article?.regionMentions) ? article.regionMentions : [])
+          .map((item: any) => String(item?.region || "").trim())
+          .filter(Boolean)
+      );
+      for (const region of regions) insertRegion.run(id, region);
+      deleteSearch.run(id);
+      insertSearch.run(id, articleSearchBody(article));
     }
-  } finally {
-    db.close();
+    db.exec("DELETE FROM articles WHERE id NOT IN (SELECT id FROM current_article_ids)");
+    db.exec("DELETE FROM article_regions WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
+    db.exec("DELETE FROM article_search WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
   }
 }
 
@@ -465,28 +471,24 @@ export function databaseStats(): {
   aiUsageEvents: number;
   initialized: boolean;
 } {
-  if (!fs.existsSync(DB_FILE)) {
-    return { file: DB_FILE, articles: 0, sourceChecks: 0, aiUsageEvents: 0, initialized: false };
+  if (!fs.existsSync(databasePath())) {
+    return { file: databasePath(), articles: 0, sourceChecks: 0, aiUsageEvents: 0, initialized: false };
   }
   const db = openDatabase();
-  try {
-    const row = db.prepare("SELECT COUNT(*) AS count FROM articles").get() as { count: number };
-    const sourceCheck = db.prepare("SELECT COUNT(*) AS count FROM source_checks").get() as { count: number };
-    const aiUsage = db.prepare("SELECT COUNT(*) AS count FROM ai_usage_events").get() as { count: number };
-    return {
-      file: DB_FILE,
-      articles: Number(row?.count || 0),
-      sourceChecks: Number(sourceCheck?.count || 0),
-      aiUsageEvents: Number(aiUsage?.count || 0),
-      initialized: true,
-    };
-  } finally {
-    db.close();
-  }
+  const row = db.prepare("SELECT COUNT(*) AS count FROM articles").get() as { count: number };
+  const sourceCheck = db.prepare("SELECT COUNT(*) AS count FROM source_checks").get() as { count: number };
+  const aiUsage = db.prepare("SELECT COUNT(*) AS count FROM ai_usage_events").get() as { count: number };
+  return {
+    file: databasePath(),
+    articles: Number(row?.count || 0),
+    sourceChecks: Number(sourceCheck?.count || 0),
+    aiUsageEvents: Number(aiUsage?.count || 0),
+    initialized: true,
+  };
 }
 
 export function loadSourceCheck(checkKey: string, maxAgeMs: number): any | null {
-  if (!fs.existsSync(DB_FILE)) return null;
+  if (!fs.existsSync(databasePath())) return null;
   const db = openDatabase();
   try {
     const row = db.prepare(
@@ -498,63 +500,49 @@ export function loadSourceCheck(checkKey: string, maxAgeMs: number): any | null 
     return JSON.parse(row.payload);
   } catch {
     return null;
-  } finally {
-    db.close();
   }
 }
 
 export function persistSourceCheck(checkKey: string, result: any): void {
   const db = openDatabase();
-  try {
-    const { pageText, ...payload } = result || {};
-    db.prepare(`
-      INSERT INTO source_checks (check_key, source_url, status, content_hash, checked_at, payload, page_text)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(check_key) DO UPDATE SET
-        source_url = excluded.source_url,
-        status = excluded.status,
-        content_hash = excluded.content_hash,
-        checked_at = excluded.checked_at,
-        payload = excluded.payload,
-        page_text = excluded.page_text
-    `).run(
-      checkKey,
-      String(result?.requestedUrl || result?.finalUrl || ""),
-      String(result?.status || "unknown"),
-      result?.contentHash ? String(result.contentHash) : null,
-      String(result?.fetchedAt || new Date().toISOString()),
-      JSON.stringify(payload),
-      pageText ? String(pageText).slice(0, 200_000) : null
-    );
-  } finally {
-    db.close();
-  }
+  const { pageText, ...payload } = result || {};
+  db.prepare(`
+    INSERT INTO source_checks (check_key, source_url, status, content_hash, checked_at, payload, page_text)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(check_key) DO UPDATE SET
+      source_url = excluded.source_url,
+      status = excluded.status,
+      content_hash = excluded.content_hash,
+      checked_at = excluded.checked_at,
+      payload = excluded.payload,
+      page_text = excluded.page_text
+  `).run(
+    checkKey,
+    String(result?.requestedUrl || result?.finalUrl || ""),
+    String(result?.status || "unknown"),
+    result?.contentHash ? String(result.contentHash) : null,
+    String(result?.fetchedAt || new Date().toISOString()),
+    JSON.stringify(payload),
+    pageText ? String(pageText).slice(0, 200_000) : null
+  );
 }
 
 export function loadSourcePageText(checkKey: string): string | null {
-  if (!fs.existsSync(DB_FILE)) return null;
+  if (!fs.existsSync(databasePath())) return null;
   const db = openDatabase();
-  try {
-    const row = db.prepare("SELECT page_text FROM source_checks WHERE check_key = ?").get(checkKey) as
-      | { page_text?: string | null }
-      | undefined;
-    return row?.page_text || null;
-  } finally {
-    db.close();
-  }
+  const row = db.prepare("SELECT page_text FROM source_checks WHERE check_key = ?").get(checkKey) as
+    | { page_text?: string | null }
+    | undefined;
+  return row?.page_text || null;
 }
 
 export function clearTransientSourceChecks(): number {
-  if (!fs.existsSync(DB_FILE)) return 0;
+  if (!fs.existsSync(databasePath())) return 0;
   const db = openDatabase();
-  try {
-    const result = db.prepare(
-      "DELETE FROM source_checks WHERE status IN ('network_error', 'timeout', 'too_large')"
-    ).run();
-    return Number(result.changes || 0);
-  } finally {
-    db.close();
-  }
+  const result = db.prepare(
+    "DELETE FROM source_checks WHERE status IN ('network_error', 'timeout', 'too_large')"
+  ).run();
+  return Number(result.changes || 0);
 }
 
 function predictionIntegrityHash(payload: unknown): string {
@@ -589,26 +577,22 @@ export function createPredictionContract(input: Record<string, any>): Record<str
   const payload = JSON.stringify(contract);
   const hash = predictionIntegrityHash(contract);
   const db = openDatabase();
-  try {
-    db.prepare(`
-      INSERT INTO prediction_contracts (
-        id, article_id, question, created_at, target_verification_date,
-        status, resolved_at, payload, integrity_hash, updated_at, owner_user_id
-      ) VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?, ?, ?, ?)
-    `).run(
-      id,
-      articleId,
-      question,
-      contract.createdAt,
-      targetVerificationDate,
-      payload,
-      hash,
-      now,
-      ownerUserId
-    );
-  } finally {
-    db.close();
-  }
+  db.prepare(`
+    INSERT INTO prediction_contracts (
+      id, article_id, question, created_at, target_verification_date,
+      status, resolved_at, payload, integrity_hash, updated_at, owner_user_id
+    ) VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?, ?, ?, ?)
+  `).run(
+    id,
+    articleId,
+    question,
+    contract.createdAt,
+    targetVerificationDate,
+    payload,
+    hash,
+    now,
+    ownerUserId
+  );
   return { ...contract, ledger: "server", integrityHash: hash, integrityValid: true };
 }
 
@@ -628,140 +612,132 @@ export function resolvePredictionContract(input: {
   integrityHash: string;
 } {
   const db = openDatabase();
-  try {
-    const row = db.prepare(
-      "SELECT payload, status, owner_user_id FROM prediction_contracts WHERE id = ?"
-    ).get(String(input.id)) as { payload?: string; status?: string; owner_user_id?: string } | undefined;
-    if (!row?.payload) return { ok: false, reason: "not_found" };
-    if (!input.includeAll && String(row.owner_user_id || "local") !== String(input.ownerUserId || "local")) {
-      return { ok: false, reason: "not_found" };
-    }
-    const current = JSON.parse(row.payload);
-    if (row.status !== "pending" || current?.status !== "pending") {
-      return { ok: false, reason: "already_resolved" };
-    }
-    const resolvedAt = new Date().toISOString();
-    const contract = {
-      ...current,
-      status: input.status,
-      actualOutcome: String(input.actualOutcome || "").slice(0, 1000),
-      outcomeEvidence: String(input.outcomeEvidence || "").slice(0, 2000),
-      outcomeSourceUrl: input.outcomeSourceUrl ? String(input.outcomeSourceUrl).slice(0, 2000) : undefined,
-      resolutionDate: resolvedAt,
-      brierScore: typeof input.brierScore === "number" ? input.brierScore : undefined,
-    };
-    const hash = predictionIntegrityHash(contract);
-    const result = db.prepare(`
-      UPDATE prediction_contracts
-      SET status = ?, resolved_at = ?, payload = ?, integrity_hash = ?, updated_at = ?
-      WHERE id = ? AND status = 'pending'
-    `).run(
-      input.status,
-      resolvedAt,
-      JSON.stringify(contract),
-      hash,
-      resolvedAt,
-      input.id
-    );
-    if (!result.changes) return { ok: false, reason: "already_resolved" };
-    const reviewer = String(input.reviewer || "结果录入者").trim().slice(0, 80);
-    const reviewPayload = {
-      contractId: String(input.id),
-      reviewer,
-      decision: "confirm",
-      notes: "首次结果录入与证据提交",
-      createdAt: resolvedAt,
-    };
-    db.prepare(`
-      INSERT OR IGNORE INTO prediction_outcome_reviews (
-        contract_id, reviewer, decision, notes, payload, integrity_hash, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      String(input.id),
-      reviewer,
-      "confirm",
-      reviewPayload.notes,
-      JSON.stringify(reviewPayload),
-      predictionIntegrityHash(reviewPayload),
-      resolvedAt
-    );
-    return {
-      ok: true,
-      contract: { ...contract, ledger: "server", integrityHash: hash, integrityValid: true },
-      integrityHash: hash,
-    };
-  } finally {
-    db.close();
+  const row = db.prepare(
+    "SELECT payload, status, owner_user_id FROM prediction_contracts WHERE id = ?"
+  ).get(String(input.id)) as { payload?: string; status?: string; owner_user_id?: string } | undefined;
+  if (!row?.payload) return { ok: false, reason: "not_found" };
+  if (!input.includeAll && String(row.owner_user_id || "local") !== String(input.ownerUserId || "local")) {
+    return { ok: false, reason: "not_found" };
   }
+  const current = JSON.parse(row.payload);
+  if (row.status !== "pending" || current?.status !== "pending") {
+    return { ok: false, reason: "already_resolved" };
+  }
+  const resolvedAt = new Date().toISOString();
+  const contract = {
+    ...current,
+    status: input.status,
+    actualOutcome: String(input.actualOutcome || "").slice(0, 1000),
+    outcomeEvidence: String(input.outcomeEvidence || "").slice(0, 2000),
+    outcomeSourceUrl: input.outcomeSourceUrl ? String(input.outcomeSourceUrl).slice(0, 2000) : undefined,
+    resolutionDate: resolvedAt,
+    brierScore: typeof input.brierScore === "number" ? input.brierScore : undefined,
+  };
+  const hash = predictionIntegrityHash(contract);
+  const result = db.prepare(`
+    UPDATE prediction_contracts
+    SET status = ?, resolved_at = ?, payload = ?, integrity_hash = ?, updated_at = ?
+    WHERE id = ? AND status = 'pending'
+  `).run(
+    input.status,
+    resolvedAt,
+    JSON.stringify(contract),
+    hash,
+    resolvedAt,
+    input.id
+  );
+  if (!result.changes) return { ok: false, reason: "already_resolved" };
+  const reviewer = String(input.reviewer || "结果录入者").trim().slice(0, 80);
+  const reviewPayload = {
+    contractId: String(input.id),
+    reviewer,
+    decision: "confirm",
+    notes: "首次结果录入与证据提交",
+    createdAt: resolvedAt,
+  };
+  db.prepare(`
+    INSERT OR IGNORE INTO prediction_outcome_reviews (
+      contract_id, reviewer, decision, notes, payload, integrity_hash, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    String(input.id),
+    reviewer,
+    "confirm",
+    reviewPayload.notes,
+    JSON.stringify(reviewPayload),
+    predictionIntegrityHash(reviewPayload),
+    resolvedAt
+  );
+  return {
+    ok: true,
+    contract: { ...contract, ledger: "server", integrityHash: hash, integrityValid: true },
+    integrityHash: hash,
+  };
 }
 
 export function listPredictionContracts(ownerUserId?: string, includeAll = false): Array<Record<string, any>> {
-  if (!fs.existsSync(DB_FILE)) return [];
+  if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
-  try {
-    const reviewsByContract = new Map<string, any[]>();
-    const reviewRows = db.prepare(`
-      SELECT contract_id, payload, integrity_hash
-      FROM prediction_outcome_reviews
-      ORDER BY created_at ASC
-    `).all() as any[];
-    for (const row of reviewRows) {
-      try {
-        const review = JSON.parse(String(row.payload));
-        const item = {
-          ...review,
-          integrityValid: predictionIntegrityHash(review) === String(row.integrity_hash),
-        };
-        const items = reviewsByContract.get(String(row.contract_id)) || [];
-        items.push(item);
-        reviewsByContract.set(String(row.contract_id), items);
-      } catch {
-        /* 损坏的复核记录不进入共识计算。 */
-      }
+  const reviewsByContract = new Map<string, any[]>();
+  const reviewRows = db.prepare(`
+    SELECT contract_id, payload, integrity_hash
+    FROM prediction_outcome_reviews
+    ORDER BY created_at ASC
+  `).all() as any[];
+  for (const row of reviewRows) {
+    try {
+      const review = JSON.parse(String(row.payload));
+      const item = {
+        ...review,
+        integrityValid: predictionIntegrityHash(review) === String(row.integrity_hash),
+      };
+      const items = reviewsByContract.get(String(row.contract_id)) || [];
+      items.push(item);
+      reviewsByContract.set(String(row.contract_id), items);
+    } catch {
+      /* 损坏的复核记录不进入共识计算。 */
     }
-    const rows = db.prepare(`
-      SELECT payload, integrity_hash, status, resolved_at
-      FROM prediction_contracts
-      ${includeAll ? "" : "WHERE owner_user_id = ?"}
-      ORDER BY created_at DESC
-    `).all(...(includeAll ? [] : [String(ownerUserId || "local")])) as any[];
-    return rows.map((row) => {
-      try {
-        const contract = JSON.parse(String(row.payload));
-        const due = predictionDueInfo(
-          String(contract?.targetVerificationDate || ""),
-          String(row.status || contract.status) as any
-        );
-        const outcomeReviews = reviewsByContract.get(String(contract.id)) || [];
-        const validReviews = outcomeReviews.filter((review) => review.integrityValid);
-        const confirmations = validReviews.filter((review) => review.decision === "confirm").length;
-        const disputes = validReviews.filter((review) => review.decision === "dispute").length;
-        const reviewStatus =
-          disputes > 0 ? "disputed" :
-          confirmations >= 2 ? "confirmed" :
-          "provisional";
-        return {
-          ...contract,
-          status: String(row.status || contract.status),
-          resolutionDate: row.resolved_at || contract.resolutionDate,
-          ledger: "server",
-          integrityHash: String(row.integrity_hash),
-          integrityValid: predictionIntegrityHash(contract) === String(row.integrity_hash),
-          dueState: due.state,
-          daysUntilDue: due.daysUntilDue,
-          outcomeReviews,
-          reviewStatus,
-          reviewCount: validReviews.length,
-          confirmationCount: confirmations,
-          disputeCount: disputes,
-        };
-      } catch {
-        return null;
-      }
-    }).filter(Boolean);
-  } finally {
-    db.close();
   }
+  const rows = db.prepare(`
+    SELECT payload, integrity_hash, status, resolved_at
+    FROM prediction_contracts
+    ${includeAll ? "" : "WHERE owner_user_id = ?"}
+    ORDER BY created_at DESC
+  `).all(...(includeAll ? [] : [String(ownerUserId || "local")])) as any[];
+  return rows.map((row) => {
+    try {
+      const contract = JSON.parse(String(row.payload));
+      const due = predictionDueInfo(
+        String(contract?.targetVerificationDate || ""),
+        String(row.status || contract.status) as any
+      );
+      const outcomeReviews = reviewsByContract.get(String(contract.id)) || [];
+      const validReviews = outcomeReviews.filter((review) => review.integrityValid);
+      const confirmations = validReviews.filter((review) => review.decision === "confirm").length;
+      const disputes = validReviews.filter((review) => review.decision === "dispute").length;
+      const reviewStatus =
+        disputes > 0 ? "disputed" :
+        confirmations >= 2 ? "confirmed" :
+        "provisional";
+      return {
+        ...contract,
+        status: String(row.status || contract.status),
+        resolutionDate: row.resolved_at || contract.resolutionDate,
+        ledger: "server",
+        integrityHash: String(row.integrity_hash),
+        integrityValid: predictionIntegrityHash(contract) === String(row.integrity_hash),
+        dueState: due.state,
+        daysUntilDue: due.daysUntilDue,
+        outcomeReviews,
+        reviewStatus,
+        reviewCount: validReviews.length,
+        confirmationCount: confirmations,
+        disputeCount: disputes,
+      };
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
 }
 
 export function recordPredictionOutcomeReview(input: {
@@ -776,61 +752,53 @@ export function recordPredictionOutcomeReview(input: {
   reason: "not_found" | "not_resolved" | "reviewer_already_recorded";
 } {
   const db = openDatabase();
-  try {
-    const contract = db.prepare(
-      "SELECT status, owner_user_id FROM prediction_contracts WHERE id = ?"
-    ).get(String(input.contractId)) as { status?: string; owner_user_id?: string } | undefined;
-    if (!contract) return { ok: false, reason: "not_found" };
-    if (!input.includeAll && String(contract.owner_user_id || "local") !== String(input.ownerUserId || "local")) {
-      return { ok: false, reason: "not_found" };
-    }
-    if (contract.status === "pending") return { ok: false, reason: "not_resolved" };
-    const createdAt = new Date().toISOString();
-    const review = {
-      contractId: String(input.contractId),
-      reviewer: String(input.reviewer).trim().slice(0, 80),
-      decision: input.decision,
-      notes: String(input.notes || "").trim().slice(0, 1000),
-      createdAt,
-    };
-    try {
-      db.prepare(`
-        INSERT INTO prediction_outcome_reviews (
-          contract_id, reviewer, decision, notes, payload, integrity_hash, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        review.contractId,
-        review.reviewer,
-        review.decision,
-        review.notes,
-        JSON.stringify(review),
-        predictionIntegrityHash(review),
-        createdAt
-      );
-    } catch (error: any) {
-      if (String(error?.message || error).includes("UNIQUE")) {
-        return { ok: false, reason: "reviewer_already_recorded" };
-      }
-      throw error;
-    }
-    return { ok: true, review: { ...review, integrityValid: true } };
-  } finally {
-    db.close();
+  const contract = db.prepare(
+    "SELECT status, owner_user_id FROM prediction_contracts WHERE id = ?"
+  ).get(String(input.contractId)) as { status?: string; owner_user_id?: string } | undefined;
+  if (!contract) return { ok: false, reason: "not_found" };
+  if (!input.includeAll && String(contract.owner_user_id || "local") !== String(input.ownerUserId || "local")) {
+    return { ok: false, reason: "not_found" };
   }
+  if (contract.status === "pending") return { ok: false, reason: "not_resolved" };
+  const createdAt = new Date().toISOString();
+  const review = {
+    contractId: String(input.contractId),
+    reviewer: String(input.reviewer).trim().slice(0, 80),
+    decision: input.decision,
+    notes: String(input.notes || "").trim().slice(0, 1000),
+    createdAt,
+  };
+  try {
+    db.prepare(`
+      INSERT INTO prediction_outcome_reviews (
+        contract_id, reviewer, decision, notes, payload, integrity_hash, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      review.contractId,
+      review.reviewer,
+      review.decision,
+      review.notes,
+      JSON.stringify(review),
+      predictionIntegrityHash(review),
+      createdAt
+    );
+  } catch (error: any) {
+    if (String(error?.message || error).includes("UNIQUE")) {
+      return { ok: false, reason: "reviewer_already_recorded" };
+    }
+    throw error;
+  }
+  return { ok: true, review: { ...review, integrityValid: true } };
 }
 
 export function deletePendingPredictionContract(id: string, ownerUserId?: string, includeAll = false): boolean {
   const db = openDatabase();
-  try {
-    const result = db.prepare(
-      `DELETE FROM prediction_contracts
-       WHERE id = ? AND status = 'pending'
-       ${includeAll ? "" : "AND owner_user_id = ?"}`
-    ).run(...(includeAll ? [String(id || "")] : [String(id || ""), String(ownerUserId || "local")]));
-    return Number(result.changes || 0) > 0;
-  } finally {
-    db.close();
-  }
+  const result = db.prepare(
+    `DELETE FROM prediction_contracts
+     WHERE id = ? AND status = 'pending'
+     ${includeAll ? "" : "AND owner_user_id = ?"}`
+  ).run(...(includeAll ? [String(id || "")] : [String(id || ""), String(ownerUserId || "local")]));
+  return Number(result.changes || 0) > 0;
 }
 
 export function buildPredictionLedgerExport(ownerUserId?: string, includeAll = false): {
@@ -862,27 +830,23 @@ export function persistPredictionLedgerSnapshot(input: {
   payload: Record<string, any>;
 }): void {
   const db = openDatabase();
-  try {
-    const contracts = Array.isArray(input.payload?.contracts) ? input.payload.contracts : [];
-    const reviewCount = contracts.reduce(
-      (sum, contract) => sum + (Array.isArray(contract?.outcomeReviews) ? contract.outcomeReviews.length : 0),
-      0
-    );
-    db.prepare(`
-      INSERT INTO prediction_ledger_snapshots (
-        version, contract_count, review_count, data_hash, payload, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      input.version,
-      contracts.length,
-      reviewCount,
-      input.dataHash,
-      JSON.stringify(input.payload),
-      new Date().toISOString()
-    );
-  } finally {
-    db.close();
-  }
+  const contracts = Array.isArray(input.payload?.contracts) ? input.payload.contracts : [];
+  const reviewCount = contracts.reduce(
+    (sum, contract) => sum + (Array.isArray(contract?.outcomeReviews) ? contract.outcomeReviews.length : 0),
+    0
+  );
+  db.prepare(`
+    INSERT INTO prediction_ledger_snapshots (
+      version, contract_count, review_count, data_hash, payload, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    input.version,
+    contracts.length,
+    reviewCount,
+    input.dataHash,
+    JSON.stringify(input.payload),
+    new Date().toISOString()
+  );
 }
 
 export function listPredictionLedgerSnapshots(): Array<{
@@ -892,28 +856,24 @@ export function listPredictionLedgerSnapshots(): Array<{
   dataHash: string;
   createdAt: string;
 }> {
-  if (!fs.existsSync(DB_FILE)) return [];
+  if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
-  try {
-    return (db.prepare(`
-      SELECT version, contract_count AS contractCount, review_count AS reviewCount,
-             data_hash AS dataHash, created_at AS createdAt
-      FROM prediction_ledger_snapshots
-      ORDER BY created_at DESC
-    `).all() as any[]).map((row) => ({
-      version: String(row.version),
-      contractCount: Number(row.contractCount),
-      reviewCount: Number(row.reviewCount),
-      dataHash: String(row.dataHash),
-      createdAt: String(row.createdAt),
-    }));
-  } finally {
-    db.close();
-  }
+  return (db.prepare(`
+    SELECT version, contract_count AS contractCount, review_count AS reviewCount,
+           data_hash AS dataHash, created_at AS createdAt
+    FROM prediction_ledger_snapshots
+    ORDER BY created_at DESC
+  `).all() as any[]).map((row) => ({
+    version: String(row.version),
+    contractCount: Number(row.contractCount),
+    reviewCount: Number(row.reviewCount),
+    dataHash: String(row.dataHash),
+    createdAt: String(row.createdAt),
+  }));
 }
 
 export function loadPredictionLedgerSnapshot(version: string): Record<string, any> | null {
-  if (!fs.existsSync(DB_FILE)) return null;
+  if (!fs.existsSync(databasePath())) return null;
   const db = openDatabase();
   try {
     const row = db.prepare(
@@ -929,8 +889,6 @@ export function loadPredictionLedgerSnapshot(version: string): Record<string, an
     };
   } catch {
     return null;
-  } finally {
-    db.close();
   }
 }
 
@@ -948,35 +906,31 @@ export function getAiUsageToday(): {
   totalTokens: number;
   tokenReportedCalls: number;
 } {
-  if (!fs.existsSync(DB_FILE)) {
+  if (!fs.existsSync(databasePath())) {
     return { calls: 0, promptChars: 0, outputChars: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, tokenReportedCalls: 0 };
   }
   const db = openDatabase();
-  try {
-    const row = db.prepare(`
-      SELECT
-        COUNT(*) AS calls,
-        COALESCE(SUM(prompt_chars), 0) AS promptChars,
-        COALESCE(SUM(output_chars), 0) AS outputChars,
-        COALESCE(SUM(prompt_tokens), 0) AS promptTokens,
-        COALESCE(SUM(output_tokens), 0) AS outputTokens,
-        COALESCE(SUM(total_tokens), 0) AS totalTokens,
-        COALESCE(SUM(CASE WHEN total_tokens IS NOT NULL THEN 1 ELSE 0 END), 0) AS tokenReportedCalls
-      FROM ai_usage_events
-      WHERE at >= ?
-    `).get(startOfLocalDayIso()) as Record<string, number>;
-    return {
-      calls: Number(row?.calls || 0),
-      promptChars: Number(row?.promptChars || 0),
-      outputChars: Number(row?.outputChars || 0),
-      promptTokens: Number(row?.promptTokens || 0),
-      outputTokens: Number(row?.outputTokens || 0),
-      totalTokens: Number(row?.totalTokens || 0),
-      tokenReportedCalls: Number(row?.tokenReportedCalls || 0),
-    };
-  } finally {
-    db.close();
-  }
+  const row = db.prepare(`
+    SELECT
+      COUNT(*) AS calls,
+      COALESCE(SUM(prompt_chars), 0) AS promptChars,
+      COALESCE(SUM(output_chars), 0) AS outputChars,
+      COALESCE(SUM(prompt_tokens), 0) AS promptTokens,
+      COALESCE(SUM(output_tokens), 0) AS outputTokens,
+      COALESCE(SUM(total_tokens), 0) AS totalTokens,
+      COALESCE(SUM(CASE WHEN total_tokens IS NOT NULL THEN 1 ELSE 0 END), 0) AS tokenReportedCalls
+    FROM ai_usage_events
+    WHERE at >= ?
+  `).get(startOfLocalDayIso()) as Record<string, number>;
+  return {
+    calls: Number(row?.calls || 0),
+    promptChars: Number(row?.promptChars || 0),
+    outputChars: Number(row?.outputChars || 0),
+    promptTokens: Number(row?.promptTokens || 0),
+    outputTokens: Number(row?.outputTokens || 0),
+    totalTokens: Number(row?.totalTokens || 0),
+    tokenReportedCalls: Number(row?.tokenReportedCalls || 0),
+  };
 }
 
 /**
@@ -1009,32 +963,28 @@ export function estimateAiCost(provider: string, model: string, promptTokens: nu
 }
 
 export function getAiCostToday(): { estimatedCostUsd: number | null; priceSource: string } {
-  if (!fs.existsSync(DB_FILE)) {
+  if (!fs.existsSync(databasePath())) {
     return { estimatedCostUsd: null, priceSource: "无数据" };
   }
   const db = openDatabase();
-  try {
-    const rows = db.prepare(`
-      SELECT provider, model,
-        COALESCE(SUM(prompt_tokens), 0) AS promptTokens,
-        COALESCE(SUM(output_tokens), 0) AS outputTokens
-      FROM ai_usage_events
-      WHERE at >= ? AND total_tokens IS NOT NULL
-      GROUP BY provider, model
-    `).all(startOfLocalDayIso()) as Array<{ provider: string; model: string; promptTokens: number; outputTokens: number }>;
-    let total = 0;
-    let hasAny = false;
-    for (const row of rows) {
-      const cost = estimateAiCost(row.provider, row.model, Number(row.promptTokens || 0), Number(row.outputTokens || 0));
-      if (cost != null) { total += cost; hasAny = true; }
-    }
-    return {
-      estimatedCostUsd: hasAny ? Math.round(total * 10000) / 10000 : null,
-      priceSource: "供应商官网公开定价（2025-09 参考）",
-    };
-  } finally {
-    db.close();
+  const rows = db.prepare(`
+    SELECT provider, model,
+      COALESCE(SUM(prompt_tokens), 0) AS promptTokens,
+      COALESCE(SUM(output_tokens), 0) AS outputTokens
+    FROM ai_usage_events
+    WHERE at >= ? AND total_tokens IS NOT NULL
+    GROUP BY provider, model
+  `).all(startOfLocalDayIso()) as Array<{ provider: string; model: string; promptTokens: number; outputTokens: number }>;
+  let total = 0;
+  let hasAny = false;
+  for (const row of rows) {
+    const cost = estimateAiCost(row.provider, row.model, Number(row.promptTokens || 0), Number(row.outputTokens || 0));
+    if (cost != null) { total += cost; hasAny = true; }
   }
+  return {
+    estimatedCostUsd: hasAny ? Math.round(total * 10000) / 10000 : null,
+    priceSource: "供应商官网公开定价（2025-09 参考）",
+  };
 }
 
 function auditEventHash(event: {
@@ -1073,10 +1023,7 @@ export function recordAuditEvent(input: {
   const at = new Date().toISOString();
   const actor = String(input.actor || "local").trim().slice(0, 120);
   const action = String(input.action || "").trim().slice(0, 120);
-  if (!action) {
-    db.close();
-    return;
-  }
+  if (!action) return;
   const entityType = input.entityType ? String(input.entityType).slice(0, 80) : null;
   const entityId = input.entityId ? String(input.entityId).slice(0, 160) : null;
   const status = input.status || "success";
@@ -1115,8 +1062,6 @@ export function recordAuditEvent(input: {
       /* 忽略回滚失败。 */
     }
     console.error("failed to record audit event:", error);
-  } finally {
-    db.close();
   }
 }
 
@@ -1124,61 +1069,57 @@ export function listAuditEvents(limit = 200): {
   events: Array<Record<string, any>>;
   chain: { valid: boolean; checked: number; brokenAt: number | null };
 } {
-  if (!fs.existsSync(DB_FILE)) return { events: [], chain: { valid: true, checked: 0, brokenAt: null } };
+  if (!fs.existsSync(databasePath())) return { events: [], chain: { valid: true, checked: 0, brokenAt: null } };
   const db = openDatabase();
-  try {
-    const rows = db.prepare(`
-      SELECT id, at, actor, action, entity_type, entity_id, status, metadata,
-             previous_hash, integrity_hash
-      FROM audit_events
-      ORDER BY id ASC
-    `).all() as any[];
-    let expectedPrevious: string | null = null;
-    let brokenAt: number | null = null;
-    const events = rows.map((row) => {
-      let metadata: unknown = null;
-      try {
-        metadata = row.metadata ? JSON.parse(String(row.metadata)) : null;
-      } catch {
-        metadata = { unreadable: true };
-      }
-      const expectedHash = auditEventHash({
-        at: String(row.at),
-        actor: String(row.actor),
-        action: String(row.action),
-        entityType: row.entity_type == null ? null : String(row.entity_type),
-        entityId: row.entity_id == null ? null : String(row.entity_id),
-        status: String(row.status),
-        metadata,
-        previousHash: row.previous_hash == null ? null : String(row.previous_hash),
-      });
-      const valid = (
-        String(row.previous_hash || "") === String(expectedPrevious || "") &&
-        String(row.integrity_hash) === expectedHash
-      );
-      if (!valid && brokenAt === null) brokenAt = Number(row.id);
-      expectedPrevious = String(row.integrity_hash || expectedPrevious || "");
-      return {
-        id: Number(row.id),
-        at: String(row.at),
-        actor: String(row.actor),
-        action: String(row.action),
-        entityType: row.entity_type ? String(row.entity_type) : null,
-        entityId: row.entity_id ? String(row.entity_id) : null,
-        status: String(row.status),
-        metadata,
-        previousHash: row.previous_hash ? String(row.previous_hash) : null,
-        integrityHash: String(row.integrity_hash),
-        integrityValid: valid,
-      };
+  const rows = db.prepare(`
+    SELECT id, at, actor, action, entity_type, entity_id, status, metadata,
+           previous_hash, integrity_hash
+    FROM audit_events
+    ORDER BY id ASC
+  `).all() as any[];
+  let expectedPrevious: string | null = null;
+  let brokenAt: number | null = null;
+  const events = rows.map((row) => {
+    let metadata: unknown = null;
+    try {
+      metadata = row.metadata ? JSON.parse(String(row.metadata)) : null;
+    } catch {
+      metadata = { unreadable: true };
+    }
+    const expectedHash = auditEventHash({
+      at: String(row.at),
+      actor: String(row.actor),
+      action: String(row.action),
+      entityType: row.entity_type == null ? null : String(row.entity_type),
+      entityId: row.entity_id == null ? null : String(row.entity_id),
+      status: String(row.status),
+      metadata,
+      previousHash: row.previous_hash == null ? null : String(row.previous_hash),
     });
+    const valid = (
+      String(row.previous_hash || "") === String(expectedPrevious || "") &&
+      String(row.integrity_hash) === expectedHash
+    );
+    if (!valid && brokenAt === null) brokenAt = Number(row.id);
+    expectedPrevious = String(row.integrity_hash || expectedPrevious || "");
     return {
-      events: events.slice(-Math.max(1, Math.min(1000, limit))).reverse(),
-      chain: { valid: brokenAt === null, checked: events.length, brokenAt },
+      id: Number(row.id),
+      at: String(row.at),
+      actor: String(row.actor),
+      action: String(row.action),
+      entityType: row.entity_type ? String(row.entity_type) : null,
+      entityId: row.entity_id ? String(row.entity_id) : null,
+      status: String(row.status),
+      metadata,
+      previousHash: row.previous_hash ? String(row.previous_hash) : null,
+      integrityHash: String(row.integrity_hash),
+      integrityValid: valid,
     };
-  } finally {
-    db.close();
-  }
+  });
+  return {
+    events: events.slice(-Math.max(1, Math.min(1000, limit))).reverse(),
+    chain: { valid: brokenAt === null, checked: events.length, brokenAt },
+  };
 }
 
 export type UserRole = "admin" | "analyst" | "editor" | "viewer";
@@ -1236,27 +1177,23 @@ export function createUser(input: {
   const id = `user-${crypto.randomBytes(12).toString("hex")}`;
   const now = new Date().toISOString();
   const db = openDatabase();
-  try {
-    db.prepare(`
-      INSERT INTO users (
-        id, username, password_hash, role, active, must_change_password,
-        approval_status, approved_at, approved_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      username,
-      hashPassword(password),
-      input.role,
-      input.mustChangePassword ? 1 : 0,
-      approvalStatus,
-      approvalStatus === "approved" ? now : null,
-      approvalStatus === "approved" ? (input.approvedBy || "system") : null,
-      now,
-      now
-    );
-  } finally {
-    db.close();
-  }
+  db.prepare(`
+    INSERT INTO users (
+      id, username, password_hash, role, active, must_change_password,
+      approval_status, approved_at, approved_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    username,
+    hashPassword(password),
+    input.role,
+    input.mustChangePassword ? 1 : 0,
+    approvalStatus,
+    approvalStatus === "approved" ? now : null,
+    approvalStatus === "approved" ? (input.approvedBy || "system") : null,
+    now,
+    now
+  );
   return {
     id,
     username,
@@ -1281,73 +1218,65 @@ export function updateUser(input: {
   approvalStatus: UserApprovalStatus;
 } {
   const db = openDatabase();
-  try {
-    const current = db.prepare(
-      "SELECT id, username, role, active, must_change_password, approval_status, approved_at, approved_by FROM users WHERE id = ?"
-    ).get(String(input.id)) as any;
-    if (!current) throw new Error("user_not_found");
-    const nextRole = input.role || String(current.role) as UserRole;
-    const nextActive = input.active === undefined ? Number(current.active) === 1 : input.active;
-    const nextApproval = input.approvalStatus || String(current.approval_status || "approved") as UserApprovalStatus;
-    if (!["admin", "analyst", "editor", "viewer"].includes(nextRole)) throw new Error("invalid_role");
-    if (!["pending", "approved", "rejected"].includes(nextApproval)) throw new Error("invalid_approval_status");
-    const removingAdmin =
-      String(current.role) === "admin" &&
-      Number(current.active) === 1 &&
-      (nextRole !== "admin" || !nextActive);
-    if (removingAdmin) {
-      const adminCount = db.prepare(
-        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1"
-      ).get() as { count?: number };
-      if (Number(adminCount?.count || 0) <= 1) throw new Error("cannot_remove_last_admin");
-    }
-    const now = new Date().toISOString();
-    db.prepare(`
-      UPDATE users
-      SET role = ?, active = ?, approval_status = ?, approved_at = ?, approved_by = ?, updated_at = ?
-      WHERE id = ?
-    `).run(
-      nextRole,
-      nextActive ? 1 : 0,
-      nextApproval,
-      nextApproval === "approved"
-        ? (String(current.approval_status) === "approved" && current.approved_at ? String(current.approved_at) : now)
-        : null,
-      nextApproval === "approved"
-        ? (String(current.approval_status) === "approved" && current.approved_by ? String(current.approved_by) : (input.approvedBy || "admin"))
-        : null,
-      now,
-      String(input.id)
-    );
-    if (!nextActive || nextRole !== String(current.role) || nextApproval !== "approved") {
-      db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(input.id));
-    }
-    return {
-      id: String(current.id),
-      username: String(current.username),
-      role: nextRole,
-      active: nextActive,
-      mustChangePassword: Number(current.must_change_password) === 1,
-      approvalStatus: nextApproval,
-    };
-  } finally {
-    db.close();
+  const current = db.prepare(
+    "SELECT id, username, role, active, must_change_password, approval_status, approved_at, approved_by FROM users WHERE id = ?"
+  ).get(String(input.id)) as any;
+  if (!current) throw new Error("user_not_found");
+  const nextRole = input.role || String(current.role) as UserRole;
+  const nextActive = input.active === undefined ? Number(current.active) === 1 : input.active;
+  const nextApproval = input.approvalStatus || String(current.approval_status || "approved") as UserApprovalStatus;
+  if (!["admin", "analyst", "editor", "viewer"].includes(nextRole)) throw new Error("invalid_role");
+  if (!["pending", "approved", "rejected"].includes(nextApproval)) throw new Error("invalid_approval_status");
+  const removingAdmin =
+    String(current.role) === "admin" &&
+    Number(current.active) === 1 &&
+    (nextRole !== "admin" || !nextActive);
+  if (removingAdmin) {
+    const adminCount = db.prepare(
+      "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND active = 1"
+    ).get() as { count?: number };
+    if (Number(adminCount?.count || 0) <= 1) throw new Error("cannot_remove_last_admin");
   }
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE users
+    SET role = ?, active = ?, approval_status = ?, approved_at = ?, approved_by = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    nextRole,
+    nextActive ? 1 : 0,
+    nextApproval,
+    nextApproval === "approved"
+      ? (String(current.approval_status) === "approved" && current.approved_at ? String(current.approved_at) : now)
+      : null,
+    nextApproval === "approved"
+      ? (String(current.approval_status) === "approved" && current.approved_by ? String(current.approved_by) : (input.approvedBy || "admin"))
+      : null,
+    now,
+    String(input.id)
+  );
+  if (!nextActive || nextRole !== String(current.role) || nextApproval !== "approved") {
+    db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(input.id));
+  }
+  return {
+    id: String(current.id),
+    username: String(current.username),
+    role: nextRole,
+    active: nextActive,
+    mustChangePassword: Number(current.must_change_password) === 1,
+    approvalStatus: nextApproval,
+  };
 }
 
 export function resetUserPassword(id: string, password: string): void {
   const passwordError = passwordPolicyError(password);
   if (passwordError) throw new Error(passwordError);
   const db = openDatabase();
-  try {
-    const result = db.prepare(
-      "UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = ? WHERE id = ?"
-    ).run(hashPassword(String(password)), new Date().toISOString(), String(id));
-    if (!result.changes) throw new Error("user_not_found");
-    db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(id));
-  } finally {
-    db.close();
-  }
+  const result = db.prepare(
+    "UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = ? WHERE id = ?"
+  ).run(hashPassword(String(password)), new Date().toISOString(), String(id));
+  if (!result.changes) throw new Error("user_not_found");
+  db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(id));
 }
 
 export function changeUserPassword(input: {
@@ -1357,31 +1286,23 @@ export function changeUserPassword(input: {
 }): boolean {
   if (passwordPolicyError(input.newPassword)) return false;
   const db = openDatabase();
-  try {
-    const row = db.prepare(
-      "SELECT password_hash FROM users WHERE id = ? AND active = 1"
-    ).get(String(input.userId)) as { password_hash?: string } | undefined;
-    if (!row || !verifyPassword(String(input.currentPassword || ""), String(row.password_hash))) {
-      return false;
-    }
-    db.prepare(
-      "UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?"
-    ).run(hashPassword(String(input.newPassword)), new Date().toISOString(), String(input.userId));
-    db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(input.userId));
-    return true;
-  } finally {
-    db.close();
+  const row = db.prepare(
+    "SELECT password_hash FROM users WHERE id = ? AND active = 1"
+  ).get(String(input.userId)) as { password_hash?: string } | undefined;
+  if (!row || !verifyPassword(String(input.currentPassword || ""), String(row.password_hash))) {
+    return false;
   }
+  db.prepare(
+    "UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?"
+  ).run(hashPassword(String(input.newPassword)), new Date().toISOString(), String(input.userId));
+  db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(input.userId));
+  return true;
 }
 
 export function revokeUserSessions(userId: string): number {
   const db = openDatabase();
-  try {
-    const result = db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(userId));
-    return Number(result.changes || 0);
-  } finally {
-    db.close();
-  }
+  const result = db.prepare("DELETE FROM user_sessions WHERE user_id = ?").run(String(userId));
+  return Number(result.changes || 0);
 }
 
 export function listUsers(): Array<{
@@ -1396,29 +1317,25 @@ export function listUsers(): Array<{
   createdAt: string;
   updatedAt: string;
 }> {
-  if (!fs.existsSync(DB_FILE)) return [];
+  if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
-  try {
-    return (db.prepare(`
-      SELECT id, username, role, active, must_change_password, approval_status,
-             approved_at AS approvedAt, approved_by AS approvedBy,
-             created_at AS createdAt, updated_at AS updatedAt
-      FROM users ORDER BY created_at ASC
-    `).all() as any[]).map((row) => ({
-      id: String(row.id),
-      username: String(row.username),
-      role: String(row.role) as UserRole,
-      active: Number(row.active) === 1,
-      mustChangePassword: Number(row.must_change_password) === 1,
-      approvalStatus: String(row.approvalStatus || "approved") as UserApprovalStatus,
-      approvedAt: row.approvedAt ? String(row.approvedAt) : null,
-      approvedBy: row.approvedBy ? String(row.approvedBy) : null,
-      createdAt: String(row.createdAt),
-      updatedAt: String(row.updatedAt),
-    }));
-  } finally {
-    db.close();
-  }
+  return (db.prepare(`
+    SELECT id, username, role, active, must_change_password, approval_status,
+           approved_at AS approvedAt, approved_by AS approvedBy,
+           created_at AS createdAt, updated_at AS updatedAt
+    FROM users ORDER BY created_at ASC
+  `).all() as any[]).map((row) => ({
+    id: String(row.id),
+    username: String(row.username),
+    role: String(row.role) as UserRole,
+    active: Number(row.active) === 1,
+    mustChangePassword: Number(row.must_change_password) === 1,
+    approvalStatus: String(row.approvalStatus || "approved") as UserApprovalStatus,
+    approvedAt: row.approvedAt ? String(row.approvedAt) : null,
+    approvedBy: row.approvedBy ? String(row.approvedBy) : null,
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
+  }));
 }
 
 export function createUserSession(input: {
@@ -1434,49 +1351,45 @@ export function createUserSession(input: {
     }
   | { ok: false; reason: "invalid_credentials" | "pending_approval" | "rejected" | "inactive" } {
   const db = openDatabase();
-  try {
-    const row = db.prepare(`
-      SELECT id, username, password_hash, role, active, must_change_password, approval_status
-      FROM users WHERE username = ?
-    `).get(String(input.username || "").trim()) as any;
-    if (!row || !verifyPassword(String(input.password || ""), String(row.password_hash))) {
-      return { ok: false, reason: "invalid_credentials" };
-    }
-    if (Number(row.active) !== 1) return { ok: false, reason: "inactive" };
-    if (String(row.approval_status || "approved") === "pending") return { ok: false, reason: "pending_approval" };
-    if (String(row.approval_status || "approved") === "rejected") return { ok: false, reason: "rejected" };
-    const token = `jw_${crypto.randomBytes(32).toString("base64url")}`;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + (input.ttlMs || 30 * 24 * 3600 * 1000)).toISOString();
-    db.prepare(`
-      INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, last_seen_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(sessionTokenHash(token), row.id, expiresAt, now.toISOString(), now.toISOString());
-    const maxSessions = Math.max(1, Math.min(20, Number(process.env.USER_MAX_SESSIONS || 5)));
-    db.prepare(`
-      DELETE FROM user_sessions
-      WHERE user_id = ?
-        AND token_hash NOT IN (
-          SELECT token_hash FROM user_sessions
-          WHERE user_id = ?
-          ORDER BY created_at DESC
-          LIMIT ${maxSessions}
-        )
-    `).run(row.id, row.id);
-    return {
-      ok: true,
-      token,
-      user: {
-        id: String(row.id),
-        username: String(row.username),
-        role: String(row.role) as UserRole,
-        mustChangePassword: Number(row.must_change_password) === 1,
-      },
-      expiresAt,
-    };
-  } finally {
-    db.close();
+  const row = db.prepare(`
+    SELECT id, username, password_hash, role, active, must_change_password, approval_status
+    FROM users WHERE username = ?
+  `).get(String(input.username || "").trim()) as any;
+  if (!row || !verifyPassword(String(input.password || ""), String(row.password_hash))) {
+    return { ok: false, reason: "invalid_credentials" };
   }
+  if (Number(row.active) !== 1) return { ok: false, reason: "inactive" };
+  if (String(row.approval_status || "approved") === "pending") return { ok: false, reason: "pending_approval" };
+  if (String(row.approval_status || "approved") === "rejected") return { ok: false, reason: "rejected" };
+  const token = `jw_${crypto.randomBytes(32).toString("base64url")}`;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + (input.ttlMs || 30 * 24 * 3600 * 1000)).toISOString();
+  db.prepare(`
+    INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, last_seen_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(sessionTokenHash(token), row.id, expiresAt, now.toISOString(), now.toISOString());
+  const maxSessions = Math.max(1, Math.min(20, Number(process.env.USER_MAX_SESSIONS || 5)));
+  db.prepare(`
+    DELETE FROM user_sessions
+    WHERE user_id = ?
+      AND token_hash NOT IN (
+        SELECT token_hash FROM user_sessions
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ${maxSessions}
+      )
+  `).run(row.id, row.id);
+  return {
+    ok: true,
+    token,
+    user: {
+      id: String(row.id),
+      username: String(row.username),
+      role: String(row.role) as UserRole,
+      mustChangePassword: Number(row.must_change_password) === 1,
+    },
+    expiresAt,
+  };
 }
 
 export function resolveUserSession(token: string): {
@@ -1485,40 +1398,32 @@ export function resolveUserSession(token: string): {
   role: UserRole;
   mustChangePassword: boolean;
 } | null {
-  if (!token || !fs.existsSync(DB_FILE)) return null;
+  if (!token || !fs.existsSync(databasePath())) return null;
   const db = openDatabase();
-  try {
-    const row = db.prepare(`
-      SELECT u.id, u.username, u.role, u.active, u.must_change_password, s.expires_at
-      FROM user_sessions s
-      JOIN users u ON u.id = s.user_id
-      WHERE s.token_hash = ?
-    `).get(sessionTokenHash(token)) as any;
-    if (!row || Number(row.active) !== 1 || Date.parse(String(row.expires_at)) <= Date.now()) {
-      if (row) db.prepare("DELETE FROM user_sessions WHERE token_hash = ?").run(sessionTokenHash(token));
-      return null;
-    }
-    db.prepare("UPDATE user_sessions SET last_seen_at = ? WHERE token_hash = ?")
-      .run(new Date().toISOString(), sessionTokenHash(token));
-    return {
-      id: String(row.id),
-      username: String(row.username),
-      role: String(row.role) as UserRole,
-      mustChangePassword: Number(row.must_change_password) === 1,
-    };
-  } finally {
-    db.close();
+  const row = db.prepare(`
+    SELECT u.id, u.username, u.role, u.active, u.must_change_password, s.expires_at
+    FROM user_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token_hash = ?
+  `).get(sessionTokenHash(token)) as any;
+  if (!row || Number(row.active) !== 1 || Date.parse(String(row.expires_at)) <= Date.now()) {
+    if (row) db.prepare("DELETE FROM user_sessions WHERE token_hash = ?").run(sessionTokenHash(token));
+    return null;
   }
+  db.prepare("UPDATE user_sessions SET last_seen_at = ? WHERE token_hash = ?")
+    .run(new Date().toISOString(), sessionTokenHash(token));
+  return {
+    id: String(row.id),
+    username: String(row.username),
+    role: String(row.role) as UserRole,
+    mustChangePassword: Number(row.must_change_password) === 1,
+  };
 }
 
 export function revokeUserSession(token: string): void {
-  if (!token || !fs.existsSync(DB_FILE)) return;
+  if (!token || !fs.existsSync(databasePath())) return;
   const db = openDatabase();
-  try {
-    db.prepare("DELETE FROM user_sessions WHERE token_hash = ?").run(sessionTokenHash(token));
-  } finally {
-    db.close();
-  }
+  db.prepare("DELETE FROM user_sessions WHERE token_hash = ?").run(sessionTokenHash(token));
 }
 
 export function consumeGuestDeepRead(
@@ -1528,82 +1433,66 @@ export function consumeGuestDeepRead(
   const id = String(guestId || "").trim();
   if (!id) return { allowed: false, deepReads: limit, remaining: 0 };
   const db = openDatabase();
+  db.exec("BEGIN IMMEDIATE");
   try {
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO guest_usage (guest_id, deep_reads, created_at, updated_at)
-        VALUES (?, 0, ?, ?)
-        ON CONFLICT(guest_id) DO NOTHING
-      `).run(id, now, now);
-      const row = db.prepare(
-        "SELECT deep_reads FROM guest_usage WHERE guest_id = ?"
-      ).get(id) as { deep_reads?: number } | undefined;
-      const current = Math.max(0, Number(row?.deep_reads || 0));
-      if (current >= limit) {
-        db.exec("COMMIT");
-        return { allowed: false, deepReads: current, remaining: 0 };
-      }
-      const next = current + 1;
-      db.prepare(
-        "UPDATE guest_usage SET deep_reads = ?, updated_at = ? WHERE guest_id = ?"
-      ).run(next, now, id);
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO guest_usage (guest_id, deep_reads, created_at, updated_at)
+      VALUES (?, 0, ?, ?)
+      ON CONFLICT(guest_id) DO NOTHING
+    `).run(id, now, now);
+    const row = db.prepare(
+      "SELECT deep_reads FROM guest_usage WHERE guest_id = ?"
+    ).get(id) as { deep_reads?: number } | undefined;
+    const current = Math.max(0, Number(row?.deep_reads || 0));
+    if (current >= limit) {
       db.exec("COMMIT");
-      return { allowed: true, deepReads: next, remaining: Math.max(0, limit - next) };
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
+      return { allowed: false, deepReads: current, remaining: 0 };
     }
-  } finally {
-    db.close();
+    const next = current + 1;
+    db.prepare(
+      "UPDATE guest_usage SET deep_reads = ?, updated_at = ? WHERE guest_id = ?"
+    ).run(next, now, id);
+    db.exec("COMMIT");
+    return { allowed: true, deepReads: next, remaining: Math.max(0, limit - next) };
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
   }
 }
 
 export function cleanupExpiredUserSessions(): number {
-  if (!fs.existsSync(DB_FILE)) return 0;
+  if (!fs.existsSync(databasePath())) return 0;
   const db = openDatabase();
-  try {
-    const result = db.prepare(
-      "DELETE FROM user_sessions WHERE expires_at <= ?"
-    ).run(new Date().toISOString());
-    return Number(result.changes || 0);
-  } finally {
-    db.close();
-  }
+  const result = db.prepare(
+    "DELETE FROM user_sessions WHERE expires_at <= ?"
+  ).run(new Date().toISOString());
+  return Number(result.changes || 0);
 }
 
 export function ensureBootstrapUser(username: string, password: string): void {
-  if (!username || !password || !fs.existsSync(DB_FILE)) return;
+  if (!username || !password || !fs.existsSync(databasePath())) return;
   const db = openDatabase();
-  try {
-    const exists = db.prepare("SELECT 1 FROM users WHERE username = ?").get(username);
-    if (exists) return;
-  } finally {
-    db.close();
-  }
+  const exists = db.prepare("SELECT 1 FROM users WHERE username = ?").get(username);
+  if (exists) return;
   createUser({ username, password, role: "admin", mustChangePassword: true });
 }
 
 export function getUserPreferences(userId: string): { payload: Record<string, any> | null; version: number; updatedAt: string | null } {
-  if (!fs.existsSync(DB_FILE)) return { payload: null, version: 0, updatedAt: null };
+  if (!fs.existsSync(databasePath())) return { payload: null, version: 0, updatedAt: null };
   const db = openDatabase();
+  const row = db.prepare(
+    "SELECT payload, version, updated_at FROM user_preferences WHERE user_id = ?"
+  ).get(String(userId || "local")) as { payload?: string; version?: number; updated_at?: string } | undefined;
+  if (!row?.payload) return { payload: null, version: 0, updatedAt: null };
   try {
-    const row = db.prepare(
-      "SELECT payload, version, updated_at FROM user_preferences WHERE user_id = ?"
-    ).get(String(userId || "local")) as { payload?: string; version?: number; updated_at?: string } | undefined;
-    if (!row?.payload) return { payload: null, version: 0, updatedAt: null };
-    try {
-      return {
-        payload: JSON.parse(row.payload),
-        version: Number(row.version || 1),
-        updatedAt: row.updated_at || null,
-      };
-    } catch {
-      return { payload: null, version: 0, updatedAt: null };
-    }
-  } finally {
-    db.close();
+    return {
+      payload: JSON.parse(row.payload),
+      version: Number(row.version || 1),
+      updatedAt: row.updated_at || null,
+    };
+  } catch {
+    return { payload: null, version: 0, updatedAt: null };
   }
 }
 
@@ -1615,26 +1504,22 @@ export function saveUserPreferences(input: {
   const serialized = JSON.stringify(input.payload || {});
   if (serialized.length > 200_000) return { ok: false, reason: "payload_too_large" };
   const db = openDatabase();
-  try {
-    const row = db.prepare(
-      "SELECT version FROM user_preferences WHERE user_id = ?"
-    ).get(String(input.userId || "local")) as { version?: number } | undefined;
-    const currentVersion = Number(row?.version || 0);
-    if (input.expectedVersion !== currentVersion) return { ok: false, reason: "version_conflict" };
-    const nextVersion = currentVersion + 1;
-    const updatedAt = new Date().toISOString();
-    db.prepare(`
-      INSERT INTO user_preferences (user_id, payload, version, updated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET
-        payload = excluded.payload,
-        version = excluded.version,
-        updated_at = excluded.updated_at
-    `).run(String(input.userId || "local"), serialized, nextVersion, updatedAt);
-    return { ok: true, version: nextVersion, updatedAt };
-  } finally {
-    db.close();
-  }
+  const row = db.prepare(
+    "SELECT version FROM user_preferences WHERE user_id = ?"
+  ).get(String(input.userId || "local")) as { version?: number } | undefined;
+  const currentVersion = Number(row?.version || 0);
+  if (input.expectedVersion !== currentVersion) return { ok: false, reason: "version_conflict" };
+  const nextVersion = currentVersion + 1;
+  const updatedAt = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO user_preferences (user_id, payload, version, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      payload = excluded.payload,
+      version = excluded.version,
+      updated_at = excluded.updated_at
+  `).run(String(input.userId || "local"), serialized, nextVersion, updatedAt);
+  return { ok: true, version: nextVersion, updatedAt };
 }
 
 export function recordAiUsageEvent(input: {
@@ -1651,28 +1536,24 @@ export function recordAiUsageEvent(input: {
   error?: string | null;
 }): void {
   const db = openDatabase();
-  try {
-    db.prepare(`
-      INSERT INTO ai_usage_events (
-        at, provider, model, prompt_chars, output_chars,
-        prompt_tokens, output_tokens, total_tokens, operation, status, error
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      input.at || new Date().toISOString(),
-      input.provider,
-      input.model,
-      Math.max(0, Math.round(input.promptChars || 0)),
-      Math.max(0, Math.round(input.outputChars || 0)),
-      input.promptTokens == null ? null : Math.max(0, Math.round(input.promptTokens)),
-      input.outputTokens == null ? null : Math.max(0, Math.round(input.outputTokens)),
-      input.totalTokens == null ? null : Math.max(0, Math.round(input.totalTokens)),
-      input.operation || null,
-      input.status || "success",
-      input.error || null
-    );
-  } finally {
-    db.close();
-  }
+  db.prepare(`
+    INSERT INTO ai_usage_events (
+      at, provider, model, prompt_chars, output_chars,
+      prompt_tokens, output_tokens, total_tokens, operation, status, error
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    input.at || new Date().toISOString(),
+    input.provider,
+    input.model,
+    Math.max(0, Math.round(input.promptChars || 0)),
+    Math.max(0, Math.round(input.outputChars || 0)),
+    input.promptTokens == null ? null : Math.max(0, Math.round(input.promptTokens)),
+    input.outputTokens == null ? null : Math.max(0, Math.round(input.outputTokens)),
+    input.totalTokens == null ? null : Math.max(0, Math.round(input.totalTokens)),
+    input.operation || null,
+    input.status || "success",
+    input.error || null
+  );
 }
 
 export function checkAiBudget(callLimit: number, tokenLimit: number): {
@@ -1699,7 +1580,6 @@ export function recordEvaluationAnnotation(input: {
 }): void {
   const db = openDatabase();
   const now = new Date().toISOString();
-  try {
     db.prepare(`
       INSERT INTO evaluation_annotations (
         task, sample_key, annotator, label, payload, created_at, updated_at
@@ -1717,9 +1597,6 @@ export function recordEvaluationAnnotation(input: {
       now,
       now
     );
-  } finally {
-    db.close();
-  }
 }
 
 export function listEvaluationAnnotations(task: string): Array<{
@@ -1731,27 +1608,23 @@ export function listEvaluationAnnotations(task: string): Array<{
   updatedAt: string;
   payload?: unknown;
 }> {
-  if (!fs.existsSync(DB_FILE)) return [];
+  if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
-  try {
-    return (db.prepare(`
-      SELECT task, sample_key AS sampleKey, annotator, label, payload,
-             created_at AS createdAt, updated_at AS updatedAt
-      FROM evaluation_annotations
-      WHERE task = ?
-      ORDER BY sample_key, annotator
-    `).all(task) as any[]).map((row) => ({
-      task: String(row.task),
-      sampleKey: String(row.sampleKey),
-      annotator: String(row.annotator),
-      label: String(row.label),
-      createdAt: String(row.createdAt),
-      updatedAt: String(row.updatedAt),
-      payload: row.payload ? JSON.parse(String(row.payload)) : undefined,
-    }));
-  } finally {
-    db.close();
-  }
+  return (db.prepare(`
+    SELECT task, sample_key AS sampleKey, annotator, label, payload,
+           created_at AS createdAt, updated_at AS updatedAt
+    FROM evaluation_annotations
+    WHERE task = ?
+    ORDER BY sample_key, annotator
+  `).all(task) as any[]).map((row) => ({
+    task: String(row.task),
+    sampleKey: String(row.sampleKey),
+    annotator: String(row.annotator),
+    label: String(row.label),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
+    payload: row.payload ? JSON.parse(String(row.payload)) : undefined,
+  }));
 }
 
 export function recordEvaluationAdjudication(input: {
@@ -1763,7 +1636,6 @@ export function recordEvaluationAdjudication(input: {
 }): void {
   const db = openDatabase();
   const now = new Date().toISOString();
-  try {
     db.prepare(`
       INSERT INTO evaluation_adjudications (
         task, sample_key, adjudicator, label, notes, created_at, updated_at
@@ -1782,9 +1654,6 @@ export function recordEvaluationAdjudication(input: {
       now,
       now
     );
-  } finally {
-    db.close();
-  }
 }
 
 export function listEvaluationAdjudications(task: string): Array<{
@@ -1795,25 +1664,21 @@ export function listEvaluationAdjudications(task: string): Array<{
   notes?: string;
   updatedAt: string;
 }> {
-  if (!fs.existsSync(DB_FILE)) return [];
+  if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
-  try {
-    return (db.prepare(`
-      SELECT task, sample_key AS sampleKey, adjudicator, label, notes, updated_at AS updatedAt
-      FROM evaluation_adjudications
-      WHERE task = ?
-      ORDER BY sample_key
-    `).all(task) as any[]).map((row) => ({
-      task: String(row.task),
-      sampleKey: String(row.sampleKey),
-      adjudicator: String(row.adjudicator),
-      label: String(row.label),
-      notes: row.notes ? String(row.notes) : undefined,
-      updatedAt: String(row.updatedAt),
-    }));
-  } finally {
-    db.close();
-  }
+  return (db.prepare(`
+    SELECT task, sample_key AS sampleKey, adjudicator, label, notes, updated_at AS updatedAt
+    FROM evaluation_adjudications
+    WHERE task = ?
+    ORDER BY sample_key
+  `).all(task) as any[]).map((row) => ({
+    task: String(row.task),
+    sampleKey: String(row.sampleKey),
+    adjudicator: String(row.adjudicator),
+    label: String(row.label),
+    notes: row.notes ? String(row.notes) : undefined,
+    updatedAt: String(row.updatedAt),
+  }));
 }
 
 export function importEvaluationRecords(input: {
@@ -1834,7 +1699,6 @@ export function importEvaluationRecords(input: {
 }): { annotations: number; adjudications: number } {
   const db = openDatabase();
   const now = new Date().toISOString();
-  try {
     db.exec("BEGIN IMMEDIATE");
     try {
       const annotationStatement = db.prepare(`
@@ -1887,9 +1751,6 @@ export function importEvaluationRecords(input: {
       db.exec("ROLLBACK");
       throw error;
     }
-  } finally {
-    db.close();
-  }
 }
 
 export function persistEvaluationGoldSet(input: {
@@ -1903,7 +1764,6 @@ export function persistEvaluationGoldSet(input: {
   const sampleCount = Array.isArray((input.payload as any)?.samples)
     ? (input.payload as any).samples.length
     : 0;
-  try {
     db.prepare(`
       INSERT INTO evaluation_gold_sets (
         task, version, sample_count, data_hash, payload, created_at
@@ -1916,9 +1776,6 @@ export function persistEvaluationGoldSet(input: {
       JSON.stringify(input.payload),
       createdAt
     );
-  } finally {
-    db.close();
-  }
   return { sampleCount, createdAt };
 }
 
@@ -1929,52 +1786,46 @@ export function listEvaluationGoldSets(task?: string): Array<{
   dataHash: string;
   createdAt: string;
 }> {
-  if (!fs.existsSync(DB_FILE)) return [];
+  if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
-  try {
-    const rows = task
-      ? db.prepare(`
-          SELECT task, version, sample_count AS sampleCount, data_hash AS dataHash, created_at AS createdAt
-          FROM evaluation_gold_sets
-          WHERE task = ?
-          ORDER BY created_at DESC
-        `).all(task)
-      : db.prepare(`
-          SELECT task, version, sample_count AS sampleCount, data_hash AS dataHash, created_at AS createdAt
-          FROM evaluation_gold_sets
-          ORDER BY created_at DESC
-        `).all();
-    return (rows as any[]).map((row) => ({
-      task: String(row.task),
-      version: String(row.version),
-      sampleCount: Number(row.sampleCount),
-      dataHash: String(row.dataHash),
-      createdAt: String(row.createdAt),
-    }));
-  } finally {
-    db.close();
-  }
+  const rows = task
+    ? db.prepare(`
+        SELECT task, version, sample_count AS sampleCount, data_hash AS dataHash, created_at AS createdAt
+        FROM evaluation_gold_sets
+        WHERE task = ?
+        ORDER BY created_at DESC
+      `).all(task)
+    : db.prepare(`
+        SELECT task, version, sample_count AS sampleCount, data_hash AS dataHash, created_at AS createdAt
+        FROM evaluation_gold_sets
+        ORDER BY created_at DESC
+      `).all();
+  return (rows as any[]).map((row) => ({
+    task: String(row.task),
+    version: String(row.version),
+    sampleCount: Number(row.sampleCount),
+    dataHash: String(row.dataHash),
+    createdAt: String(row.createdAt),
+  }));
 }
 
 export function loadEvaluationGoldSet(task: string, version: string): any | null {
-  if (!fs.existsSync(DB_FILE)) return null;
+  if (!fs.existsSync(databasePath())) return null;
   const db = openDatabase();
-  try {
-    const row = db.prepare(`
-      SELECT payload FROM evaluation_gold_sets WHERE task = ? AND version = ?
-    `).get(task, version) as { payload?: string } | undefined;
-    return row?.payload ? JSON.parse(row.payload) : null;
-  } finally {
-    db.close();
-  }
+  const row = db.prepare(`
+    SELECT payload FROM evaluation_gold_sets WHERE task = ? AND version = ?
+  `).get(task, version) as { payload?: string } | undefined;
+  return row?.payload ? JSON.parse(row.payload) : null;
 }
 
 export function backupDatabase(destination: string): boolean {
-  if (!fs.existsSync(DB_FILE)) return false;
+  const file = databasePath();
+  if (!fs.existsSync(file)) return false;
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   const temp = `${destination}.tmp`;
   if (fs.existsSync(temp)) fs.unlinkSync(temp);
-  const db = openDatabase();
+  closeDatabase();
+  const db = new DatabaseSync(file);
   try {
     db.exec(`VACUUM INTO '${temp.replace(/'/g, "''")}'`);
   } finally {
@@ -1989,7 +1840,7 @@ export function backupDatabase(destination: string): boolean {
     bytes: fs.statSync(destination).size,
     databaseHash,
     integrityCheck: "ok",
-    source: path.basename(DB_FILE),
+    source: path.basename(file),
   };
   fs.writeFileSync(`${destination}.manifest.json`, JSON.stringify(manifest, null, 2), "utf-8");
   return true;
@@ -2094,7 +1945,7 @@ export function restoreDatabaseBackup(
   if (options.confirmation !== "RESTORE") return { ok: false, reason: "confirmation_required" };
   const verification = verifyDatabaseBackup(backupPath);
   if (!verification.ok) return { ok: false, reason: verification.reason || "verification_failed" };
-  const restoreTemp = `${DB_FILE}.restore.tmp`;
+  const restoreTemp = `${databasePath()}.restore.tmp`;
   const restoreManifest = `${restoreTemp}.manifest.json`;
   if (fs.existsSync(restoreTemp)) fs.unlinkSync(restoreTemp);
   if (fs.existsSync(restoreManifest)) fs.unlinkSync(restoreManifest);
@@ -2106,17 +1957,18 @@ export function restoreDatabaseBackup(
     fs.unlinkSync(restoreManifest);
     return { ok: false, reason: "temporary_restore_failed" };
   }
-  const rollbackFile = `${DB_FILE}.rollback-${Date.now()}`;
+  const rollbackFile = `${databasePath()}.rollback-${Date.now()}`;
   let movedOriginal = false;
+  closeDatabase();
   try {
-    if (fs.existsSync(DB_FILE)) {
-      fs.renameSync(DB_FILE, rollbackFile);
+    if (fs.existsSync(databasePath())) {
+      fs.renameSync(databasePath(), rollbackFile);
       movedOriginal = true;
     }
-    fs.renameSync(restoreTemp, DB_FILE);
+    fs.renameSync(restoreTemp, databasePath());
     if (fs.existsSync(restoreManifest)) fs.unlinkSync(restoreManifest);
-    fs.chmodSync(DB_FILE, 0o600);
-    const restored = databaseIntegrityCheck(DB_FILE);
+    fs.chmodSync(databasePath(), 0o600);
+    const restored = databaseIntegrityCheck(databasePath());
     if (!restored.ok) throw new Error(restored.detail);
     return {
       ok: true,
@@ -2126,8 +1978,8 @@ export function restoreDatabaseBackup(
     };
   } catch (error: any) {
     try {
-      if (fs.existsSync(DB_FILE)) fs.unlinkSync(DB_FILE);
-      if (movedOriginal && fs.existsSync(rollbackFile)) fs.renameSync(rollbackFile, DB_FILE);
+      if (fs.existsSync(databasePath())) fs.unlinkSync(databasePath());
+      if (movedOriginal && fs.existsSync(rollbackFile)) fs.renameSync(rollbackFile, databasePath());
     } catch {
       /* 保留 rollback 文件供人工恢复。 */
     }
@@ -2169,7 +2021,7 @@ export function getAnalysisFromDatabase(key: string): {
   createdAt: string;
   updatedAt: string;
 } | null {
-  if (!fs.existsSync(DB_FILE) || NO_PERSIST) return null;
+  if (!fs.existsSync(databasePath()) || NO_PERSIST) return null;
   const db = openDatabase();
   try {
     const row = db.prepare(`
@@ -2198,8 +2050,6 @@ export function getAnalysisFromDatabase(key: string): {
     };
   } catch {
     return null;
-  } finally {
-    db.close();
   }
 }
 
@@ -2225,7 +2075,6 @@ export function saveAnalysisToDatabase(input: {
   const model = String(input.model || "").trim();
   const payloadStr = JSON.stringify(input.payload);
 
-  try {
     db.prepare(`
       INSERT INTO article_analyses (
         analysis_key, article_id, title, source, category, provider, model, hit_count, payload, created_at, updated_at
@@ -2265,9 +2114,6 @@ export function saveAnalysisToDatabase(input: {
         }
       }
     }
-  } finally {
-    db.close();
-  }
 }
 
 export function listDatabaseAnalyses(options?: {
@@ -2276,7 +2122,7 @@ export function listDatabaseAnalyses(options?: {
   limit?: number;
   offset?: number;
 }): { items: any[]; total: number } {
-  if (!fs.existsSync(DB_FILE) || NO_PERSIST) return { items: [], total: 0 };
+  if (!fs.existsSync(databasePath()) || NO_PERSIST) return { items: [], total: 0 };
   const db = openDatabase();
   try {
     const q = String(options?.q || "").trim().toLowerCase();
@@ -2323,13 +2169,11 @@ export function listDatabaseAnalyses(options?: {
     return { items, total: Number(totalRow?.count || 0) };
   } catch {
     return { items: [], total: 0 };
-  } finally {
-    db.close();
   }
 }
 
 export function getDatabaseAnalysisDetail(key: string): any | null {
-  if (!fs.existsSync(DB_FILE) || NO_PERSIST) return null;
+  if (!fs.existsSync(databasePath()) || NO_PERSIST) return null;
   const db = openDatabase();
   try {
     const row = db.prepare(`
@@ -2353,24 +2197,18 @@ export function getDatabaseAnalysisDetail(key: string): any | null {
     };
   } catch {
     return null;
-  } finally {
-    db.close();
   }
 }
 
 export function deleteDatabaseAnalysis(key: string): boolean {
-  if (!fs.existsSync(DB_FILE) || NO_PERSIST) return false;
+  if (!fs.existsSync(databasePath()) || NO_PERSIST) return false;
   const db = openDatabase();
-  try {
-    const info = db.prepare("DELETE FROM article_analyses WHERE analysis_key = ?").run(key);
-    return Number(info.changes || 0) > 0;
-  } finally {
-    db.close();
-  }
+  const info = db.prepare("DELETE FROM article_analyses WHERE analysis_key = ?").run(key);
+  return Number(info.changes || 0) > 0;
 }
 
 export function batchDeleteDatabaseAnalyses(keys: string[]): number {
-  if (!fs.existsSync(DB_FILE) || NO_PERSIST || !Array.isArray(keys) || keys.length === 0) return 0;
+  if (!fs.existsSync(databasePath()) || NO_PERSIST || !Array.isArray(keys) || keys.length === 0) return 0;
   const db = openDatabase();
   try {
     const stmt = db.prepare("DELETE FROM article_analyses WHERE analysis_key = ?");
@@ -2385,8 +2223,6 @@ export function batchDeleteDatabaseAnalyses(keys: string[]): number {
   } catch {
     try { db.exec("ROLLBACK"); } catch {}
     return 0;
-  } finally {
-    db.close();
   }
 }
 
@@ -2401,7 +2237,7 @@ export function getDatabaseOverview(): {
   userCount: number;
   persistenceEnabled: boolean;
 } {
-  const filePath = DB_FILE;
+  const filePath = databasePath();
   let fileSize = 0;
   if (fs.existsSync(filePath)) {
     try {
@@ -2462,7 +2298,5 @@ export function getDatabaseOverview(): {
       userCount: 0,
       persistenceEnabled: !NO_PERSIST,
     };
-  } finally {
-    db.close();
   }
 }

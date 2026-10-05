@@ -156,6 +156,7 @@ function dedupeCanonicalUrls(items: any[]): { items: any[]; changed: number } {
 export function backupCorpus(reason = "manual"): string | null {
   if (NO_PERSIST) return null;
   try {
+    flushCorpusSnapshot();
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const dest = path.join(BACKUP_DIR, `corpus-${stamp}-${reason}.json`);
@@ -185,18 +186,60 @@ export function backupDirectory(): string {
   return BACKUP_DIR;
 }
 
+const CORPUS_JSON_DEBOUNCE_MS = 1500;
+let corpusJsonTimer: ReturnType<typeof setTimeout> | null = null;
+let corpusJsonPending = false;
+
+function writeCorpusJsonSnapshot(): void {
+  fs.mkdirSync(path.dirname(CORPUS_FILE), { recursive: true });
+  const temp = `${CORPUS_FILE}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(serverCorpus), "utf-8");
+  fs.renameSync(temp, CORPUS_FILE);
+}
+
+/** 立刻写出兼容用的 corpus.json。SQLite 仍在 persistCorpus 里同步落盘。 */
+export function flushCorpusSnapshot(): void {
+  if (corpusJsonTimer) {
+    clearTimeout(corpusJsonTimer);
+    corpusJsonTimer = null;
+  }
+  if (!corpusJsonPending || NO_PERSIST) {
+    corpusJsonPending = false;
+    return;
+  }
+  corpusJsonPending = false;
+  try {
+    writeCorpusJsonSnapshot();
+  } catch (e) {
+    corpusJsonPending = true;
+    console.error("failed to persist corpus snapshot:", e);
+  }
+}
+
+function scheduleCorpusSnapshot(): void {
+  corpusJsonPending = true;
+  if (corpusJsonTimer) clearTimeout(corpusJsonTimer);
+  corpusJsonTimer = setTimeout(() => {
+    corpusJsonTimer = null;
+    flushCorpusSnapshot();
+  }, CORPUS_JSON_DEBOUNCE_MS);
+  corpusJsonTimer.unref?.();
+}
+
+process.once("beforeExit", () => {
+  flushCorpusSnapshot();
+});
+
 export function persistCorpus(): void {
   corpusRevision += 1;
   if (NO_PERSIST) return;
   try {
     persistArticlesToDatabase(serverCorpus);
-    fs.mkdirSync(path.dirname(CORPUS_FILE), { recursive: true });
-    const temp = `${CORPUS_FILE}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(serverCorpus), "utf-8");
-    fs.renameSync(temp, CORPUS_FILE);
   } catch (e) {
     console.error("failed to persist corpus:", e);
+    return;
   }
+  scheduleCorpusSnapshot();
 }
 
 function loadCorpus(): any[] {
@@ -433,6 +476,7 @@ export function resetCorpus(): void {
   serverCorpus = demoDataEnabled() ? (CURATED_ARTICLES as any[]).map((a) => ({ ...a })) : [];
   lastIngest = null;
   persistCorpus();
+  flushCorpusSnapshot();
 }
 
 export function pruneExternalCorpus(maxAgeDays = 30): number {

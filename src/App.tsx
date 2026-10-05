@@ -1021,42 +1021,45 @@ export const App: React.FC = () => {
     const controller = new AbortController();
     const pageSize = 200;
     const maxLoaded = 10000;
-    let loadedCount = 0;
-    const loadPage = async (offset: number): Promise<void> => {
+    let cancelled = false;
+    const loadAll = async (): Promise<void> => {
       setActiveRequests((c) => c + 1);
       try {
-        const res = await fetch(`/api/corpus?limit=${pageSize}&offset=${offset}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`corpus ${res.status}`);
-        const json = await res.json();
-        const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
-        corpusAuthoritativeRef.current = true;
-        loadedCount += page.length;
-        if (offset === 0) {
-          setArticles(page);
-          saveCachedCorpus(page);
-        } else if (page.length > 0) {
-          setArticles((prev) => {
-            const seen = new Set(prev.map((a) => a.id));
-            const fresh = page.filter((a) => !seen.has(a.id));
-            const next = fresh.length > 0 ? [...prev, ...fresh] : prev;
-            saveCachedCorpus(next);
-            return next;
+        const collected: NewsArticle[] = [];
+        const seen = new Set<string>();
+        let offset = 0;
+        let loadedCount = 0;
+        while (loadedCount < maxLoaded) {
+          const res = await fetch(`/api/corpus?limit=${pageSize}&offset=${offset}`, {
+            signal: controller.signal,
           });
+          if (!res.ok) throw new Error(`corpus ${res.status}`);
+          const json = await res.json();
+          const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
+          loadedCount += page.length;
+          for (const article of page) {
+            if (!article?.id || seen.has(article.id)) continue;
+            seen.add(article.id);
+            collected.push(article);
+          }
+          const hasMore = Boolean(json?.meta?.hasMore) && page.length > 0 && loadedCount < maxLoaded;
+          if (!hasMore) break;
+          offset += page.length;
         }
-        if (json?.meta?.hasMore && page.length > 0 && loadedCount < maxLoaded) {
-          await loadPage(offset + page.length);
-        }
+        if (cancelled) return;
+        corpusAuthoritativeRef.current = true;
+        setArticles(collected);
+        if (collected.length > 0) saveCachedCorpus(collected);
       } finally {
         setActiveRequests((c) => Math.max(0, c - 1));
       }
     };
-    loadPage(0)
+    loadAll()
       .catch(() => {
         /* 服务不可达：保留当前已加载的数据，不注入示例语料 */
       });
     return () => {
+      cancelled = true;
       controller.abort();
     };
   }, []);
