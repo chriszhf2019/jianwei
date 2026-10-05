@@ -9,6 +9,7 @@ import path from 'node:path';
 import { parseArticleDate, articleSortTime, formatArticleTime, isStaleArticle } from '../src/utils/articleTime';
 import { appendActionMemo } from '../src/utils/actionMemo';
 import { demoDataEnabledFrom, feedMaxAgeDaysFrom } from '../src/server/settings';
+import { formatListedUsd, summarizeListedSpend } from '../src/utils/aiPriceTable';
 import { lexiconSentiment, sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../src/utils/corpusMetrics';
 import { acceptModelSentiment, sentimentSourceText } from '../src/utils/sentimentClassify';
 import { monitorHits } from '../src/utils/monitorKeywords';
@@ -119,6 +120,36 @@ test('sentimentCounts/netSentiment: 词典命中与公式', () => {
   assert.equal(mixed.negative, 0);
   assert.equal(mixed.mixed, 1);
   assert.equal(mixed.scanned, 1);
+});
+
+test('aiPriceTable: 只乘对得上的公开标价，不用均价补齐', () => {
+  const flash = summarizeListedSpend([
+    { provider: 'gemini', model: 'gemini-2.5-flash', promptTokens: 1_000_000, outputTokens: 0 },
+  ]);
+  assert.equal(flash.listedCostUsd, 0.3);
+  assert.equal(flash.pricedCalls, 1);
+  assert.equal(flash.omitted.length, 0);
+
+  const pro = summarizeListedSpend([
+    { provider: 'gemini', model: 'gemini-2.5-pro', promptTokens: 200_000, outputTokens: 0 },
+    { provider: 'gemini', model: 'gemini-2.5-pro', promptTokens: 200_001, outputTokens: 10 },
+  ]);
+  assert.equal(pro.listedCostUsd, 0.25);
+  assert.equal(pro.pricedCalls, 1);
+  assert.equal(pro.omitted[0].reason, 'context_tier');
+  assert.equal(pro.omitted[0].calls, 1);
+
+  const unlisted = summarizeListedSpend([
+    { provider: 'deepseek', model: 'deepseek-chat', promptTokens: 2_000_000, outputTokens: 1_000_000 },
+    { provider: 'gemini', model: 'gemini-2.0-flash', promptTokens: 1000, outputTokens: 1000 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', promptTokens: null, outputTokens: null },
+  ]);
+  assert.equal(unlisted.listedCostUsd, null);
+  assert.equal(unlisted.unreportedCalls, 1);
+  assert.equal(unlisted.omitted.every((item) => item.reason === 'not_listed'), true);
+  assert.equal(JSON.stringify(unlisted).includes('0.27'), false);
+  assert.equal(formatListedUsd(null), '不估算');
+  assert.equal(formatListedUsd(0.00002), '不足 0.0001 美元');
 });
 
 test('lexiconSentiment: 正负都命中记为交织，并列出命中词', () => {

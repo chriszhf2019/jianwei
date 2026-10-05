@@ -49,6 +49,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { SECTOR_TAXONOMY_DEFAULT, SectorDef } from '../../utils/sectorTaxonomy';
+import { AiCostPanel } from './AiCostPanel';
 
 interface UserSummary {
   username: string;
@@ -1985,6 +1986,8 @@ export const AdminConsoleView: React.FC = () => {
               <span>{testingAi ? '诊断测试中…' : '全局连通性诊断'}</span>
             </button>
           </div>
+
+          <AiCostPanel usage={status?.aiUsage} />
 
           {testResult && (
             <div

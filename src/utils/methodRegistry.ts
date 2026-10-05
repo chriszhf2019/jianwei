@@ -262,11 +262,11 @@ export const METHOD_REGISTRY: Record<string, MethodSpec> = {
   },
   cost_governance: {
     id: 'cost_governance',
-    label: 'AI 调用治理与费用推算',
+    label: 'AI 调用治理与标价',
     assertionType: 'derived_metric',
-    method: '持久化真实 token usage、字符数、状态、错误；每日调用/token 上限；按供应商价格表推算费用',
-    basis: '资源治理与配额拦截；价格表来源为供应商官网公开定价',
-    limitations: ['模型未返回 usage 时显示"未返回"，不按字符冒充 token', '价格为参考值，以供应商官网为准', '未含缓存折扣'],
+    method: '持久化真实 token、字符数、状态和错误；每日调用与 token 上限；只对价格表里能唯一对应的型号乘公开标价',
+    basis: '供应商官网公开标价；对不上的调用留空',
+    limitations: ['没有返回 token 时不按字符估算', '价格表没有的型号，以及分不出缓存或峰谷的型号，不估算', '付费档公开标价不是账单'],
     calibrated: false,
   },
   source_page_verification: {

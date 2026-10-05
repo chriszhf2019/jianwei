@@ -330,7 +330,7 @@ export const FEATURE_SUMMARIES: Record<FeatureSummaryId, FeatureSummarySpec> = {
     purpose: '查看调用次数、Token和参考费用。',
     when: '需要控制预算或排查调用异常时。',
     output: '真实调用记录和费用估算。',
-    boundary: '价格表是参考值，供应商未返回Token时不会伪造。',
+    boundary: '只乘价格表里能唯一对应的公开标价。没有 token、型号对不上，或分不出缓存和峰谷时，不估算费用。',
   },
   'settings-backups': {
     title: '备份与恢复',
