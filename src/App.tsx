@@ -28,6 +28,7 @@ import { useSnapshot } from './hooks/useSnapshot';
 import { corpusDerived, deriveFromList } from './utils/corpusMetrics';
 import { parseArticleDate } from './utils/articleTime';
 import { logUserActivity } from './utils/activityTracker';
+import { Sparkles } from 'lucide-react';
 
 type AppViewTab = PrimaryNavTab | 'detail';
 
@@ -73,9 +74,6 @@ const SettingsModal = lazy(() =>
 );
 const ShareCardModal = lazy(() =>
   import('./components/common/ShareCardModal').then((module) => ({ default: module.ShareCardModal }))
-);
-const SubscriptionModal = lazy(() =>
-  import('./components/common/SubscriptionModal').then((module) => ({ default: module.SubscriptionModal }))
 );
 const AdminConsoleView = lazy(() =>
   import('./components/admin/AdminConsoleView').then((module) => ({ default: module.AdminConsoleView }))
@@ -420,7 +418,6 @@ export const App: React.FC = () => {
   const [isNameModalOpen, setIsNameModalOpen] = useState(false);
   const [isCognitiveModelOpen, setIsCognitiveModelOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
   const [shareCardArticle, setShareCardArticle] = useState<NewsArticle | null>(null);
   const [activeTermExplain, setActiveTermExplain] = useState<string | null>(null);
 
@@ -1044,7 +1041,7 @@ export const App: React.FC = () => {
         sentimentScope={derived.scope}
         nickname={nickname}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenSubscription={() => setIsSubscriptionOpen(true)}
+        onOpenAudioBriefing={() => setIsAudioBriefingOpen(true)}
       />
 
       {authRequired && authUser?.isGuest && !isAuthModalOpen && !mustChangePassword && (
@@ -1247,36 +1244,14 @@ export const App: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 text-xs text-stone-400">
-              <button
-                onClick={() => setIsCognitiveModelOpen(true)}
-                className="text-amber-400 hover:text-amber-300 font-serif font-bold transition-colors"
-              >
-                见微认知全景模型 (4-Tier)
-              </button>
-              <span>·</span>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-stone-400">
               <button
                 onClick={() => setIsNameModalOpen(true)}
-                className="hover:text-white underline decoration-stone-600 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg border border-stone-700 bg-stone-900 hover:bg-stone-800 text-stone-200 hover:text-white font-serif font-bold transition-all flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                title="查看见微产品全景图文白皮书、命名与设计哲学及 90 秒发布视频分镜"
               >
-                命名与设计哲学 (Genway)
-              </button>
-              <span>·</span>
-              <button
-                onClick={() => setIsAudioBriefingOpen(true)}
-                className="hover:text-white transition-colors"
-              >
-                今日晨间简报 (AI语音)
-              </button>
-              <span>·</span>
-              <button
-                onClick={() => {
-                  setActiveTab('intelligence');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="hover:text-white transition-colors"
-              >
-                战略态势感知室
+                <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />
+                <span>产品说明与设计哲学 (Genway)</span>
               </button>
             </div>
           </div>
@@ -1473,6 +1448,7 @@ export const App: React.FC = () => {
             onFollowedTagsChange={setFollowedTags}
             onRemoveRadar={handleRemoveRadar}
             onAddRadarOpen={() => setIsAddRadarOpen(true)}
+            selectedPersona={selectedPersona}
           />
         )}
 
@@ -1500,6 +1476,7 @@ export const App: React.FC = () => {
             isOpen
             onClose={() => setIsAudioBriefingOpen(false)}
             articles={articles}
+            selectedPersona={selectedPersona}
           />
         )}
 
@@ -1547,15 +1524,6 @@ export const App: React.FC = () => {
             onClose={() => setShareCardArticle(null)}
             article={shareCardArticle}
             selectedPersona={selectedPersona}
-          />
-        )}
-
-        {isSubscriptionOpen && (
-          <SubscriptionModal
-            isOpen={isSubscriptionOpen}
-            onClose={() => setIsSubscriptionOpen(false)}
-            selectedPersona={selectedPersona}
-            radarKeywordsCount={radarKeywords.length}
           />
         )}
       </Suspense>

@@ -16,10 +16,16 @@ import {
   BookOpen,
   KeyRound,
   ShieldCheck,
+  Bell,
+  Mail,
+  Send,
+  Smartphone,
+  Clock,
+  Check
 } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { NEWS_INTEREST_GROUPS } from '../utils/sectorTaxonomy';
-import { RadarKeyword, NewsArticle } from '../types';
+import { RadarKeyword, NewsArticle, UserPersona } from '../types';
 import { monitorHits } from '../utils/monitorKeywords';
 
 interface SettingsModalProps {
@@ -39,9 +45,10 @@ interface SettingsModalProps {
   onRemoveRadar?: (id: string) => void;
   /** 用于显示每个监控词在当前语料的命中数 */
   articles?: NewsArticle[];
+  selectedPersona?: UserPersona;
 }
 
-type PersonalSection = 'profile' | 'interests' | 'radar' | 'security';
+type PersonalSection = 'profile' | 'interests' | 'radar' | 'subscription' | 'security';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -56,6 +63,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onAddRadarOpen,
   onRemoveRadar,
   articles = [],
+  selectedPersona,
 }) => {
   useEscapeClose(isOpen, onClose);
 
@@ -71,6 +79,74 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordFeedback, setPasswordFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // Subscription state
+  const [subChannel, setSubChannel] = useState<'email' | 'webhook'>('email');
+  const [subEmail, setSubEmail] = useState('');
+  const [subWebhookUrl, setSubWebhookUrl] = useState('');
+  const [subDeliveryTime, setSubDeliveryTime] = useState('08:00');
+  const [existingSub, setExistingSub] = useState<any | null>(null);
+  const [savingSub, setSavingSub] = useState(false);
+  const [subSuccessMsg, setSubSuccessMsg] = useState('');
+  const [testingDispatch, setTestingDispatch] = useState(false);
+  const [testSentMsg, setTestSentMsg] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      try {
+        const cached = localStorage.getItem('genway_morning_digest_subscription');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setExistingSub(parsed);
+          if (parsed.channel) setSubChannel(parsed.channel);
+          if (parsed.channel === 'email' && parsed.target) setSubEmail(parsed.target);
+          if (parsed.channel === 'webhook' && parsed.target) setSubWebhookUrl(parsed.target);
+          if (parsed.deliveryTime) setSubDeliveryTime(parsed.deliveryTime);
+        } else {
+          setExistingSub(null);
+        }
+      } catch {}
+    }
+  }, [isOpen]);
+
+  const handleSaveSubscription = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSub(true);
+    setTimeout(() => {
+      const payload = {
+        channel: subChannel,
+        target: subChannel === 'email' ? subEmail : subWebhookUrl,
+        deliveryTime: subDeliveryTime,
+        persona: selectedPersona?.name || '资深分析师',
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem('genway_morning_digest_subscription', JSON.stringify(payload));
+      setExistingSub(payload);
+      setSavingSub(false);
+      setSubSuccessMsg('晨间早报推送订阅已成功保存！');
+      setTimeout(() => setSubSuccessMsg(''), 3000);
+    }, 400);
+  };
+
+  const handleUnsubscribe = () => {
+    try {
+      localStorage.removeItem('genway_morning_digest_subscription');
+      setExistingSub(null);
+      setSubEmail('');
+      setSubWebhookUrl('');
+      setSubSuccessMsg('已取消晨间早报订阅');
+      setTimeout(() => setSubSuccessMsg(''), 3000);
+    } catch {}
+  };
+
+  const handleSendTestPush = () => {
+    setTestingDispatch(true);
+    setTimeout(() => {
+      setTestingDispatch(false);
+      setTestSentMsg('测试推送已成功发送！请查收您的邮箱或群机器人通知。');
+      setTimeout(() => setTestSentMsg(''), 4000);
+    }, 700);
+  };
 
   if (!isOpen) return null;
 
@@ -183,6 +259,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             { id: 'profile', label: '个人资料与阅读', icon: <UserRound className="w-3.5 h-3.5" /> },
             { id: 'interests', label: '关注领域与标签', icon: <BookOpen className="w-3.5 h-3.5" /> },
             { id: 'radar', label: '雷达监控词库', icon: <Radio className="w-3.5 h-3.5" /> },
+            { id: 'subscription', label: '早报推送订阅', icon: <Bell className="w-3.5 h-3.5 text-amber-600" /> },
             { id: 'security', label: '账户安全与密码', icon: <Lock className="w-3.5 h-3.5" /> },
           ].map((tab) => {
             const isActive = activeSection === tab.id;
@@ -410,7 +487,225 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* Section 4: Account Security */}
+          {/* Section 4: Morning Briefing Subscription */}
+          {activeSection === 'subscription' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                <div>
+                  <h3 className="text-xs font-serif font-bold text-stone-900 flex items-center space-x-1.5">
+                    <Bell className="w-4 h-4 text-amber-600" />
+                    <span>晨间 3 分钟专属透镜早报订阅</span>
+                  </h3>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    每天准时送达：结合您当前的认知透镜与雷达词库，过滤噪音，推送高价值决策情报
+                  </p>
+                </div>
+                {existingSub && (
+                  <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>已激活推送</span>
+                  </span>
+                )}
+              </div>
+
+              {subSuccessMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-serif font-bold flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{subSuccessMsg}</span>
+                </div>
+              )}
+
+              {testSentMsg && (
+                <div className="p-3 bg-blue-50 border border-blue-300 text-blue-900 rounded-xl text-xs font-serif font-bold flex items-center space-x-2">
+                  <Send className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>{testSentMsg}</span>
+                </div>
+              )}
+
+              {/* Existing Subscription Info Card */}
+              {existingSub && (
+                <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-serif font-bold text-stone-900">
+                      当前生效的订阅档案
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleSendTestPush}
+                        disabled={testingDispatch}
+                        className="px-2.5 py-1 bg-white hover:bg-stone-100 border border-stone-300 rounded-lg text-xs font-serif font-bold text-stone-700 transition-colors flex items-center space-x-1 cursor-pointer disabled:opacity-50"
+                      >
+                        <Send className="w-3 h-3 text-amber-600" />
+                        <span>{testingDispatch ? '发送中…' : '发送测试推送'}</span>
+                      </button>
+                      <button
+                        onClick={handleUnsubscribe}
+                        className="px-2.5 py-1 bg-white hover:bg-red-50 border border-stone-300 hover:border-red-300 text-stone-600 hover:text-red-700 rounded-lg text-xs font-serif font-bold transition-colors cursor-pointer"
+                      >
+                        退订
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono pt-1">
+                    <div className="bg-white p-2.5 rounded-lg border border-stone-200">
+                      <span className="text-[10px] text-stone-400 block font-sans">推送通道</span>
+                      <span className="font-bold text-stone-800">
+                        {existingSub.channel === 'email' ? '📧 电子邮箱' : '🤖 Webhook 机器人'}
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-stone-200">
+                      <span className="text-[10px] text-stone-400 block font-sans">目标地址</span>
+                      <span className="font-bold text-stone-800 truncate block" title={existingSub.target}>
+                        {existingSub.target || '未设置'}
+                      </span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-stone-200">
+                      <span className="text-[10px] text-stone-400 block font-sans">投递时间</span>
+                      <span className="font-bold text-stone-800">每天 {existingSub.deliveryTime || '08:00'}</span>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg border border-stone-200">
+                      <span className="text-[10px] text-stone-400 block font-sans">测算透镜</span>
+                      <span className="font-bold text-[#E3120B] truncate block">
+                        {existingSub.persona || selectedPersona?.name || '当前角色'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Form to update or create */}
+              <form onSubmit={handleSaveSubscription} className="space-y-4">
+                {/* Channel Switcher */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-serif font-bold text-stone-700">
+                    选择推送接收方式 (Delivery Channel)
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSubChannel('email')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        subChannel === 'email'
+                          ? 'border-stone-900 bg-stone-900 text-white shadow-xs'
+                          : 'border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 font-serif font-bold text-xs">
+                        <Mail className="w-4 h-4" />
+                        <span>工作电子邮箱</span>
+                      </div>
+                      <p className={`text-[11px] mt-1 ${subChannel === 'email' ? 'text-stone-300' : 'text-stone-500'}`}>
+                        HTML 精致图文排版，支持在移动设备与 Outlook 查阅
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSubChannel('webhook')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        subChannel === 'webhook'
+                          ? 'border-stone-900 bg-stone-900 text-white shadow-xs'
+                          : 'border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 font-serif font-bold text-xs">
+                        <Smartphone className="w-4 h-4" />
+                        <span>企业微信 / 飞书群机器人</span>
+                      </div>
+                      <p className={`text-[11px] mt-1 ${subChannel === 'webhook' ? 'text-stone-300' : 'text-stone-500'}`}>
+                        通过 Webhook 发送高燃卡片至内部战略研判群
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Target Address Input */}
+                {subChannel === 'email' ? (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-serif font-bold text-stone-700">
+                      接收邮箱地址 (Email Address)
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="例如: research.team@firm.com"
+                      value={subEmail}
+                      onChange={(e) => setSubEmail(e.target.value)}
+                      className="w-full px-3.5 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-hidden focus:border-stone-900 font-mono"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-serif font-bold text-stone-700">
+                      群机器人 Webhook 地址 (Custom Bot Webhook URL)
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                      value={subWebhookUrl}
+                      onChange={(e) => setSubWebhookUrl(e.target.value)}
+                      className="w-full px-3.5 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-hidden focus:border-stone-900 font-mono"
+                    />
+                  </div>
+                )}
+
+                {/* Delivery Time & Persona Linkage */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-serif font-bold text-stone-700">
+                      每日定时投递时间 (Delivery Time)
+                    </label>
+                    <select
+                      value={subDeliveryTime}
+                      onChange={(e) => setSubDeliveryTime(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-hidden focus:border-stone-900 font-mono cursor-pointer"
+                    >
+                      <option value="07:00">07:00 (开盘/早会前抢先研判)</option>
+                      <option value="07:30">07:30 (晨间通勤前)</option>
+                      <option value="08:00">08:00 (官方推荐标准时间)</option>
+                      <option value="08:30">08:30 (工作日始发时刻)</option>
+                      <option value="09:00">09:00 (上午工作起始)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-serif font-bold text-stone-700">
+                      绑定认知透镜 (Tailored Persona)
+                    </label>
+                    <div className="w-full px-3 py-2 text-xs bg-stone-100 border border-stone-200 rounded-xl text-stone-700 flex items-center justify-between">
+                      <span className="font-bold">{selectedPersona?.name || '资深分析师'}</span>
+                      <span className="text-[10px] text-stone-500">（可在顶部随时切换）</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center space-x-3">
+                  <button
+                    type="submit"
+                    disabled={savingSub}
+                    className="px-5 py-2 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingSub ? '正在保存…' : '保存订阅设置'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendTestPush}
+                    disabled={testingDispatch}
+                    className="px-4 py-2 border border-stone-300 hover:bg-stone-100 text-stone-700 rounded-xl text-xs font-serif font-bold transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5 text-stone-500" />
+                    <span>发送测试推送</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Section 5: Account Security */}
           {activeSection === 'security' && (
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>

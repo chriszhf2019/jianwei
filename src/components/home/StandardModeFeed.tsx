@@ -35,6 +35,7 @@ import { SECTOR_TAXONOMY, keywordMatches } from '../../utils/sectorTaxonomy';
 import { mediaProfile, tierBadge } from '../../utils/mediaAuthority';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { EvidenceBadge } from '../common/EvidenceBadge';
+import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
 import type { RadarKeyword } from '../../types';
 import type { NewsSkill } from './HomeView';
 
@@ -258,6 +259,18 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <MapPin className="w-3 h-3 text-[#E3120B]" />
                       {location}
                     </span>
+
+                    {/* 赛道标识徽章（确保科技前沿、全球财经等界限分明） */}
+                    {(() => {
+                      const canonicalCat = getArticleCanonicalCategory(article);
+                      const catTheme = CATEGORY_THEMES[canonicalCat];
+                      return (
+                        <span className={`inline-flex items-center gap-1 font-serif px-2 py-0.5 rounded-md border text-[11px] font-bold ${catTheme.badgeCls}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${catTheme.dotCls}`} />
+                          {canonicalCat}
+                        </span>
+                      );
+                    })()}
 
                     <span className="inline-flex items-center gap-1 font-serif font-bold text-stone-900 bg-stone-50 px-2 py-0.5 rounded-md border border-stone-200 text-[11px]">
                       {badge && (
@@ -568,6 +581,16 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                         <MapPin className="w-2.5 h-2.5 text-[#E3120B]" />
                         {location}
                       </span>
+                      {/* 赛道标识徽章 */}
+                      {(() => {
+                        const canonicalCat = getArticleCanonicalCategory(article);
+                        const catTheme = CATEGORY_THEMES[canonicalCat];
+                        return (
+                          <span className={`font-serif text-[10px] font-bold px-1.5 py-0.2 rounded border ${catTheme.badgeCls}`}>
+                            {canonicalCat}
+                          </span>
+                        );
+                      })()}
                       <span className="font-serif font-medium text-stone-800 bg-stone-50 px-1.5 py-0.2 rounded border border-stone-200">
                         {badge && <span className={`font-mono text-[9px] mr-1 ${badge.cls}`}>{badge.label}</span>}
                         {mediaDisplayName}

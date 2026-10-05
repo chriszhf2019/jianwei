@@ -121,64 +121,83 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
             </div>
           )}
 
+          {/* Loading 状态 */}
+          {loading && !data && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 py-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="p-4 bg-white border border-stone-200 rounded-xl animate-pulse space-y-2">
+                  <div className="h-4 bg-stone-200 rounded w-1/3" />
+                  <div className="h-2 bg-stone-100 rounded w-full" />
+                  <div className="h-3 bg-stone-100 rounded w-2/3" />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* 趋势词云/热度列表 Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {data?.trends?.map((item, idx) => {
-              const statusCfg =
-                item.status === 'surge'
-                  ? { label: '飙升 🔥', cls: 'bg-red-100 text-red-800 border-red-300', barCls: 'bg-red-600' }
-                  : item.status === 'hot'
-                  ? { label: '持续高热 📈', cls: 'bg-amber-100 text-amber-800 border-amber-300', barCls: 'bg-amber-500' }
-                  : item.status === 'cooling'
-                  ? { label: '热度回落 📉', cls: 'bg-sky-100 text-sky-800 border-sky-300', barCls: 'bg-sky-500' }
-                  : { label: '保持平稳 ↔️', cls: 'bg-stone-100 text-stone-700 border-stone-300', barCls: 'bg-stone-400' };
+          {data?.trends && data.trends.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {data.trends.map((item, idx) => {
+                const statusCfg =
+                  item.status === 'surge'
+                    ? { label: '飙升 🔥', cls: 'bg-red-100 text-red-800 border-red-300', barCls: 'bg-red-600' }
+                    : item.status === 'hot'
+                    ? { label: '持续高热 📈', cls: 'bg-amber-100 text-amber-800 border-amber-300', barCls: 'bg-amber-500' }
+                    : item.status === 'cooling'
+                    ? { label: '热度回落 📉', cls: 'bg-sky-100 text-sky-800 border-sky-300', barCls: 'bg-sky-500' }
+                    : { label: '保持平稳 ↔️', cls: 'bg-stone-100 text-stone-700 border-stone-300', barCls: 'bg-stone-400' };
 
-              return (
-                <div
-                  key={idx}
-                  onClick={() => onSelectKeyword && onSelectKeyword(item.keyword)}
-                  className="p-3 bg-white border border-stone-200 rounded-xl shadow-2xs hover:border-stone-400 transition-all cursor-pointer group flex flex-col justify-between space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-serif font-black text-sm text-stone-900 group-hover:text-[#E3120B] transition-colors truncate">
-                        #{item.keyword}
-                      </span>
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${statusCfg.cls}`}>
-                        {statusCfg.label} ({item.growthRate})
-                      </span>
-                    </div>
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => onSelectKeyword && onSelectKeyword(item.keyword)}
+                    className="p-3 bg-white border border-stone-200 rounded-xl shadow-2xs hover:border-stone-400 transition-all cursor-pointer group flex flex-col justify-between space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-serif font-black text-sm text-stone-900 group-hover:text-[#E3120B] transition-colors truncate">
+                          #{item.keyword}
+                        </span>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${statusCfg.cls}`}>
+                          {statusCfg.label} ({item.growthRate})
+                        </span>
+                      </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="text-xs font-mono font-bold text-stone-900">
-                        热度指数 {item.heatIndex}
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-mono font-bold text-stone-900">
+                          热度指数 {item.heatIndex}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* 热度条 */}
-                  <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${statusCfg.barCls}`}
-                      style={{ width: `${Math.min(100, Math.max(10, item.heatIndex))}%` }}
-                    />
-                  </div>
+                    {/* 热度条 */}
+                    <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${statusCfg.barCls}`}
+                        style={{ width: `${Math.min(100, Math.max(10, item.heatIndex))}%` }}
+                      />
+                    </div>
 
-                  {/* 频率明细 + 解读 */}
-                  <div className="flex items-center justify-between text-[10px] text-stone-500 font-mono border-t border-stone-100 pt-1.5">
-                    <span>今日 {item.todayCount} 次 · 近3日 {item.prev3dCount} 次 · 近30日 {item.prev30dCount} 次</span>
-                    <span className="text-[#0284C7] group-hover:underline font-sans">点击筛选语料 &rarr;</span>
-                  </div>
+                    {/* 频率明细 + 解读 */}
+                    <div className="flex items-center justify-between text-[10px] text-stone-500 font-mono border-t border-stone-100 pt-1.5">
+                      <span>今日 {item.todayCount} 次 · 近3日 {item.prev3dCount} 次 · 近30日 {item.prev30dCount} 次</span>
+                      <span className="text-[#0284C7] group-hover:underline font-sans">点击筛选语料 &rarr;</span>
+                    </div>
 
-                  {item.insight && (
-                    <p className="text-[11px] text-stone-600 leading-snug line-clamp-1 font-sans">
-                      {item.insight}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {item.insight && (
+                      <p className="text-[11px] text-stone-600 leading-snug line-clamp-1 font-sans">
+                        {item.insight}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : !loading && (
+            <div className="py-6 text-center text-xs text-stone-400 font-serif">
+              暂未检测到明显的异动词频，点击右上角刷新即可重新扫描最新语料。
+            </div>
+          )}
 
           <div className="text-right text-[10px] text-stone-400 font-mono">
             说明：算法按时间衰减权重自动比对词频变动率；支持直接点击关键词筛选特定专题报道。

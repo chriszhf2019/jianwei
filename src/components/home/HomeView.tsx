@@ -16,6 +16,7 @@ import { NEWS_INTEREST_GROUPS, SECTOR_TAXONOMY, keywordMatches, matchesNewsInter
 import { monitorHits } from '../../utils/monitorKeywords';
 import { buildEvidenceProfile } from '../../utils/evidenceProfile';
 import { FeatureSummary } from '../common/FeatureSummary';
+import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
 
 const TongsuModeFeed = lazy(() =>
   import('./TongsuModeFeed').then((module) => ({ default: module.TongsuModeFeed }))
@@ -276,59 +277,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
           return article.personaImpacts?.some((p) => p.personaId === selectedPersona.id);
         }
 
-        // 基础精确标签/分类匹配
-        if (article.category === selectedCategory || article.tags.includes(selectedCategory)) {
-          return true;
+        // 核心赛道规范化互斥归类：彻底消除「科技前沿」与「全球财经」的模糊重叠与串台
+        if (
+          selectedCategory === 'AI 前沿' ||
+          selectedCategory === '科技前沿' ||
+          selectedCategory === '全球财经' ||
+          selectedCategory === '产业纵深'
+        ) {
+          return getArticleCanonicalCategory(article) === selectedCategory;
         }
 
-        // 语义赛道扩展匹配：让「AI 前沿」「科技前沿」「全球财经」「产业纵深」能够命中对应的赛道关键词与文本
-        const text = `${article.title || ''} ${article.summary || ''} ${(article.tags || []).join(' ')}`.toLowerCase();
-        if (selectedCategory === 'AI 前沿') {
-          return (
-            article.category?.toLowerCase().includes('ai') ||
-            keywordMatches(text, 'AI') ||
-            keywordMatches(text, '大模型') ||
-            keywordMatches(text, '人工智能') ||
-            keywordMatches(text, 'Agent') ||
-            keywordMatches(text, 'OpenAI') ||
-            keywordMatches(text, '算力')
-          );
-        }
-        if (selectedCategory === '科技前沿') {
-          return (
-            article.category?.toLowerCase().includes('科技') ||
-            article.category?.toLowerCase().includes('tech') ||
-            keywordMatches(text, '芯片') ||
-            keywordMatches(text, '半导体') ||
-            keywordMatches(text, '硬件') ||
-            keywordMatches(text, '科技') ||
-            keywordMatches(text, '智能')
-          );
-        }
-        if (selectedCategory === '全球财经') {
-          return (
-            article.category?.toLowerCase().includes('财经') ||
-            article.category?.toLowerCase().includes('宏观') ||
-            keywordMatches(text, '美联储') ||
-            keywordMatches(text, '央行') ||
-            keywordMatches(text, '利率') ||
-            keywordMatches(text, '降息') ||
-            keywordMatches(text, '通胀') ||
-            keywordMatches(text, '关税') ||
-            keywordMatches(text, '股市') ||
-            keywordMatches(text, '汇率')
-          );
-        }
-        if (selectedCategory === '产业纵深') {
-          return (
-            article.category?.toLowerCase().includes('产业') ||
-            keywordMatches(text, '汽车') ||
-            keywordMatches(text, '新能源') ||
-            keywordMatches(text, '出海') ||
-            keywordMatches(text, '供应链') ||
-            keywordMatches(text, '电池') ||
-            keywordMatches(text, '制造')
-          );
+        // 基础精确标签/分类匹配（兼容外部动态标签）
+        if (article.category === selectedCategory || (article.tags || []).includes(selectedCategory)) {
+          return true;
         }
 
         return false;
@@ -349,6 +310,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     const isSelected = selectedCategory === cat;
     const isAffectMe = cat === '影响我';
     const isMonitor = cat === '监控中';
+    const isEvidence = cat === '多源印证';
+
     return (
       <button
         key={cat}
@@ -356,43 +319,50 @@ export const HomeView: React.FC<HomeViewProps> = ({
         title={
           isMonitor
             ? `只看命中我监控词的今日新闻（共 ${monitorTodayCount} 条）`
-            : cat === '多源印证'
-              ? '证据筛选：7 天内不同发布方且标题相似度达到阈值，只说明有多个来源报道，不自动证明内容为真。'
-              : cat === '关注'
-                ? '关注筛选：手动订阅的标签，以及你收藏的文章。'
-                : cat === '我的领域'
-                  ? `按设置中的兴趣领域筛选：${interestNames.join('、') || '未设置'}`
-                  : undefined
+            : isEvidence
+              ? '证据筛选：仅展示多独立信源交叉印证的情报（多来源不等于事实为真）'
+              : cat in CATEGORY_THEMES
+                ? `${cat}：${CATEGORY_THEMES[cat as keyof typeof CATEGORY_THEMES].desc}`
+                : cat === '关注'
+                  ? '关注筛选：手动订阅的标签与已收藏文章'
+                  : cat === '我的领域'
+                    ? `按设置中的兴趣领域筛选：${interestNames.join('、') || '未设置'}`
+                    : undefined
         }
-        className={`px-3.5 py-1.5 rounded-lg text-xs font-serif whitespace-nowrap transition-all flex items-center space-x-1 ${
+        className={`px-3 py-1.5 rounded-xl text-xs font-serif whitespace-nowrap transition-all flex items-center space-x-1.5 cursor-pointer shadow-2xs ${
           isSelected
-            ? 'bg-stone-900 text-white font-bold shadow-xs'
-            : isAffectMe
-              ? 'bg-red-50 text-[#E3120B] border border-red-200 hover:bg-red-100 font-bold'
-              : isMonitor
-                ? 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 font-bold'
-                : cat === '多源印证'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-bold'
-                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200/80 hover:text-stone-950'
+            ? isEvidence
+              ? 'bg-emerald-900 text-white font-bold border border-emerald-950 shadow-xs'
+              : 'bg-stone-900 text-white font-bold border border-stone-950 shadow-xs'
+            : isEvidence
+              ? 'bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 hover:border-emerald-300 font-medium'
+              : isAffectMe
+                ? 'bg-white hover:bg-red-50 text-stone-800 border border-stone-200 hover:border-red-200 font-medium'
+                : 'bg-white hover:bg-stone-100 text-stone-700 hover:text-stone-950 border border-stone-200 hover:border-stone-300'
         }`}
       >
-        {isAffectMe && <UserCheck className="w-3 h-3 text-[#E3120B]" />}
-        {isMonitor && <Radio className="w-3 h-3 text-amber-600" />}
-        {cat === '多源印证' && <ShieldCheck className="w-3 h-3 text-emerald-600" />}
-        {cat === '关注' && <Bookmark className="w-3 h-3 text-emerald-600" />}
-        {cat === '我的领域' && <Target className="w-3 h-3 text-[#0284C7]" />}
+        {isAffectMe && <UserCheck className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#E3120B]'}`} />}
+        {isMonitor && <Radio className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-amber-600'}`} />}
+        {isEvidence && <ShieldCheck className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-emerald-600'}`} />}
+        {cat === '关注' && <Bookmark className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-stone-500'}`} />}
+        {cat === '我的领域' && <Target className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#0284C7]'}`} />}
+
         <span>{isMonitor ? '监控中' : cat}</span>
+
         {isMonitor && (
           <span
             className={`text-[10px] font-mono px-1 rounded ${
-              isSelected ? 'bg-white/20 text-amber-100' : 'bg-amber-200/70 text-amber-900'
+              isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
             }`}
           >
             {monitorTodayCount}
           </span>
         )}
+
         {isAffectMe && (
-          <span className="text-[10px] bg-red-600 text-white px-1 rounded ml-1 scale-90">
+          <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono ${
+            isSelected ? 'bg-red-500 text-white' : 'bg-red-100 text-[#E3120B]'
+          }`}>
             {selectedPersona.name.slice(0, 2)}
           </span>
         )}
@@ -536,23 +506,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </div>
 
-          <FeatureSummary featureId="home" compact />
-
-          {/* 主题筛选与证据筛选分开：前者回答“看什么”，后者回答“证据是否充分”。 */}
-          <div className="space-y-2 pb-2 border-b border-stone-200">
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <span className="w-8 shrink-0 text-[10px] font-serif font-black text-stone-400">主题</span>
-              <div className="flex items-center gap-2">
-                {categories.topic.map(renderFilterButton)}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <span className="w-8 shrink-0 text-[10px] font-serif font-black text-stone-400">证据</span>
-              <div className="flex items-center gap-2">
-                {categories.evidence.map(renderFilterButton)}
-              </div>
-              <span className="text-[10px] text-stone-400 whitespace-nowrap">多来源不等于事实为真</span>
-            </div>
+          {/* 精炼统一的分类与证据核验工具栏 */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 border-b border-stone-200">
+            {categories.topic.map(renderFilterButton)}
+            <div className="h-5 w-px bg-stone-300 mx-1 shrink-0" />
+            {categories.evidence.map(renderFilterButton)}
           </div>
 
           {selectedCategory === '我的领域' && (
@@ -626,6 +584,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   )}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* 当所选赛道在当前时间窗口暂无新增时，提供一键切换至全部/近3日查看历史沉淀 */}
+          {filteredArticles.length === 0 && selectedCategory in CATEGORY_THEMES && (
+            <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 text-xs text-stone-700 flex flex-wrap items-center justify-between gap-3 font-sans">
+              <div className="flex items-center space-x-2">
+                <span className="w-2 h-2 rounded-full bg-stone-400" />
+                <span>
+                  当前【<strong>{selectedCategory}</strong>】在【{timeHorizon === 'today' ? '今日' : timeHorizon === '3d' ? '近 3 日' : '当前范围'}】暂无新增条目
+                  {articles.filter(a => getArticleCanonicalCategory(a) === selectedCategory).length > 0 && (
+                    <>（历史语料库中有 <strong>{articles.filter(a => getArticleCanonicalCategory(a) === selectedCategory).length}</strong> 篇深度沉淀档案）</>
+                  )}。
+                </span>
+              </div>
+              {timeHorizon !== 'all' && articles.filter(a => getArticleCanonicalCategory(a) === selectedCategory).length > 0 && (
+                <button
+                  onClick={() => setTimeHorizon('all')}
+                  className="px-3 py-1.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-lg font-serif font-bold text-xs transition-colors cursor-pointer"
+                >
+                  切换至全部范围查看档案 ➔
+                </button>
+              )}
             </div>
           )}
 

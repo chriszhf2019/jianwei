@@ -8,7 +8,8 @@ export type CognitiveDetailTab =
   | 'logic_tree'           // 推演：因果树 + 涟漪传导（两段合并）
   | 'relevance_identity'   // 身份：与我何干 (6大身份)
   | 'deep_spectrum'        // 通读：五层光谱深度全览
-  | 'forecast_arena';      // 前瞻：人机预测擂台 (约定时间验证与方法论比对)
+  | 'forecast_arena'       // 前瞻：人机预测擂台 (约定时间验证与方法论比对)
+  | 'architecture_diagram'; // 🎨 架构：AI 架构全景图 (因果传导与技术管线拓扑)
 
 export type DetailCognitiveTab = CognitiveDetailTab;
 

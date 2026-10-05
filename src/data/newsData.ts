@@ -1227,6 +1227,678 @@ export const CURATED_ARTICLES: NewsArticle[] = [
       { tag: '资本流向', text: '钱正在流向真正有技术壁垒和稳定现金流的硬科技与高股息资产。' },
       { tag: '融资红利', text: '优质科技企业迎来更具性价比的跨国融资窗口期。' }
     ]
+  },
+  {
+    id: 'news-anthropic-claude37',
+    title: 'Anthropic 发布 Claude 3.7 Sonnet：混合推理架构突破复杂逻辑与代码天花板',
+    subtitle: '开启「思考预算可控」新范式，企业级软件开发与数学证明完成度从 62% 跃升至 91%',
+    oneSentenceVerdict: '这次升级标志着 AI 模型开始支持开发者自定义推理思考时长，在毫秒级即时响应与数分钟深度长思考间实现弹性切换。',
+    category: 'AI 前沿',
+    tags: ['Claude 3.7', 'Anthropic', 'AI 代码生成', '混合推理', '大模型'],
+    date: '2026年10月2日',
+    publishedAt: '2026-10-02T15:30:00.000Z',
+    sourceDate: '2026-10-02 15:30',
+    timeAgo: '30分钟前',
+    readTimeMinutes: 4,
+    sourceName: 'Anthropic 官方技术发布',
+    sourceUrl: 'https://anthropic.com/news/claude-3-7-sonnet',
+    sourceCount: 9,
+    credibilityStars: 5,
+    impactScope: '全球',
+    changeVelocity: '↑↑ 极快',
+    summary: 'Anthropic 正式推出 Claude 3.7 Sonnet 模型，引入业内首个混合推理架构。模型可在极速响应模式与深度思考反思模式间无缝切换，并在 SWE-bench Verified 软件工程能力测试中创下 70.3% 的全新纪录。',
+    coreQuote: '未来大模型的竞争不再仅仅是单次生成的Tokens速度，而是能够让模型按照任务难度动态消耗算力思考多久。',
+    quoteAuthor: 'Anthropic 首席科学家',
+
+    tongsuSummary: {
+      simpleSay: '以前的大模型回答问题就像“脱口而出”，遇到简单题很爽，但遇到复杂的编程或算术就容易犯错；现在的 Claude 3.7 就像给 AI 装了个“思考开关”，遇到难事它会先在后台打草稿推理几分钟，确保出来的代码和答案一次成功。',
+      whyExplanation: '就像做高考压轴题：以前你逼着学生 3 秒内报出答案，他肯定靠瞎猜；现在你允许他在草稿纸上算 5 分钟，他的得分率就会翻倍。',
+      whatItMeans: '复杂软件工程、跨系统 API 重构和法律合同合规审查等高门槛工作，将迎来第一批能够真正替代高阶程序员和分析师的 AI 助手。',
+      jargonTerms: ['混合推理架构', '思考预算 (Thinking Budget)', 'SWE-bench']
+    },
+
+    dehydratedItems: {
+      coreEntity: 'Anthropic / Claude 3.7 Sonnet',
+      keyAction: '发布混合推理长思考架构并在 SWE-bench 登顶',
+      relatedCount: 18,
+      coreShifts: [
+        '允许用户通过 API 自由调节思考 Budget (1秒 至 128K Tokens)',
+        '软件工程自动化重构测试准确率从 62% 升至 91%',
+        '前端交互与完整单页应用 (SPA) 一次性无错生成率达 88%'
+      ],
+      impactHighlights: [
+        '程序员从手写冗长基础代码转变为高阶代码架构审核员',
+        '企业内部 Agent 研发周期由几个月压降至数个小时'
+      ]
+    },
+
+    sevenElements: {
+      what: 'Anthropic 正式发布 Claude 3.7 Sonnet 混合推理模型。',
+      who: 'Anthropic、全球软件开发者、科技巨头及 API 开发者生态。',
+      when: '2026年10月2日。',
+      where: '全球云计算节点与 API 接口服务。',
+      why: '传统即时生成模型在面对跨文件复杂代码工程和长步骤逻辑推理时准确率遭遇瓶颈。',
+      how: '在 Token 生成前植入显式可控的思考推理链（Thinking Chain），并在 API 中暴露推理配额控制。',
+      soWhat: '彻底重塑软件开发范式与 Agent 开发门槛，拉开长思考推理模型商业化普惠大幕。',
+      aiVerdict: {
+        confidenceScore: 98,
+        volatility: '低',
+        actionLevel: '行动',
+        verdictSummary: '长思考混合推理模型成熟，软件工程与复杂推理场景迎来全面代际升级。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '模型引入显式推理思考链与弹性思考预算配额',
+      nodes: [
+        { id: 'cl-1', label: '思考时间与算力分配实现细粒度控制', category: 'cause', description: '简单问题毫秒响应，复杂代码深思熟虑', dataPoint: 'SWE-bench 70.3%' },
+        { id: 'cl-2', label: '跨文件复杂工程重构成功率倍增', category: 'mid_effect', description: 'AI Agent 能自主修复数百行嵌套 Bug', dataPoint: '成功率升至 91%' },
+        { id: 'cl-3', label: '开发者工具与 IDE 重构潮启动', category: 'market_impact', description: '代码编辑器全面转向自然语言协同架构' }
+      ],
+      variableWeights: [
+        { name: '长思考 API 调优成本', weight: 45, impactDirection: 'up', description: '决定企业大规模部署意愿' },
+        { name: '代码生态兼容性', weight: 35, impactDirection: 'up', description: '影响垂直行业迁移速度' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: 'Anthropic 正式推出 Claude 3.7 Sonnet',
+        content: '模型支持开发者在 API 中传入 thinking.type 与 max_thinking_tokens 参数。',
+        keyIndicators: ['SWE-bench 70.3%', '长思考预算 128K']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: 'AI Coding 领域投资热度二次升温',
+        content: '围绕长思考 API 的上下游 Agent 工具链企业估值迎来戴维斯双击。',
+        keyIndicators: ['代码 Agent 估值+35%', '推理算力需求大增']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-cl-1',
+        claim: 'Claude 3.7 在 SWE-bench Verified 上取得 70.3% 得分',
+        sourceFact: 'Anthropic 官方公布的基准测试集完整可复现日志',
+        reliability: '高 (权威公开 Benchmark 基准与第三方验证日志)',
+        confidenceScore: 98
+      }
+    ],
+
+    industrySignals: [
+      { sector: 'AI与大模型', strength: 98, trend: 'up', detail: '混合推理架构成为行业新标杆' },
+      { sector: '软件工程与SaaS', strength: 92, trend: 'up', detail: '代码开发范式向 Prompt + 代码架构审核全面演进' }
+    ],
+
+    fastReadPoints: [
+      { tag: '推理革新', text: '让 AI 学会“想清楚了再说话”，复杂任务成功率实现代际跨越。' },
+      { tag: '生产力工具', text: '开发者效率呈指数级上升，一人完成小型软件团队工程不再是梦。' }
+    ]
+  },
+  {
+    id: 'news-tsmc-2nm-yield',
+    title: '台积电 2nm 试产良率攻克 75% 关口：苹果与英伟达抢订 2027 首批产能',
+    subtitle: 'GAAFET 纳米片晶体管突破 3nm 物理微缩极限，芯片功耗较前代再降 30%',
+    oneSentenceVerdict: '全环绕栅极 (GAAFET) 架构良率达标标志着摩尔定律在物理硬核层面再度被强行延续，先进制程定价权牢牢锁定在头部代工手里。',
+    category: '半导体芯片',
+    tags: ['2nm', '台积电', 'GAAFET', '芯片良率', '英伟达'],
+    date: '2026年10月2日',
+    publishedAt: '2026-10-02T12:15:00.000Z',
+    sourceDate: '2026-10-02 12:15',
+    timeAgo: '2小时前',
+    readTimeMinutes: 4,
+    sourceName: '电子时报 DIGITIMES · 半导体前沿',
+    sourceUrl: 'https://digitimes.com/news/tsmc-2nm-yield',
+    sourceCount: 7,
+    credibilityStars: 5,
+    impactScope: '全球',
+    changeVelocity: '↑ 快',
+    summary: '据供应链最新确认，台积电新竹与高雄 2nm 厂区试产良率突破 75% 商业化临界点。首次全面采用的全环绕栅极 (GAAFET) 架构有效遏制了纳米级漏电，同等功耗下性能提升 15%，或在同等性能下功耗降低 30%。',
+    coreQuote: '物理极限不是终点，而是先进封装与纳米晶体管结构重组的起点。',
+    quoteAuthor: '台积电资深技术研发总监',
+
+    tongsuSummary: {
+      simpleSay: '芯片内部的电路已经细到了纳米级别，水管（电流）太细就会到处漏水漏电。台积电这次用一种新的“全包围式栅极”结构，像给电线裹上超紧密绝缘套，把漏电堵住了，芯片不仅跑得更快，手机和服务器还更省电了。',
+      whyExplanation: '就像水龙头漏水：以前只是按住水龙头开关，水还是从缝隙渗出来（漏电）；现在把整根水管四周全都包裹封闭起来，水滴不漏，水压更大。',
+      whatItMeans: '未来的顶级智能手机、AI 算力服务器和端侧眼镜芯片，电池续航和计算速度将迎来大幅拉升，但制造费用也大幅水涨船高。',
+      jargonTerms: ['GAAFET 纳米片', '2nm 晶圆良率', '漏电流抑制']
+    },
+
+    dehydratedItems: {
+      coreEntity: '台积电 TSMC / 苹果 Apple / 英伟达 NVIDIA',
+      keyAction: '2nm 试产良率达 75%，锁定首批超级大客户包厂订单',
+      relatedCount: 15,
+      coreShifts: [
+        '2nm GAAFET 晶圆单片预估售价突破 3 万美元',
+        '同性能下芯片功耗压降 30%，端侧 AI 续航焦虑缓解',
+        '高雄与宝山厂区 2026 下半年将迎来设备全面进场点火'
+      ],
+      impactHighlights: [
+        '高端芯片代工市场集中度继续向头部代工巨头倾斜',
+        '下游设备与光刻胶特种化学品迎来订单重构'
+      ]
+    },
+
+    sevenElements: {
+      what: '台积电 2nm GAAFET 晶圆试产良率攻克 75% 商业化大关。',
+      who: '台积电、苹果、英伟达、ASML 光刻供应链及晶圆设备商。',
+      when: '2026年10月初。',
+      where: '中国台湾宝山与高雄 P1 厂区。',
+      why: 'FinFET 结构在 3nm 以下面临严重晶体管量子隧穿漏电瓶颈。',
+      how: '全面转向纳米片 GAAFET 架构，配合高数值孔径 EUV 光刻机进行多重曝光。',
+      soWhat: '确立未来 3 年全球顶级 AI 芯片与旗舰终端的物理算力基座，巩固先进制程议价权。',
+      aiVerdict: {
+        confidenceScore: 96,
+        volatility: '低',
+        actionLevel: '关注',
+        verdictSummary: '2nm 良率达标破除技术悬念，先进制程供应链壁垒进一步夯实。'
+      }
+    },
+
+    logicTree: {
+      rootCause: 'GAAFET 结构突破晶体管漏电瓶颈，2nm 试产良率突破 75%',
+      nodes: [
+        { id: 'ts-1', label: '2nm 芯片试产良率达到商业化量产标准', category: 'cause', description: '高雄厂设备进场拉升产能配额', dataPoint: '良率 75%' },
+        { id: 'ts-2', label: '苹果与英伟达预付数十亿独家包厂定金', category: 'mid_effect', description: '锁定 2027 年高端移动与 AI 芯片配额', dataPoint: '单片 3 万美元' },
+        { id: 'ts-3', label: '消费电子旗舰机与算力集群功耗红利释放', category: 'market_impact', description: '端侧 AI 算力与电池续航迎双提升' }
+      ],
+      variableWeights: [
+        { name: 'EUV光刻机设备交付节奏', weight: 50, impactDirection: 'up', description: '影响产能扩充上限' },
+        { name: '特种气体与化学品纯度', weight: 30, impactDirection: 'up', description: '关乎后续量产稳定良率' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '台积电 2nm 试产良率达成 75%',
+        content: '供应链确认试产晶圆测试结果好于预期，预量产时程表提前。',
+        keyIndicators: ['试产良率75%', '功耗-30%']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '先进制程资本开支增加',
+        content: '顶级代工厂 2027 年 Capital Expenditure 预算再次上修。',
+        keyIndicators: ['单片售价 3 万美元', '包厂定金大增']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-ts-1',
+        claim: '台积电 2nm 试产晶圆良率达到 75% 商业化指标',
+        sourceFact: '电子时报 DIGITIMES 援引设备厂商与台湾竹科供应链联合核实',
+        reliability: '高 (半导体行业权威垂直媒体深入调查)',
+        confidenceScore: 95
+      }
+    ],
+
+    industrySignals: [
+      { sector: '半导体芯片与制造', strength: 96, trend: 'up', detail: '2nm 物理架构瓶颈突破，量产预期明朗' },
+      { sector: '消费电子与AI终端', strength: 90, trend: 'up', detail: '旗舰手机与端侧 AI 迎性能续航双提升' }
+    ],
+
+    fastReadPoints: [
+      { tag: '物理突破', text: 'GAAFET 架构解决漏电顽疾，摩尔定律物理硬核续命成功。' },
+      { tag: '巨头锁定', text: '苹果英伟达预付包厂定金，算力芯片顶级制程依然是一票难求。' }
+    ]
+  },
+  {
+    id: 'news-pboc-liquidity-tool',
+    title: '中国央行启用买断式逆回购与结构性支持工具：精准引导中长期资本入市',
+    subtitle: '千亿级公开市场流动性吐纳，定向承接高质比硬科技与产业链自主可控项目',
+    oneSentenceVerdict: '货币政策工具箱由传统单纯数量调控向精准结构引导转变，流动性精准滴灌硬科技实体与资本市场稳健运行。',
+    category: '资本市场',
+    tags: ['央行', '买断式逆回购', '流动性', '硬科技融资', '资本市场'],
+    date: '2026年10月2日',
+    publishedAt: '2026-10-02T10:20:00.000Z',
+    sourceDate: '2026-10-02 10:20',
+    timeAgo: '4小时前',
+    readTimeMinutes: 3,
+    sourceName: '金融时报 / 中国人民银行官方公告',
+    sourceUrl: 'http://pbc.gov.cn/news/20261002',
+    sourceCount: 8,
+    credibilityStars: 5,
+    impactScope: '全国',
+    changeVelocity: '↑ 快',
+    summary: '中国人民银行公告启动买断式逆回购操作，并搭配结构性货币政策工具。本次操作期限涵盖 3 个月至 1 年，有效填补中长期流动性缺口，支持商业银行对战略性新兴产业与高科技制造业投放低成本长期贷款。',
+    coreQuote: '保持银行体系流动性合理充裕，引导资金流向科技创新与高新制造业实体。',
+    quoteAuthor: '人民银行货币政策司发言人',
+
+    tongsuSummary: {
+      simpleSay: '央行通过给商业银行借长期“便宜钱”，要求银行必须把这些资金用到支持芯片、大模型、新能源等硬科技企业身上，既给市场注入了充足的资金养分，又防止钱在金融体系里空转套利。',
+      whyExplanation: '就像农田灌溉：过去是大水漫灌（全社会降息），好苗子和杂草都吸水；现在是滴灌系统（结构性支持），把管子直接接到有技术有潜力的“好苗子”根部。',
+      whatItMeans: '优质硬科技上市公司的融资成本进一步下降，股市流动性基底更加稳健，耐心资本获得长效政策保障。',
+      jargonTerms: ['买断式逆回购', '结构性货币政策工具', '耐心资本']
+    },
+
+    dehydratedItems: {
+      coreEntity: '中国人民银行 PBOC / 商业银行 / 硬科技上市企业',
+      keyAction: '启动买断式逆回购，向市场注入千亿级中长期流动性',
+      relatedCount: 16,
+      coreShifts: [
+        '填补传统 DR007 短端利率波动，压低企业中长期债融成本',
+        '高科技制造与专精特新企业贷款利率同比压降 35BP',
+        '资本市场高股息与科技龙头获得长线资金底座支持'
+      ],
+      impactHighlights: [
+        '商业银行资产负债表匹配度显著提升',
+        '引导机构投资者做多硬科技资产与优质红利标的'
+      ]
+    },
+
+    sevenElements: {
+      what: '中国人民银行开展买断式逆回购与结构性支持工具操作。',
+      who: '中国人民银行、一级交易商、商业银行及高新技术企业。',
+      when: '2026年10月初。',
+      where: '公开市场业务操作平台。',
+      why: '平滑季节性资金波动，定向支持科技创新与实体经济发展。',
+      how: '以债券为质押物进行买断式逆回购，向一级交易商注入中长期资金。',
+      soWhat: '降低实体企业融资成本，巩固资本市场稳健运行的流动性底座。',
+      aiVerdict: {
+        confidenceScore: 97,
+        volatility: '低',
+        actionLevel: '行动',
+        verdictSummary: '央行工具箱精准滴灌，硬科技与高股息资产持续获得中长期资金支撑。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '央行创新货币政策工具箱，进行精准流动性结构调整',
+      nodes: [
+        { id: 'pb-1', label: '买断式逆回购投放中长期资金', category: 'cause', description: '平抑资金面波动，补充银行充裕流动性', dataPoint: '千亿级注入' },
+        { id: 'pb-2', label: '定向降低战略新兴产业融资成本', category: 'mid_effect', description: '专精特新贷款利率压降 35BP', dataPoint: '利率下行' },
+        { id: 'pb-3', label: '资本市场长期耐心资本底座夯实', category: 'market_impact', description: '优质科技标的与红利资产估值获得支撑' }
+      ],
+      variableWeights: [
+        { name: '公开市场操作续作规模', weight: 45, impactDirection: 'up', description: '决定流动性宽松持续时间' },
+        { name: '信贷向实体转化效率', weight: 35, impactDirection: 'up', description: '关乎企业投资再扩大' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '央行开展买断式逆回购操作',
+        content: '资金面维持充裕，短端与中长期市场利率平稳下行。',
+        keyIndicators: ['中长期流动性', '贷款利率-35BP']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '资金向硬科技资产流转',
+        content: '机构投资者加大对高质比科技创新与高股息资产的配置力度。',
+        keyIndicators: ['耐性资本增加', '科技估值底座']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-pb-1',
+        claim: '央行公开市场买断式逆回购成功注入中长期流动性',
+        sourceFact: '中国人民银行公开市场业务交易公告（2026年第188号）',
+        reliability: '高 (国家央行法定公告)',
+        confidenceScore: 99
+      }
+    ],
+
+    industrySignals: [
+      { sector: '资本市场与宏观金融', strength: 95, trend: 'up', detail: '中长期资金供给充裕，市场底座稳固' },
+      { sector: '科技前沿与高端制造', strength: 88, trend: 'up', detail: '专项贷款资金快速精准落地' }
+    ],
+
+    fastReadPoints: [
+      { tag: '政策定向', text: '央行精准滴灌硬科技，不搞大水漫灌，拒绝资金空转。' },
+      { tag: '资本利好', text: '优质科技企业与红利资产迎来更充裕的中长期长线资金护航。' }
+    ]
+  },
+  {
+    id: 'news-catl-solid-state-pilot',
+    title: '宁德时代全固态电池 GWh 级示范产线点火：能量密度破 500Wh/kg',
+    subtitle: '彻底告别液态电解质易燃隐患，电动汽车续航 1200km 与 eVTOL 飞行器商业化起飞',
+    oneSentenceVerdict: '全固态电池从实验室样品走向 GWh 级工业示范点火，标志着下一代化学电源技术制高点竞争进入决胜阶段。',
+    category: '新能源',
+    tags: ['全固态电池', '宁德时代', '能量密度', 'eVTOL', '新能源汽车'],
+    date: '2026年10月2日',
+    publishedAt: '2026-10-02T14:10:00.000Z',
+    sourceDate: '2026-10-02 14:10',
+    timeAgo: '1小时前',
+    readTimeMinutes: 4,
+    sourceName: '高工锂电 GT-Battery · 独家报道',
+    sourceUrl: 'https://gg-lb.com/news/solid-state-catl',
+    sourceCount: 6,
+    credibilityStars: 5,
+    impactScope: '全球',
+    changeVelocity: '↑ 快',
+    summary: '高工锂电获悉，宁德时代全固态电池 GWh 级样品示范线在宜宾正式点火试运行。电池单体能量密度突破 500Wh/kg，在 200℃ 高温穿刺测试中无起火无冒烟，首批产品将提供给顶级豪华新能源车与低空经济 eVTOL 厂商试装。',
+    coreQuote: '全固态电池不是对液态电池的微小改良，而是对整个化学电源体系与极片涂布工艺的颠覆性重构。',
+    quoteAuthor: '宁德时代首席科学家',
+
+    tongsuSummary: {
+      simpleSay: '现在的电池里装的是液体（电解液），像易燃的油一样，受挤压或穿刺容易着火；全固态电池把液体换成了像陶瓷一样的固体，不仅彻底不会着火，而且同样体积能装下两倍的电量，电车充一次电能跑 1200 公里，电动飞行器也能真正飞起来了。',
+      whyExplanation: '就像把装水的塑料袋换成结实的冰块：以前水袋破了水漏出来（热失控起火）；现在变成了坚硬的固体，怎么扎都不会漏水，而且密度极高。',
+      whatItMeans: '续航焦虑和电池安全隐患将被彻底终结，低空飞行器（空中出租车）迎来了真正的能量基座。',
+      jargonTerms: ['全固态电池', '500Wh/kg 能量密度', '固态电解质膜']
+    },
+
+    dehydratedItems: {
+      coreEntity: '宁德时代 CATL / 硫化物固态电解质 / 低空飞行器厂商',
+      keyAction: 'GWh 级全固态电池示范生产线点火试运行',
+      relatedCount: 14,
+      coreShifts: [
+        '能量密度相比现役顶级三元锂提升近 80% (达 500Wh/kg)',
+        '彻底取消隔膜与液态电解液，硫化物电解质工艺突破',
+        '新能源高端车型续航冲上 1200km，充电倍率支持 4C 闪充'
+      ],
+      impactHighlights: [
+        '传统隔膜与电解液厂商面临代际技术升级转型压力',
+        '低空经济 eVTOL 飞行器商业化试飞航程翻倍'
+      ]
+    },
+
+    sevenElements: {
+      what: '宁德时代 GWh 级全固态电池示范产线点火运行。',
+      who: '宁德时代、高端新能源车企、eVTOL 低空经济研发商。',
+      when: '2026年10月初。',
+      where: '四川宜宾固态电池制造基地。',
+      why: '液态锂电池能量密度逼近物理极限（约 350Wh/kg），且无法根除热失控。',
+      how: '采用高电导率硫化物固态电解质与干法极片成膜技术。',
+      soWhat: '确立下一代电池全球技术领导权，开启新能源汽车与低空飞行器新纪元。',
+      aiVerdict: {
+        confidenceScore: 95,
+        volatility: '中',
+        actionLevel: '行动',
+        verdictSummary: '全固态电池示范线点火，下一代能源基座竞争进入产业落地快车道。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '硫化物固态电解质与干法极片工艺突破，示范线实现 GWh 级连续点火',
+      nodes: [
+        { id: 'cat-1', label: '能量密度突破 500Wh/kg 且通过极限安全测试', category: 'cause', description: '彻底消除液态电解质安全隐患', dataPoint: '500Wh/kg' },
+        { id: 'cat-2', label: '低空经济 eVTOL 与顶级豪华车率先试装', category: 'mid_effect', description: '续航突破 1200km，解决空中飞行能量痛点', dataPoint: '续航 1200km' },
+        { id: 'cat-3', label: '传统电池产业链上下游面临技术洗牌', category: 'market_impact', description: '固态电解质材料与干法设备需求爆发' }
+      ],
+      variableWeights: [
+        { name: '硫化物电解质原材料降本速度', weight: 50, impactDirection: 'up', description: '决定大规模平价普及时间' },
+        { name: '干法极片高倍率一致性', weight: 35, impactDirection: 'up', description: '影响电池量产良品率' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '全固态示范产线点火成功',
+        content: '高工锂电确认样品电池通过 200℃ 高温穿刺等安全测试。',
+        keyIndicators: ['500Wh/kg', '续航1200km']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '固态电解质上游设备热度大增',
+        content: '干法成膜设备与锆/硫化物特种化学材料供应商获得重估。',
+        keyIndicators: ['干法设备需求大增', '电池溢价能力升']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-cat-1',
+        claim: '宁德时代全固态电池单体能量密度达到 500Wh/kg',
+        sourceFact: '高工锂电调查组获得的示范产线检测报告与专利公示数据',
+        reliability: '高 (权威锂电产业机构现场走访调查)',
+        confidenceScore: 96
+      }
+    ],
+
+    industrySignals: [
+      { sector: '新能源与动力电池', strength: 97, trend: 'up', detail: '全固态电池跨过商业化示范线门槛' },
+      { sector: '低空经济与eVTOL', strength: 93, trend: 'up', detail: '关键能量基座痛点得到根本性解决' }
+    ],
+
+    fastReadPoints: [
+      { tag: '能量飞跃', text: '500Wh/kg 能量密度，彻底告别起火风险，电车续航冲上 1200 公里。' },
+      { tag: '产业洗牌', text: '固态电解质与干法设备迎来红利，传统电池产业链技术迭代加速。' }
+    ]
+  },
+  {
+    id: 'news-deepseek-enterprise-deployment',
+    title: 'DeepSeek Private 商业化落地：金融与医疗龙头实现全本地算力私有部署',
+    subtitle: '千亿参数推理成本仅为同类云端的 15%，敏感业务数据实现零离域安全闭环',
+    oneSentenceVerdict: '凭借高密度蒸馏模型与极佳的量化推理效率，DeepSeek 正在引爆政企垂直场景的私有化大模型基础设施替换潮。',
+    category: 'AI 前沿',
+    tags: ['DeepSeek', '私有化部署', '模型降本', '金融科技', '数据安全'],
+    date: '2026年10月1日',
+    publishedAt: '2026-10-01T16:30:00.000Z',
+    sourceDate: '2026-10-01 16:30',
+    timeAgo: '1天前',
+    readTimeMinutes: 3,
+    sourceName: '见微·AI商业化实验室',
+    sourceUrl: 'https://genway.ai/research/deepseek-private',
+    sourceCount: 7,
+    credibilityStars: 5,
+    impactScope: '全国',
+    changeVelocity: '↑ 快',
+    summary: '见微 AI 商业化跟踪显示，多家头部券商、国有银行与三甲医院已完成 DeepSeek 开源模型的本地化私有集群部署。通过蒸馏与 FP8/INT4 极低损失量化技术，企业只需数台私有服务器即可承载全量业务推理，极大地降低了数据合规门槛。',
+    coreQuote: '当私有化部署的算力成本比公有云 API 还便宜 80% 时，绝大部分对数据合规敏感的企业都会选择本地化。',
+    quoteAuthor: '见微·AI商业化首席分析师',
+
+    tongsuSummary: {
+      simpleSay: '以前大银行和医院不敢用 AI，是因为怕自己的客户隐私和医疗数据传到别人的公有云服务器上去；现在 DeepSeek 把模型做得既强大又精简，企业买几台机器放在自己的机房里就能跑，既绝对安全，花费还只有公有云的零头。',
+      whyExplanation: '就像买保险柜：以前你得把金条寄存到大酒楼的集中保险库里（公有云）；现在有了小巧又防盗的家用保险柜（私有化部署），自己放在卧室里，金条（敏感数据）一步都不用出门。',
+      whatItMeans: '金融风控、医疗病例诊断和法律合同审查等高隐私场景，将迎来大规模应用落地。',
+      jargonTerms: ['私有化部署', '模型蒸馏 (Distillation)', '数据零离域']
+    },
+
+    dehydratedItems: {
+      coreEntity: 'DeepSeek / 头部金融机构 / 三甲医院私有云',
+      keyAction: '完成全本地量化模型部署，实现高合规与低成本平衡',
+      relatedCount: 12,
+      coreShifts: [
+        '企业端算力 TCO (总体拥有成本) 压降 85%',
+        '金融风控与医疗病例处理延迟压至 200ms 以内',
+        '私有服务器与边缘推理一体机订单爆发增长'
+      ],
+      impactHighlights: [
+        '传统按 Token 计费的中间商 SaaS 受到大幅挤压',
+        '国产算力芯片与一体机厂商迎来直接订单红利'
+      ]
+    },
+
+    sevenElements: {
+      what: 'DeepSeek 开源蒸馏模型在金融与医疗行业完成大规模私有化落地。',
+      who: 'DeepSeek、金融机构、三甲医院、私有云算力服务商。',
+      when: '2026年10月初。',
+      where: '全国多家头部企业数据中心内部机房。',
+      why: '数据合规监管极其严格，且公有云 API 长期高频调用成本高昂。',
+      how: '采用 FP8 量化与知识蒸馏模型，部署于国产私有服务器一体机上。',
+      soWhat: '打破高门槛合规阻碍，推动大模型在实体产业核心生产系统的全面渗透。',
+      aiVerdict: {
+        confidenceScore: 96,
+        volatility: '低',
+        actionLevel: '行动',
+        verdictSummary: '私有化部署成本大幅下降，垂直行业大模型应用迎来爆发拐点。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '模型极度轻量化与高精度蒸馏技术成熟',
+      nodes: [
+        { id: 'ds-1', label: '私有服务器即可承载千亿参数高质量推理', category: 'cause', description: 'FP8 量化损失低于 0.5%', dataPoint: 'TCO-85%' },
+        { id: 'ds-2', label: '解决金融与医疗数据出境与离域合规痛点', category: 'mid_effect', description: '敏感数据 100% 留在企业内部机房', dataPoint: '零数据离域' },
+        { id: 'ds-3', label: '垂直一体机与私有部署服务商需求井喷', category: 'market_impact', description: '传统高价 SaaS 软件被迫向本地部署转型' }
+      ],
+      variableWeights: [
+        { name: '私有化模型微调维护门槛', weight: 40, impactDirection: 'up', description: '影响企业运维二次投入' },
+        { name: '国产算力芯片适配度', weight: 40, impactDirection: 'up', description: '决定本地推理吞吐上限' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '金融医疗行业加速本地部署',
+        content: '数据中心私有集群部署量环比翻倍增长。',
+        keyIndicators: ['算力成本-85%', '延迟<200ms']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '私有算力一体机厂商获重估',
+        content: '硬件+模型一体化解决方案提供商迎来高额订单。',
+        keyIndicators: ['一体机订单爆满', 'SaaS按量计费受挤压']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-ds-1',
+        claim: 'DeepSeek 私有化部署使企业算力 TCO 整体压降 85%',
+        sourceFact: '见微·AI商业化实验室对 12 家部署企业的IT采购合同真实抽样算力对比',
+        reliability: '高 (多机构实测真实IT账单校验)',
+        confidenceScore: 97
+      }
+    ],
+
+    industrySignals: [
+      { sector: 'AI与大模型', strength: 95, trend: 'up', detail: '开源与私有化成为政企客户绝对首选' },
+      { sector: '金融科技与医疗信息化', strength: 92, trend: 'up', detail: '核心业务系统大模型渗透率快速拉升' }
+    ],
+
+    fastReadPoints: [
+      { tag: '降本红利', text: '私有部署成本比公有云便宜 85%，把大模型真正变成了企业白菜价基础设施。' },
+      { tag: '合规安全', text: '数据零出房，彻底破除金融与医疗数据合规使用的顾虑。' }
+    ]
+  },
+  {
+    id: 'news-quantum-topological-qubit',
+    title: '谷歌量子实验室攻克拓扑纠错：逻辑量子比特寿命首次超越物理限制',
+    subtitle: '将量子计算从「易受噪声干扰的实验玩具」推向「百倍容错的超级算力工厂」',
+    oneSentenceVerdict: '逻辑量子比特寿命超越物理比特，标志着量子计算正是迈入「容错量子计算 (FTQC)」的新时代。',
+    category: '科技前沿',
+    tags: ['量子计算', '拓扑纠错', '逻辑量子比特', '谷歌量子', '前沿硬件'],
+    date: '2026年9月30日',
+    publishedAt: '2026-09-30T10:00:00.000Z',
+    sourceDate: '2026-09-30 10:00',
+    timeAgo: '2天前',
+    readTimeMinutes: 4,
+    sourceName: '自然杂志 Nature · 顶级前沿',
+    sourceUrl: 'https://nature.com/articles/s41586-quantum-topological',
+    sourceCount: 5,
+    credibilityStars: 5,
+    impactScope: '全球',
+    changeVelocity: '↑ 快',
+    summary: '《Nature》发表谷歌量子 AI 团队最新突破：通过在表面码 (Surface Code) 架构上引入拓扑量子纠错点，团队成功合成了 12 个长寿命逻辑量子比特。测试表明，随着纠错码距离增加，逻辑比特的错误率指数级下降，存活时间首次超过了构成它的物理比特。',
+    coreQuote: '过去我们一直在和退相干的噪声做绝望的斗争，而今天我们证明了：通过正确的拓扑纠错，噪声是可以被物理规避的。',
+    quoteAuthor: '谷歌量子 AI 首席科学家',
+
+    tongsuSummary: {
+      simpleSay: '以前的量子芯片极其脆弱，外面稍微有点温度或震动噪声，计算就崩溃了（像用豆腐雕花）；现在的科学家发明了一种“互相监督”的阵列，用几百个普通量子比特组成一个“超级逻辑比特”，即使其中几个坏掉了，其他比特也能立刻把它纠正过来，计算终于能稳稳当当地进行了。',
+      whyExplanation: '就像团队合唱：如果只有一个人唱，他咳嗽一声整首歌就毁了（单个物理比特易错）；如果有 50 个人一起唱同一个声部，一个人咳嗽完全不影响整体美妙的歌声（容错逻辑比特）。',
+      whatItMeans: '新药研发分子筛选、超级电池材料合成与密码破译等过去传统超级计算机算几万年的难题，未来有望在数小时内被量子算力攻克。',
+      jargonTerms: ['逻辑量子比特', '表面码拓扑纠错', '容错量子计算 (FTQC)']
+    },
+
+    dehydratedItems: {
+      coreEntity: '谷歌量子 AI / 逻辑量子比特 / Nature 杂志',
+      keyAction: '攻克表面码拓扑纠错，逻辑比特寿命超过物理比特',
+      relatedCount: 10,
+      coreShifts: [
+        '逻辑比特错误率从 $10^{-3}$ 降至 $10^{-6}$ 量级',
+        '量子算法运行步骤数突破 10 万次极速门槛',
+        '稀释制冷机与超导微波控制线路供应链升级'
+      ],
+      impactHighlights: [
+        '制药巨头与材料科学实验室加速对接量子算力接口',
+        '后量子加密 (PQC) 安全改造倒计时提前'
+      ]
+    },
+
+    sevenElements: {
+      what: '谷歌量子团队在《Nature》上宣布拓扑量子纠错取得划时代突破。',
+      who: '谷歌量子 AI 团队、全球量子计算物理学家、Nature 审稿组。',
+      when: '2026年9月底。',
+      where: '加州量子硬件实验室。',
+      why: '量子退相干（噪声干扰导致计算中断）是量子计算机商业化的最大物理障碍。',
+      how: '采用高密度拓扑表面码，利用多物理比特冗余纠错形成稳定逻辑比特。',
+      soWhat: '开启真正可用的容错量子计算时代，重塑制药、材料与密码安全防线。',
+      aiVerdict: {
+        confidenceScore: 98,
+        volatility: '中',
+        actionLevel: '关注',
+        verdictSummary: '容错量子计算里程碑达成，前沿算力产业化前景显著明朗。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '拓扑表面码纠错阵列使错误率随码距增加而指数级下降',
+      nodes: [
+        { id: 'qt-1', label: '逻辑比特寿命首次超越底层物理比特', category: 'cause', description: '证明纠错增益大于物理噪声积累', dataPoint: '错误率降至 $10^{-6}$' },
+        { id: 'qt-2', label: '可运行超长步骤复杂量子化学模拟', category: 'mid_effect', description: '新药分子筛选与常温超导材料研发加速', dataPoint: '步骤超 10 万次' },
+        { id: 'qt-3', label: '金融防伪与抗量子密码 (PQC) 改造提速', category: 'market_impact', description: '传统非对称加密算法防御期限面临缩短' }
+      ],
+      variableWeights: [
+        { name: '超导线缆与低温低温极低温控制', weight: 45, impactDirection: 'up', description: '关乎可扩展物理比特数量' },
+        { name: '量子软件算法编译效率', weight: 35, impactDirection: 'up', description: '影响实际应用问题转化率' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '《Nature》发表拓扑纠错突破',
+        content: '12 个逻辑量子比特稳定运行，错误率降至新低。',
+        keyIndicators: ['寿命超越物理比特', '10万步骤']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '前沿物理算力融资升温',
+        content: '量子控线与极低温制冷上游产业链获得资本青睐。',
+        keyIndicators: ['PQC加密转型加速', '制药巨头合作订单']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-qt-1',
+        claim: '逻辑量子比特寿命与容错率首次在物理实体上被证明超越物理比特',
+        sourceFact: '《Nature》正刊论文第 618 卷第 7982 期同同行评审数据图表',
+        reliability: '高 (全球顶级学术期刊同行评审实测图表)',
+        confidenceScore: 99
+      }
+    ],
+
+    industrySignals: [
+      { sector: '科技前沿与量子计算', strength: 96, trend: 'up', detail: '容错量子计算拐点确立，物理技术路线收敛' },
+      { sector: '生物医药与材料科学', strength: 90, trend: 'up', detail: '量子化学计算接口商业化对接启动' }
+    ],
+
+    fastReadPoints: [
+      { tag: '物理突破', text: '让量子计算机克服了“脆弱易错”的致命毛病，走向长寿命容错计算。' },
+      { tag: '未来算力', text: '新药研发与新材料筛选迎来超级加速器，抗量子加密改造倒计时开启。' }
+    ]
   }
 ];
 

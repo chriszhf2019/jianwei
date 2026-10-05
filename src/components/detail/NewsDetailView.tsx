@@ -2,14 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem } from '../../types';
 import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
 import { SevenElementsTab } from './SevenElementsTab';
-import { LogicTreeTab } from './LogicTreeTab';
-import { RelevanceIdentityTab } from './RelevanceIdentityTab';
-import { RippleEffectTab } from './RippleEffectTab';
-import { DeepSpectrumTab } from './DeepSpectrumTab';
-import { ForecastArenaTab } from './ForecastArenaTab';
+const LogicTreeTab = React.lazy(() => import('./LogicTreeTab').then(m => ({ default: m.LogicTreeTab })));
+const RelevanceIdentityTab = React.lazy(() => import('./RelevanceIdentityTab').then(m => ({ default: m.RelevanceIdentityTab })));
+const RippleEffectTab = React.lazy(() => import('./RippleEffectTab').then(m => ({ default: m.RippleEffectTab })));
+const DeepSpectrumTab = React.lazy(() => import('./DeepSpectrumTab').then(m => ({ default: m.DeepSpectrumTab })));
+const ForecastArenaTab = React.lazy(() => import('./ForecastArenaTab').then(m => ({ default: m.ForecastArenaTab })));
+const ArchitectureDiagramTab = React.lazy(() => import('./ArchitectureDiagramTab').then(m => ({ default: m.ArchitectureDiagramTab })));
+
 import { EventEvolutionTimeline } from './EventEvolutionTimeline';
 import { SidebarEvolutionNav } from './SidebarEvolutionNav';
 import { ArticleBodyParserSection } from './ArticleBodyParserSection';
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip as RechartsTooltip, 
+  Cell 
+} from 'recharts';
 
 import { KeyTermNote, KeyTermHighlight } from '../common/KeyTermHighlight';
 
@@ -49,7 +60,8 @@ import {
   Network,
   GitMerge,
   Crosshair,
-  ChevronDown
+  ChevronDown,
+  Activity
 } from 'lucide-react';
 
 
@@ -103,6 +115,67 @@ function mergeDeep(article: NewsArticle, overrides: Record<string, unknown>): Ne
   }
   return next;
 }
+
+interface LogicWeightItem {
+  name: string;
+  weight: number;
+  color: string;
+  verdict: string;
+}
+
+const getArticleLogicWeights = (id: string, title: string): LogicWeightItem[] => {
+  switch (id) {
+    case 'news-anthropic-claude37':
+      return [
+        { name: '混合推理算力弹性分配', weight: 35, color: '#0284c7', verdict: '支持通过 API 自适应控制思考预算与执行时长，优化核心 ROI' },
+        { name: '自主错误修正与思考链反思', weight: 25, color: '#4f46e5', verdict: '显式推理链（Thinking Chain）公开可调，提升高复杂工程正确性' },
+        { name: 'API 控制参数与响应延迟', weight: 20, color: '#ca8a04', verdict: '思考延迟对即时高频场景的体验衰减与博弈阻尼' },
+        { name: '研发范式重构与程序员转型', weight: 20, color: '#16a34a', verdict: '推动开发周期向小时级收缩，程序员重构为架构审核员' }
+      ];
+    case 'news-tsmc-2nm-yield':
+      return [
+        { name: 'GAAFET 纳米片重构控漏电', weight: 35, color: '#0284c7', verdict: '4面栅极全包裹纳米片架构，突破物理隧穿漏电死角' },
+        { name: '高雄高雄 P1 试产良品率突破', weight: 25, color: '#4f46e5', verdict: '首批产品良率提前冲上 75% 商业化量产分水岭' },
+        { name: 'ASML 尖端光刻与折旧沉淀', weight: 20, color: '#ca8a04', verdict: 'High-NA EUV 光刻设备调试及昂贵工艺折旧的资金占位' },
+        { name: '巨头抢跑预付包厂垄断', weight: 20, color: '#16a34a', verdict: '苹果、英伟达超级预付金形成独家排他垄断，锁死份额' }
+      ];
+    case 'news-pboc-liquidity-tool':
+      return [
+        { name: '买断式质押流动性滴灌', weight: 35, color: '#0284c7', verdict: '买断质押解决抵押品摩擦，向实体直接注入定向中长期资金' },
+        { name: '硬科技中长期耐心资本补充', weight: 25, color: '#4f46e5', verdict: '对冲公开市场到期洪峰，为战略性新兴高科技研发稳固底座' },
+        { name: '商业银行信贷传导阻力', weight: 20, color: '#ca8a04', verdict: '考验银行在宏观环境下的风险厌恶偏好与信贷实际穿透率' },
+        { name: '宏观股债防线及汇率平滑', weight: 20, color: '#16a34a', verdict: '平滑中长期利率波动，为红利资产估值提供中长期资本底座' }
+      ];
+    case 'news-catl-solid-state-pilot':
+      return [
+        { name: '硫化物电解质与干法极片工艺', weight: 35, color: '#0284c7', verdict: '攻克固固界面传导瓶颈与连续卷对卷高精度极片薄膜成膜' },
+        { name: '低空经济 eVTOL 载重爆发', weight: 25, color: '#4f46e5', verdict: '单体密度超 500Wh/kg，高安全零热失控，赋能低空商飞' },
+        { name: '上游纯硫化锂特种材料定价', weight: 20, color: '#ca8a04', verdict: '特种锆、高电导硫化锂合成成本昂贵，构成大众级普及阻尼' },
+        { name: '高端车 1200km 续航轻量化', weight: 20, color: '#16a34a', verdict: '车身免去笨重热控外壳，实现能量密度翻倍与电池安全脱钩' }
+      ];
+    case 'news-deepseek-enterprise-deployment':
+      return [
+        { name: 'FP8/INT4 本地极限损失量化', weight: 35, color: '#0284c7', verdict: '量化技术使中端算力显存消耗降低 80%，极佳对齐大众硬件' },
+        { name: '敏感高合规数据物理不出域', weight: 25, color: '#4f46e5', verdict: '满足金融、医疗零数据泄密及零公有云调用合规红线' },
+        { name: '国产异构算力多卡适配调度', weight: 20, color: '#ca8a04', verdict: '解决非主流大牌芯片在私有集群的高效通信与负载平衡' },
+        { name: '企业局域网本地知识微调', weight: 20, color: '#16a34a', verdict: '私有语料微调技术，让大模型完美融合进真实生产业务线' }
+      ];
+    case 'news-quantum-topological-qubit':
+      return [
+        { name: '拓扑表面码监督校验纠错', weight: 35, color: '#0284c7', verdict: '引入表面码拓扑保护，通过物理比特多重冗余解决退相干' },
+        { name: '逻辑比特存活寿命超物理极限', weight: 25, color: '#4f46e5', verdict: '合成长相干逻辑比特，使得计算保真度跨越 10 万门槛' },
+        { name: '极低温稀释制冷微波线路扩展', weight: 20, color: '#ca8a04', verdict: '微波信号同轴线排布和超低阻抗控制在极低温下的封装极值' },
+        { name: '后量子密码重构与生物模拟', weight: 20, color: '#16a34a', verdict: '提速生物靶向药研发周期，倒逼全球抗量子安全加密改造' }
+      ];
+    default:
+      return [
+        { name: '事件首发核心事实触发', weight: 40, color: '#0284c7', verdict: '事件产生的主要原因与背景前置事实' },
+        { name: '产业链跟进与业务推进管线', weight: 30, color: '#4f46e5', verdict: '生态链上下游反应及直接承载的落实行动' },
+        { name: '成本、合规与落地博弈瓶颈', weight: 15, color: '#ca8a04', verdict: '决定落地快慢的限制条件及博弈变量摩擦' },
+        { name: '长周期微观红利与宏观重塑', weight: 15, color: '#16a34a', verdict: '产生的最终价值效益及宏观洗牌趋势' }
+      ];
+  }
+};
 
 interface NewsDetailViewProps {
   article: NewsArticle;
@@ -198,9 +271,11 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [showLogicHeatmap, setShowLogicHeatmap] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
 
   useEffect(() => {
+    setShowLogicHeatmap(false);
     const updateProgress = () => {
       const root = document.documentElement;
       const total = root.scrollHeight - window.innerHeight;
@@ -290,6 +365,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const tabsList: Array<{ id: CognitiveDetailTab; label: string; icon: React.ReactNode; step: string }> = [
     { id: 'seven_elements', label: '事实全貌与溯源', icon: <Sparkles className="w-4 h-4 text-[#E3120B]" />, step: '第一篇 · 事实' },
     { id: 'logic_tree', label: '底层逻辑与博弈', icon: <GitFork className="w-4 h-4 text-purple-600" />, step: '第二篇 · 博弈' },
+    { id: 'architecture_diagram', label: 'AI 架构全景图', icon: <Layers className="w-4 h-4 text-blue-600" />, step: '生成 · 架构' },
     { id: 'forecast_arena', label: '未来推演与预测', icon: <Crosshair className="w-4 h-4 text-red-600" />, step: '第三篇 · 推演' },
     { id: 'relevance_identity', label: '切身决策与行动', icon: <UserCheck className="w-4 h-4 text-emerald-600" />, step: '第四篇 · 决策' },
     { id: 'deep_spectrum', label: '五层通读全览', icon: <Layers className="w-4 h-4 text-amber-600" />, step: '附录 · 通读' },
@@ -298,6 +374,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const tabFeatureId: Record<CognitiveDetailTab, FeatureSummaryId> = {
     seven_elements: 'detail-seven',
     logic_tree: 'detail-logic',
+    architecture_diagram: 'detail-logic',
     relevance_identity: 'detail-identity',
     forecast_arena: 'detail-forecast',
     deep_spectrum: 'detail-spectrum',
@@ -747,11 +824,99 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             <button
               type="button"
               onClick={() => setSummaryExpanded((value) => !value)}
-              className="mt-2 text-[11px] font-serif font-bold text-stone-600 hover:text-stone-950 underline underline-offset-2"
+              className="mt-2 text-[11px] font-serif font-bold text-stone-600 hover:text-stone-950 underline underline-offset-2 animate-pulse"
             >
               {summaryExpanded ? '收起摘要' : '展开全文摘要'}
             </button>
           )}
+
+          {/* Collapsible Recharts Content Weights Heatmap */}
+          <div className="mt-4 pt-3 border-t border-stone-200/60">
+            <button
+              type="button"
+              onClick={() => setShowLogicHeatmap(!showLogicHeatmap)}
+              className="inline-flex items-center space-x-2 px-3 py-1.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold transition-all shadow-2xs cursor-pointer"
+            >
+              <Activity className={`w-3.5 h-3.5 text-red-500 ${showLogicHeatmap ? 'animate-spin' : ''}`} />
+              <span>{showLogicHeatmap ? '隐藏核心论点权重热力图 ✕' : '📊 展开核心论点权重热力图 ↗'}</span>
+            </button>
+
+            {showLogicHeatmap && (
+              <div className="mt-4 p-4 bg-white border border-stone-200 rounded-2xl space-y-4 animate-fadeIn">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-100 pb-2 gap-1.5">
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-serif font-black text-stone-900 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>新闻事实 & 论点逻辑权重热力分布 (Weight Map)</span>
+                    </h4>
+                    <p className="text-[10px] text-stone-500 font-sans">由见微认知引擎对新闻核心支撑材料进行的多维度语义比重分配模型（常态归一化）</p>
+                  </div>
+                  <span className="text-[9px] font-mono bg-stone-100 text-stone-600 px-1.5 py-0.2 rounded shrink-0 self-start sm:self-center">归一化总重: 100%</span>
+                </div>
+
+                <div className="h-60 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={getArticleLogicWeights(article.id, article.title)}
+                      layout="vertical"
+                      margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                    >
+                      <XAxis type="number" hide domain={[0, 100]} />
+                      <YAxis 
+                        type="category" 
+                        dataKey="name" 
+                        stroke="#78716c" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false}
+                        width={130}
+                        tick={{ fill: '#1c1917', fontWeight: 600 }}
+                      />
+                      <RechartsTooltip
+                        cursor={{ fill: 'rgba(28, 25, 23, 0.03)' }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-stone-900 border border-stone-800 text-stone-100 p-3 rounded-xl text-[11px] font-sans max-w-xs shadow-lg space-y-1">
+                                <p className="font-serif font-black text-white">{data.name}</p>
+                                <p className="text-red-400 font-mono font-bold">逻辑权重比：{data.weight}%</p>
+                                <p className="text-stone-300 leading-relaxed">{data.verdict}</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar 
+                        dataKey="weight" 
+                        radius={[0, 8, 8, 0]} 
+                        barSize={16}
+                      >
+                        {getArticleLogicWeights(article.id, article.title).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Legend & Insight Brief */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-stone-100">
+                  {getArticleLogicWeights(article.id, article.title).map((entry, idx) => (
+                    <div key={idx} className="p-2 bg-stone-50 rounded-lg space-y-1">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
+                        <span className="text-[10px] font-bold text-stone-900 font-serif truncate max-w-[120px]">{entry.name}</span>
+                        <span className="text-[10px] font-mono text-stone-500 font-bold ml-auto">{entry.weight}%</span>
+                      </div>
+                      <p className="text-[10px] text-stone-500 leading-snug line-clamp-2">{entry.verdict}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 核心研判区一键沉淀操作条 */}
           {onDepositToKnowledge && (
@@ -867,87 +1032,101 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         </div>
       )}
       <div className="min-h-[400px]">
-        {/* 第一篇：事实全貌与溯源 */}
-        {activeTab === 'seven_elements' && (
-          <SevenElementsTab
-            article={article}
-            onRunSkill={onRunSkill}
-            contextArticles={contextArticles}
-            onOpenArticle={onOpenArticle}
-            onOpenTermExplain={onOpenTermExplain}
-          />
-        )}
-
-
-        {/* 第二篇：底层逻辑与多方博弈 */}
-        {activeTab === 'logic_tree' && (
-          <div className="space-y-6">
-            {article.logicTree ? (
-              <LogicTreeTab logicTree={article.logicTree} />
-            ) : (
-              <MissingDeep feature="底层逻辑与因果树" note={deepNote} />
-            )}
+        <React.Suspense fallback={
+          <div className="flex flex-col items-center justify-center py-20 space-y-3">
+            <RefreshCw className="w-8 h-8 text-stone-400 animate-spin" />
+            <p className="text-xs font-serif font-bold text-stone-500 animate-pulse">正在为您进行模块化懒加载与深度认知研判分析…</p>
           </div>
-        )}
+        }>
+          {/* 第一篇：事实全貌与溯源 */}
+          {activeTab === 'seven_elements' && (
+            <SevenElementsTab
+              article={article}
+              onRunSkill={onRunSkill}
+              contextArticles={contextArticles}
+              onOpenArticle={onOpenArticle}
+              onOpenTermExplain={onOpenTermExplain}
+            />
+          )}
 
-        {/* 第三篇：未来推演与走势研判（宏观三阶涟漪 + 人机走势预测对赌） */}
-        {activeTab === 'forecast_arena' && (
-          <div className="space-y-8">
-            {/* 上半部：AI 宏观三阶涟漪效应与产业链演变 */}
-            {article.rippleEffect ? (
+
+          {/* 第二篇：底层逻辑与多方博弈 */}
+          {activeTab === 'logic_tree' && (
+            <div className="space-y-6">
+              {article.logicTree ? (
+                <LogicTreeTab logicTree={article.logicTree} />
+              ) : (
+                <MissingDeep feature="底层逻辑与因果树" note={deepNote} />
+              )}
+            </div>
+          )}
+
+          {/* 🎨 架构全景与因果传导图 */}
+          {activeTab === 'architecture_diagram' && (
+            <div className="space-y-6">
+              <ArchitectureDiagramTab article={article} />
+            </div>
+          )}
+
+          {/* 第三篇：未来推推演与走势研判（宏观三阶涟漪 + 人机走势预测对赌） */}
+          {activeTab === 'forecast_arena' && (
+            <div className="space-y-8">
+              {/* 上半部：AI 宏观三阶涟漪效应与产业链演变 */}
+              {article.rippleEffect ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#0284C7] uppercase tracking-wider">
+                      <Waves className="w-4 h-4" />
+                      <span>宏观演变沙盘 · 1-3月 / 3-12月 / 1-3年 级联反应与失效条件</span>
+                    </div>
+                    <span className="text-[11px] font-mono text-stone-500">AI 客观推演基准</span>
+                  </div>
+                  <RippleEffectTab
+                    rippleEffect={article.rippleEffect}
+                    contextArticles={contextArticles}
+                    onOpenArticle={onOpenArticle}
+                    onOpenTermExplain={onOpenTermExplain}
+                  />
+                </div>
+              ) : null}
+
+              {/* 下半部：人机独立预测研判与对账擂台 */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-serif font-bold text-[#0284C7] uppercase tracking-wider">
-                    <Waves className="w-4 h-4" />
-                    <span>宏观演变沙盘 · 1-3月 / 3-12月 / 1-3年 级联反应与失效条件</span>
+                  <div className="flex items-center gap-2 text-xs font-serif font-bold text-red-700 uppercase tracking-wider">
+                    <Crosshair className="w-4 h-4" />
+                    <span>独立研判与人机对账 · 设定验证日期与客观标准，立项存证</span>
                   </div>
-                  <span className="text-[11px] font-mono text-stone-500">AI 客观推演基准</span>
+                  <span className="text-[11px] font-mono text-stone-500">超级预测学 (Superforecasting)</span>
                 </div>
-                <RippleEffectTab
-                  rippleEffect={article.rippleEffect}
-                  contextArticles={contextArticles}
-                  onOpenArticle={onOpenArticle}
-                  onOpenTermExplain={onOpenTermExplain}
+                <ForecastArenaTab
+                  article={article}
+                  onSaveContract={onSaveContract}
+                  onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
                 />
               </div>
-            ) : null}
-
-            {/* 下半部：人机独立预测研判与对账擂台 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-serif font-bold text-red-700 uppercase tracking-wider">
-                  <Crosshair className="w-4 h-4" />
-                  <span>独立研判与人机对账 · 设定验证日期与客观标准，立项存证</span>
-                </div>
-                <span className="text-[11px] font-mono text-stone-500">超级预测学 (Superforecasting)</span>
-              </div>
-              <ForecastArenaTab
-                article={article}
-                onSaveContract={onSaveContract}
-                onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
-              />
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 第四篇：切身决策与行动指南 */}
-        {activeTab === 'relevance_identity' && (
-          <RelevanceIdentityTab
-            article={article}
-            personaImpacts={article.personaImpacts || []}
-            activePersona={activePersona}
-            onSelectPersona={onSelectPersona}
-            onRunPersonaForecast={onRunPersonaForecast}
-          />
-        )}
+          {/* 第四篇：切身决策与行动指南 */}
+          {activeTab === 'relevance_identity' && (
+            <RelevanceIdentityTab
+              article={article}
+              personaImpacts={article.personaImpacts || []}
+              activePersona={activePersona}
+              onSelectPersona={onSelectPersona}
+              onRunPersonaForecast={onRunPersonaForecast}
+            />
+          )}
 
-        {/* 附录：五层通读全览 */}
-        {activeTab === 'deep_spectrum' &&
-          ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
-            <DeepSpectrumTab article={article} />
-          ) : (
-            <MissingDeep feature="五层光谱深度全览" note={deepNote} />
-          ))}
+          {/* 附录：五层通读全览 */}
+          {activeTab === 'deep_spectrum' &&
+            ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
+              <DeepSpectrumTab article={article} />
+            ) : (
+              <MissingDeep feature="五层光谱深度全览" note={deepNote} />
+            ))}
+        </React.Suspense>
       </div>
 
 
@@ -956,7 +1135,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         <div className="space-y-0.5">
           <div className="text-xs font-serif font-bold text-stone-900">
             {activeTab === 'seven_elements' && '第一篇 事实已结构化拆解完毕 ➔ 下一步：进入「第二篇 · 底层逻辑与博弈」，剖析始发根因与利益格局'}
-            {activeTab === 'logic_tree' && '第二篇 因果链与博弈格局已摸清 ➔ 下一步：进入「第三篇 · 未来推演与预测」，评估 1-3 年连锁影响并立项对赌'}
+            {activeTab === 'logic_tree' && '第二篇 因果链与博弈格局已摸清 ➔ 下一步：生成「AI 架构全景图」，研读技术传导路径、博弈变量与终局效应'}
+            {activeTab === 'architecture_diagram' && '生成架构全景图并锁定临界变量 ➔ 下一步：进入「第三篇 · 未来推演与预测」，立项存证并进行对账擂台'}
             {activeTab === 'forecast_arena' && '第三篇 走势研判与预测对赌已确立 ➔ 下一步：进入「第四篇 · 切身决策与行动」，生成您的专属行动清单'}
             {activeTab === 'relevance_identity' && '第四篇 决策行动清单已生成 ➔ 下一步：查阅「附录 · 五层通读全览」或沉淀至个人备忘录'}
             {activeTab === 'deep_spectrum' && '您已完整掌握该事件的全部深度认知 ➔ 可前往「我的关注」查阅历史预测台账与备忘录'}
@@ -966,7 +1146,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         <button
           onClick={() => {
             if (activeTab === 'seven_elements') setActiveTab('logic_tree');
-            else if (activeTab === 'logic_tree') setActiveTab('forecast_arena');
+            else if (activeTab === 'logic_tree') setActiveTab('architecture_diagram');
+            else if (activeTab === 'architecture_diagram') setActiveTab('forecast_arena');
             else if (activeTab === 'forecast_arena') setActiveTab('relevance_identity');
             else if (activeTab === 'relevance_identity') setActiveTab('deep_spectrum');
             else if (activeTab === 'deep_spectrum' && onNavigateTab) {
@@ -978,7 +1159,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         >
           <span>
             {activeTab === 'seven_elements' && '进入第二篇：底层逻辑与博弈 ➔'}
-            {activeTab === 'logic_tree' && '进入第三篇：未来推演与预测 ➔'}
+            {activeTab === 'logic_tree' && '生成 AI 架构全景图 ➔'}
+            {activeTab === 'architecture_diagram' && '进入第三篇：未来推演与预测 ➔'}
             {activeTab === 'forecast_arena' && '进入第四篇：切身决策与行动 ➔'}
             {activeTab === 'relevance_identity' && '查阅附录：五层通读全览 ➔'}
             {activeTab === 'deep_spectrum' && '前往决策与对账台账 ➔'}

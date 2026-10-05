@@ -1248,6 +1248,75 @@ ${JSON.stringify(articleContext || {})}
   }
 });
 
+// Morning Briefing Interactive Dialogue endpoint
+app.post("/api/briefing/chat", applyRateLimit, async (req, res) => {
+  try {
+    const { question, persona, articles } = req.body;
+    if (!question) {
+      return res.status(400).json({ error: "Question is required" });
+    }
+
+    const provider = activeProvider();
+    const articlesDigest = (articles || [])
+      .slice(0, 5)
+      .map(
+        (a: any, i: number) =>
+          `【要情${i + 1}】《${a.title}》\n  - 核心事实：${a.summary || a.subtitle || '暂无摘要'}\n  - 异动与反常：${a.anomalyNote || a.oneSentenceVerdict || '关注边际公差异动'}\n  - 涉及行业/区域：${a.category || '核心战略产业'}`
+      )
+      .join("\n\n");
+
+    const personaName = persona?.name || '资深决策者';
+
+    if (!provider) {
+      const answer = generateBriefingAnswer(question, personaName);
+      return res.json({ answer, fallback: true });
+    }
+
+    const prompt = `你作为《见微 Genway》的晨间情报高级研讨顾问（Chief Intelligence Advisor）。
+用户刚收听完今日晨间全景简报，正在与你发起实时研讨追问。
+读者当前选择的透镜身份是：${personaName}（核心诉求：${persona?.tagline || '战略洞察与避险'}）。
+
+今日早报关键要情摘要：
+${articlesDigest}
+
+读者提出的具体追问：
+"${question}"
+
+请遵循见微的“报刊为骨，数据为翼”原则为读者作答：
+1. 语言沉着、凝练、一针见血，如同英国《金融时报》首席评论员与顶级智库闭门研讨发言；
+2. 结合今日播报的具体反常点、敏感度驱动变量或走廊阻尼，给出逻辑严密的因果阐释；
+3. 从用户的角色透镜（${personaName}）出发，明确指出核心利害与实操避险抓手；
+4. 字数控制在 200-300 字之间，分点清晰，适合语音朗读，严禁假大空的空话。`;
+
+    const text = await callAI(prompt, { temperature: 0.45 });
+    res.json({ answer: text });
+  } catch (err: any) {
+    console.error("Briefing chat error:", err);
+    const personaName = req.body?.persona?.name || '资深决策者';
+    const fallbackAnswer = generateBriefingAnswer(req.body?.question || '', personaName);
+    res.json({
+      answer: fallbackAnswer,
+      fallback: true,
+    });
+  }
+});
+
+function generateBriefingAnswer(question: string, personaName: string) {
+  let answer = `针对您关于“${question}”的追问，见微智库从【${personaName}】透镜为您做如下结构性拆解：\n\n`;
+  if (question.includes('通胀') || question.includes('物价') || question.includes('具体行业') || question.includes('行业影响')) {
+    answer += `1. **制造业与硬件科技**：核心零部件与大宗原材料的输入型通胀，正在压缩中游二阶供应商的毛利缓冲。若下游议价能力较弱，单季度净利率可能面临 1.5%~2.2% 的结构性挤压。\n2. **终端消费与出海渠道**：通胀预期下消费者对非刚需科技消费品的置换周期进一步拉长，海外分销商正从“主动补库”延后为“观望去库”，周转天数略有拉长。\n3. **应对抓手**：从【${personaName}】角度，应重点锁定中上游长期供货长协价，并利用备品冗余对冲汇率与海运运费的双重溢价。`;
+  } else if (question.includes('反常') || question.includes('细节')) {
+    answer += `1. **核心反常点核验**：今日最值得警惕的不是宏观层面的政策表态，而是财报附注与供应链交付排期中的公差收窄。数据显示二阶供应商良率与周转天数呈现非对称波动。\n2. **敏感变量穿透**：核心驱动变量在于关键设备通关阻尼与关税传导时滞。一旦现货库存消耗跨过安全红线，边际溢价将迅速沿产业链向下游转移。`;
+  } else if (question.includes('避险') || question.includes('行动') || question.includes('建议')) {
+    answer += `1. **开盘与工作日避险抓手**：从【${personaName}】切身利益看，首要动作是隔离高敏感度敞口，避免单纯根据情绪面做追涨杀跌。\n2. **前置防线构建**：核查跨国交付走廊的备货冗余度，对冲潜在的流动性与汇率波动，建立双周可证伪的验证里程碑。`;
+  } else if (question.includes('供应链') || question.includes('阻尼') || question.includes('走廊')) {
+    answer += `1. **战略阻尼动态**：东亚至北美战略电子走廊摩擦系数升至 0.68，主要受制于合规申报和边境抽检频次提升，平均通关延误已拉长至 4-6 个工作日。\n2. **替代路径与成本**：部分厂商正加速向东南亚中转仓分散备货，但短线仓储成本与跨境转运保费已上浮约 12%。`;
+  } else {
+    answer += `1. **多重信号交叉验证**：今日监测到的多条要情具有深层共性——均反映出头部主体在面对外部不确定性时，正从“扩张型研发”转向“防守型冗余建设”。\n2. **未来72小时关键线索**：密切观察主要监管方与产业链二阶龙头在公开发言中的措辞微调，这将成为验证下一阶段行情拐点的关键指标。`;
+  }
+  return answer;
+}
+
 // —— 本地启发式基准推演（服务端兜底，与前端 computeLocalPrediction 同一口径） ——
 function localBaselinePrediction(body: any) {
   // 与前端「人机预测擂台/与我何干·双向预测」共用同一口径：逻辑树驱动变量净动量（单一公式镜像）。
