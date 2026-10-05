@@ -12,10 +12,17 @@ function databasePath(): string {
 
 type OpenDatabase = { path: string; db: DatabaseSync };
 let openDatabaseCache: OpenDatabase | null = null;
+let databaseEpoch = 0;
+
+/** 连接关闭或换库后递增。语料层据此丢掉“未改动”标记，下次保存会重新计算哈希。 */
+export function databaseCacheEpoch(): number {
+  return databaseEpoch;
+}
 
 /** 释放当前共享连接。恢复备份前必须调用，否则 Linux 上已打开的文件描述符仍指向旧 inode。 */
 export function closeDatabase(): void {
   articleHashCache = null;
+  databaseEpoch += 1;
   if (!openDatabaseCache) return;
   try {
     openDatabaseCache.db.close();
@@ -439,6 +446,22 @@ export function planArticlePersistence(
   return { writeIds, reindexIds, removedIds };
 }
 
+/** dirtyIds 为 null 时全部重算；否则只重算脏 id，以及库里还没有哈希的 id。 */
+export function articleIdsToHash(
+  ids: Iterable<string>,
+  known: ReadonlyMap<string, string>,
+  dirtyIds: ReadonlySet<string> | null,
+): Set<string> {
+  const need = new Set<string>();
+  for (const rawId of ids) {
+    const id = String(rawId || "");
+    if (!id) continue;
+    const knownHash = known.get(id);
+    if (dirtyIds == null || dirtyIds.has(id) || !knownHash) need.add(id);
+  }
+  return need;
+}
+
 type ArticleHashCache = {
   path: string;
   hashes: Map<string, string>;
@@ -482,17 +505,28 @@ function replaceArticleProjections(
   insertSearch.run(id, articleSearchBody(article));
 }
 
-export function persistArticlesToDatabase(articles: any[]): void {
+export function persistArticlesToDatabase(
+  articles: any[],
+  dirtyIds?: ReadonlySet<string> | null,
+): void {
   const db = openDatabase();
   const state = articleHashState(db);
   const indexStale = state.indexVersion !== ARTICLE_INDEX_VERSION;
-  const byId = new Map<string, { article: any; payload: string; hash: string }>();
+  const byId = new Map<string, { article: any; payload?: string; hash: string }>();
   for (const article of articles) {
     const id = String(article?.id || "");
     if (!id) continue;
-    const payload = JSON.stringify(article);
-    const hash = crypto.createHash("sha256").update(payload).digest("hex");
-    byId.set(id, { article, payload, hash });
+    byId.set(id, { article, hash: "" });
+  }
+  const toHash = articleIdsToHash(byId.keys(), state.hashes, dirtyIds === undefined ? null : dirtyIds);
+  for (const [id, item] of byId) {
+    if (!toHash.has(id)) {
+      item.hash = state.hashes.get(id) || "";
+      continue;
+    }
+    const payload = JSON.stringify(item.article);
+    item.payload = payload;
+    item.hash = crypto.createHash("sha256").update(payload).digest("hex");
   }
   const plan = planArticlePersistence(
     [...byId.entries()].map(([id, item]) => ({ id, hash: item.hash })),
@@ -534,7 +568,7 @@ export function persistArticlesToDatabase(articles: any[]): void {
   try {
     for (const id of plan.writeIds) {
       const item = byId.get(id);
-      if (!item) continue;
+      if (!item?.payload) continue;
       upsert.run(
         id,
         articleSortTime(item.article),

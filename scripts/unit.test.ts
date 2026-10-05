@@ -62,7 +62,7 @@ import { normalizeRegionMentions, regionScopeOf } from '../src/utils/regionSeman
 import { clearEnrichCache, enrichKey, getOrCreateCached, predictKey } from '../src/server/cache';
 import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
-import { planArticlePersistence } from '../src/server/database';
+import { articleIdsToHash, planArticlePersistence } from '../src/server/database';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
@@ -1001,4 +1001,17 @@ test('planArticlePersistence: 未变化的文章不写，重复 id 以最后一�
   assert.deepEqual(stale.writeIds, ['edit']);
   assert.deepEqual(stale.reindexIds, ['keep']);
   assert.deepEqual(stale.removedIds, ['gone']);
+});
+
+test('articleIdsToHash: 只重算脏文章和没有哈希的新文章', () => {
+  const known = new Map([
+    ['keep', 'hash-keep'],
+    ['edit', 'hash-old'],
+    ['blank', ''],
+  ]);
+  const dirty = new Set(['edit']);
+  const ids = articleIdsToHash(['keep', 'edit', 'fresh', 'blank', ''], known, dirty);
+  assert.deepEqual([...ids], ['edit', 'fresh', 'blank']);
+  assert.deepEqual([...articleIdsToHash(['keep', 'edit'], known, null)], ['keep', 'edit']);
+  assert.deepEqual([...articleIdsToHash(['keep'], known, new Set())], []);
 });

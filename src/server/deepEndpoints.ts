@@ -1,7 +1,7 @@
 import express from "express";
 import { getOrCreateCached, enrichKey } from "./cache";
 import { activeProvider, callAI, callAIWithReasoning, providerModel } from "./ai";
-import { serverCorpus, persistCorpus, findCorpusArticle } from "./corpus";
+import { serverCorpus, persistCorpus, findCorpusArticle, markCorpusArticlesDirty } from "./corpus";
 import { djb2 } from "./cache";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
 import {
@@ -35,7 +35,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       model,
       promptVersion: PROMPT_VERSIONS.enrich,
     });
-    const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
+    const target = articleId ? findCorpusArticle(articleId) : undefined;
 
     const prompt = `你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。
 【核心语言规则】：无论输入的原始标题、正文或信源语言是英文还是中文，你必须一律且百分之百使用规范、专业、精辟的【简体中文】输出所有的分析字段（包括 subtitle、oneSentenceVerdict、summary、sevenElements、logicTree、tongsuSummary、dehydratedItems、bullBearDebate、coreLogic 等全量字段，不得残留英文长句或段落）。
@@ -112,6 +112,7 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
         if (Array.isArray(target.spectrumLayers) && target.spectrumLayers.length > 0) {
           target.spectrumLayers = target.spectrumLayers;
         }
+        markCorpusArticlesDirty([target]);
         persistCorpus();
       }
     }
@@ -318,7 +319,7 @@ async function runSingleSkill(
     });
     const value = generated.data;
     const wasCached = generated.cached || generated.deduped;
-    const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
+    const target = articleId ? findCorpusArticle(articleId) : undefined;
     const fieldMeta = createFieldMeta(
       provider,
       model,
@@ -328,6 +329,7 @@ async function runSingleSkill(
     if (target) {
       target[opts.field] = value;
       attachFieldMeta(target, [opts.field], fieldMeta);
+      markCorpusArticlesDirty([target]);
       persistCorpus();
     }
     res.json({
@@ -609,9 +611,7 @@ app.post("/api/skill/personaforecast", applyRateLimit, async (req, res) => {
     model,
     PROMPT_VERSIONS.skill,
   ].join("\n"))}`;
-  const target = articleId
-    ? serverCorpus.find((a: any) => String(a?.id) === String(articleId))
-    : undefined;
+  const target = articleId ? findCorpusArticle(articleId) : undefined;
 
   // 按 personaId upsert 并写回语料
   const upsertWrite = (item: any) => {
@@ -621,6 +621,7 @@ app.post("/api/skill/personaforecast", applyRateLimit, async (req, res) => {
       const idx = list.findIndex((x) => x?.personaId === stamped.personaId);
       if (idx >= 0) list[idx] = stamped; else list.push(stamped);
       target.personaForecasts = list;
+      markCorpusArticlesDirty([target]);
       persistCorpus();
     }
     return stamped;

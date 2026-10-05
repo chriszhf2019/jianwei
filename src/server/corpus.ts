@@ -10,6 +10,7 @@ import { normalizeEntityMentions } from "../utils/entityGraph";
 import { normalizeRegionMentions, inferDefaultRegionMentions, inferDefaultEntityMentions } from "../utils/regionSemantics";
 import {
   backupDatabase,
+  databaseCacheEpoch,
   databaseFile,
   loadArticlesFromDatabase,
   persistArticlesToDatabase,
@@ -234,15 +235,51 @@ process.once("beforeExit", () => {
   flushCorpusSnapshot();
 });
 
+let articlesById = new Map<string, any>();
+let dirtyArticleIds: Set<string> | null = new Set();
+let seenDatabaseEpoch = 0;
+
+function indexCorpus(items: any[]): void {
+  articlesById = new Map();
+  for (const article of items) {
+    const id = String(article?.id || "");
+    if (id) articlesById.set(id, article);
+  }
+}
+
+function syncDirtySetWithDatabase(): void {
+  const epoch = databaseCacheEpoch();
+  if (epoch !== seenDatabaseEpoch) {
+    seenDatabaseEpoch = epoch;
+    dirtyArticleIds = null;
+  }
+}
+
+/** 文章被改过之后调用。连接换过或整库重置时会忽略个别 id，下次保存改为全量对哈希。 */
+export function markCorpusArticlesDirty(articles: Iterable<any>): void {
+  for (const article of articles) {
+    const id = String(article?.id || "");
+    if (!id) continue;
+    articlesById.set(id, article);
+    if (dirtyArticleIds) dirtyArticleIds.add(id);
+  }
+}
+
 export function persistCorpus(): void {
   corpusRevision += 1;
-  if (NO_PERSIST) return;
+  if (NO_PERSIST) {
+    dirtyArticleIds = new Set();
+    return;
+  }
+  syncDirtySetWithDatabase();
   try {
-    persistArticlesToDatabase(serverCorpus);
+    persistArticlesToDatabase(serverCorpus, dirtyArticleIds);
   } catch (e) {
     console.error("failed to persist corpus:", e);
     return;
   }
+  dirtyArticleIds = new Set();
+  seenDatabaseEpoch = databaseCacheEpoch();
   scheduleCorpusSnapshot();
 }
 
@@ -328,6 +365,9 @@ function loadCorpus(): any[] {
 }
 
 export let serverCorpus: any[] = loadCorpus();
+indexCorpus(serverCorpus);
+dirtyArticleIds = new Set();
+seenDatabaseEpoch = databaseCacheEpoch();
 export let lastIngest: any = null;
 let corpusRevision = 0;
 
@@ -462,11 +502,13 @@ export function appendFeedItems(
           .filter(Boolean)
       ).size;
       existingByUrl.set(urlKey, existingArticle);
+      markCorpusArticlesDirty([existingArticle]);
       mergedSources += 1;
       continue;
     }
     const created = toFeedArticle(raw, localAdded);
     serverCorpus.push(created);
+    markCorpusArticlesDirty([created]);
     existingByTitle.set(titleKey, created);
     existingByUrl.set(urlKey, created);
     localAdded += 1;
@@ -489,6 +531,8 @@ export function appendFeedItems(
 
 export function resetCorpus(): void {
   serverCorpus = demoDataEnabled() ? (CURATED_ARTICLES as any[]).map((a) => ({ ...a })) : [];
+  indexCorpus(serverCorpus);
+  dirtyArticleIds = null;
   lastIngest = null;
   persistCorpus();
   flushCorpusSnapshot();
@@ -505,6 +549,7 @@ export function pruneExternalCorpus(maxAgeDays = 30): number {
     const ts = parseArticleDate(String(a.publishedAt));
     return ts === null || now - ts <= maxAgeMs;
   });
+  indexCorpus(serverCorpus);
   const removed = before - serverCorpus.length;
   if (removed > 0) persistCorpus();
   return removed;
@@ -527,5 +572,5 @@ export function corpusSortTime(a: any): number {
 }
 
 export function findCorpusArticle(articleId: string): any | undefined {
-  return serverCorpus.find((a) => String(a?.id) === String(articleId));
+  return articlesById.get(String(articleId));
 }

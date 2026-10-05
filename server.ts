@@ -28,6 +28,7 @@ import {
   resetCorpus,
   corpusSortTime,
   findCorpusArticle,
+  markCorpusArticlesDirty,
   backupCorpus,
   backupDirectory,
   getCorpusRevision,
@@ -2376,6 +2377,7 @@ ${String(pageText).slice(0, 60000)}`;
       ["evidenceChain"],
       createFieldMeta(provider, providerModel(provider), PROMPT_VERSIONS.evidence_reextract)
     );
+    markCorpusArticlesDirty([article]);
     persistCorpus();
     res.json({ ok: true, overrides: { evidenceChain: verified }, matched: verified.filter((x: any) => x.verificationStatus === "linked").length });
   } catch (error: any) {

@@ -1,5 +1,5 @@
 import express from "express";
-import { serverCorpus, persistCorpus } from "./corpus";
+import { serverCorpus, persistCorpus, markCorpusArticlesDirty } from "./corpus";
 import { callAI, activeProvider, providerModel } from "./ai";
 import { PROMPT_VERSIONS, attachFieldMeta, createFieldMeta } from "./aiValidation";
 import { normalizeEntityMentions } from "../utils/entityGraph";
@@ -100,6 +100,7 @@ function jobAttach(job: JobState, chunk: any[], parsed: any, base: number): void
           confidence: Math.max(0, Math.min(1, Number(r?.confidence) || 0)),
         }))
       );
+      markCorpusArticlesDirty([a]);
     } else if (job.kind === "entities" && Array.isArray(found.entities)) {
       a.entityMentions = normalizeEntityMentions(
         found.entities.map((e: any) => ({
@@ -109,6 +110,7 @@ function jobAttach(job: JobState, chunk: any[], parsed: any, base: number): void
         })),
         { title: a.title, summary: a.summary }
       );
+      markCorpusArticlesDirty([a]);
     }
   });
 }
@@ -134,7 +136,10 @@ async function runJob(job: JobState): Promise<void> {
       const field = job.kind === "regions" ? "regionMentions" : "entityMentions";
       const meta = createFieldMeta(provider, providerModel(provider), PROMPT_VERSIONS.annotations);
       for (const article of chunk) {
-        if (Array.isArray(article?.[field])) attachFieldMeta(article, [field], meta);
+        if (Array.isArray(article?.[field])) {
+          attachFieldMeta(article, [field], meta);
+          markCorpusArticlesDirty([article]);
+        }
       }
     } catch {
       job.failed += chunk.length;
