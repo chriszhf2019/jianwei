@@ -707,6 +707,53 @@ export function loadSourcePageTexts(
   return found;
 }
 
+export interface SourceArchiveEntry {
+  checkKey: string;
+  sourceUrl: string;
+  status: string;
+  contentHash: string | null;
+  checkedAt: string;
+  claimReviewCount: number;
+}
+
+/** 已保存正文的来源页面。没有正文的失败抓取不进入档案。 */
+export function listSourceArchives(limit = 40): SourceArchiveEntry[] {
+  if (!fs.existsSync(databasePath())) return [];
+  const db = openDatabase();
+  const rows = db.prepare(`
+    SELECT check_key, source_url, status, content_hash, checked_at, payload
+    FROM source_checks
+    WHERE page_text IS NOT NULL AND length(trim(page_text)) >= 200
+    ORDER BY checked_at DESC
+    LIMIT ?
+  `).all(Math.max(1, Math.min(100, limit))) as Array<{
+    check_key?: string;
+    source_url?: string;
+    status?: string;
+    content_hash?: string | null;
+    checked_at?: string;
+    payload?: string;
+  }>;
+  return rows.flatMap((row) => {
+    if (!row.check_key || !row.source_url || !row.checked_at) return [];
+    let claimReviewCount = 0;
+    try {
+      const payload = JSON.parse(String(row.payload || "{}"));
+      claimReviewCount = Array.isArray(payload?.claimReviews) ? payload.claimReviews.length : 0;
+    } catch {
+      claimReviewCount = 0;
+    }
+    return [{
+      checkKey: row.check_key,
+      sourceUrl: row.source_url,
+      status: String(row.status || ""),
+      contentHash: row.content_hash || null,
+      checkedAt: row.checked_at,
+      claimReviewCount,
+    }];
+  });
+}
+
 export function clearTransientSourceChecks(): number {
   if (!fs.existsSync(databasePath())) return 0;
   const db = openDatabase();

@@ -408,6 +408,17 @@ export interface SourceInspectionResult {
   cached?: boolean;
   fetchedAt: string;
   reason?: string;
+  /** 页面自带的 schema.org ClaimReview。没有该标记时不出现。 */
+  claimReviews?: Array<{
+    claimReviewed: string;
+    url?: string;
+    authorName?: string;
+    datePublished?: string;
+    ratingLabel?: string;
+    ratingValue?: number;
+    bestRating?: number;
+    worstRating?: number;
+  }>;
 }
 
 // Intelligence Hub Types

@@ -126,6 +126,7 @@ import {
   batchDeleteDatabaseAnalyses,
   getDatabaseOverview,
   loadSourcePageTexts,
+  listSourceArchives,
 } from "./src/server/database";
 import { deriveFromList } from "./src/utils/corpusMetrics";
 import {
@@ -2255,6 +2256,23 @@ app.get("/api/syndication/graph", (_req, res) => {
 });
 
 // —— 来源页面核验：SSRF 防护、页面指纹、引句匹配 ——
+app.get("/api/source/archive", (_req, res) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  if (NO_PERSIST) return res.json({ entries: [], note: "当前不保存来源页面。" });
+  try {
+    const entries = listSourceArchives(40);
+    res.json({
+      entries,
+      note: entries.length
+        ? "档案只包含已经抓取并保存正文的页面。ClaimReview 只在页面自带 schema.org 标记时记入。"
+        : "还没有已保存的来源页面。核验证据链接后，页面指纹和正文会留在这里。",
+    });
+  } catch (error) {
+    console.error("source archive error:", error);
+    res.status(503).json({ entries: [], note: "来源页面档案暂时读不出来。" });
+  }
+});
+
 app.post("/api/source/inspect", applyRateLimit, async (req, res) => {
   const url = String(req.body?.url || "").trim();
   const quote = String(req.body?.quote || "").trim();

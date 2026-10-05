@@ -48,6 +48,7 @@ import {
 } from '../src/utils/entityGraph';
 import { sourceGroupInfo, sourceGroupKey } from '../src/utils/sourceGrouping';
 import { buildSyndicationGraph, findSyndicationCandidates } from '../src/utils/syndication';
+import { extractClaimReviews } from '../src/utils/claimReview';
 import {
   expectedCalibrationError,
   krippendorffAlphaNominal,
@@ -1002,6 +1003,39 @@ test('syndication: 双方都有正文时按正文比较，传播链按小时而�
   assert.equal(graph.edges[0]?.to, 'b');
   assert.equal(graph.chains[0]?.spanHours, 2);
   assert.deepEqual(graph.chains[0]?.nodes, ['a', 'b']);
+});
+
+test('claimReview: 只读取页面里的 ClaimReview，不把普通评论当成结论', () => {
+  const html = `
+    <script type="application/ld+json">
+      {
+        "@graph": [
+          {
+            "@type": "Review",
+            "reviewBody": "这是一篇普通评论，不是事实核查。"
+          },
+          {
+            "@type": "ClaimReview",
+            "claimReviewed": "某公司宣布下月停产",
+            "url": "https://example.com/review/1",
+            "author": { "@type": "Organization", "name": "核查组" },
+            "datePublished": "2026-09-12",
+            "reviewRating": { "alternateName": "缺乏依据", "ratingValue": "1", "bestRating": "5" }
+          }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">{ not json</script>
+  `;
+  const reviews = extractClaimReviews(html);
+  assert.equal(reviews.length, 1);
+  assert.equal(reviews[0].claimReviewed, '某公司宣布下月停产');
+  assert.equal(reviews[0].authorName, '核查组');
+  assert.equal(reviews[0].ratingLabel, '缺乏依据');
+  assert.equal(reviews[0].ratingValue, 1);
+  assert.equal(reviews[0].bestRating, 5);
+  assert.equal(extractClaimReviews('<p>没有标记</p>').length, 0);
+  assert.equal(extractClaimReviews('<script type="application/ld+json">{"@type":"ClaimReview"}</script>').length, 0);
 });
 
 test('evaluationMetrics: 分类、概率和排序指标', () => {

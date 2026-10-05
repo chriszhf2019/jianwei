@@ -8,6 +8,7 @@ import { IntelligenceDensityCurve } from './IntelligenceDensityCurve';
 import { DataSourceHealthPanel } from './DataSourceHealthPanel';
 import { EntityCoveragePanel } from './EntityCoveragePanel';
 import { SyndicationPanel } from './SyndicationPanel';
+import { SourceArchivePanel } from './SourceArchivePanel';
 import { MentionRegionAIPanel } from './MentionRegionAIPanel';
 import { RegionDependenceWidget } from './RegionDependenceWidget';
 import { RegionIntelligencePanel } from './RegionIntelligencePanel';
@@ -428,6 +429,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       <EntityCoveragePanel articles={contextArticles} />
 
       <SyndicationPanel articles={contextArticles} onOpenArticleById={onOpenArticleById} />
+      <SourceArchivePanel />
       </>
       )}
 

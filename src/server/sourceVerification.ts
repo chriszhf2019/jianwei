@@ -3,6 +3,7 @@ import dns from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
+import { extractClaimReviews, type ClaimReviewRecord } from "../utils/claimReview";
 
 const REQUEST_TIMEOUT_MS = Number(process.env.SOURCE_FETCH_TIMEOUT_MS || 12_000);
 const MAX_REDIRECTS = 3;
@@ -39,6 +40,8 @@ export interface SourceInspectionResult {
   deduplicated?: boolean;
   /** 仅服务端内部使用；API 响应会剥离该字段。 */
   pageText?: string;
+  /** 页面 JSON-LD 里的 ClaimReview。没有该标记时不写。 */
+  claimReviews?: ClaimReviewRecord[];
 }
 
 const inFlightInspections = new Map<string, Promise<SourceInspectionResult>>();
@@ -371,6 +374,7 @@ export async function inspectSource(rawUrl: string, quote = ""): Promise<SourceI
       };
     }
     const metadata = extractPageMetadata(response.body);
+    const claimReviews = extractClaimReviews(response.body);
     const contentHash = crypto.createHash("sha256").update(response.body).digest("hex");
     const quoteMatch = evaluateQuoteMatch(metadata.text, quote);
     const status: SourceInspectionStatus = quoteMatch.status;
@@ -392,6 +396,7 @@ export async function inspectSource(rawUrl: string, quote = ""): Promise<SourceI
       cached: false,
       fetchedAt,
       pageText: metadata.text.slice(0, 200_000),
+      ...(claimReviews.length > 0 ? { claimReviews } : {}),
     };
   } catch (error: any) {
     const reason = String(error?.message || error);
