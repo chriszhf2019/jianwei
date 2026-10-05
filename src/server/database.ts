@@ -15,6 +15,7 @@ let openDatabaseCache: OpenDatabase | null = null;
 
 /** 释放当前共享连接。恢复备份前必须调用，否则 Linux 上已打开的文件描述符仍指向旧 inode。 */
 export function closeDatabase(): void {
+  articleHashCache = null;
   if (!openDatabaseCache) return;
   try {
     openDatabaseCache.db.close();
@@ -56,6 +57,11 @@ function openDatabase(): DatabaseSync {
       PRIMARY KEY (article_id, region)
     );
     CREATE INDEX IF NOT EXISTS idx_article_regions_region ON article_regions(region, article_id);
+
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
 
     CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
       article_id UNINDEXED,
@@ -399,69 +405,175 @@ export function queryArticlesPage(input: {
   }
 }
 
+/** 检索投影的代码版本。变更分词或地区提取时递增，以便只重建一次索引。 */
+const ARTICLE_INDEX_VERSION = "1";
+
+export function planArticlePersistence(
+  incoming: Array<{ id: string; hash: string }>,
+  known: ReadonlyMap<string, string>,
+  indexStale: boolean,
+): { writeIds: string[]; reindexIds: string[]; removedIds: string[] } {
+  const nextIds = new Set<string>();
+  const mode = new Map<string, "write" | "reindex">();
+  for (const item of incoming) {
+    const id = String(item.id || "");
+    if (!id) continue;
+    nextIds.add(id);
+    if (known.get(id) === item.hash) {
+      if (indexStale) mode.set(id, "reindex");
+      else mode.delete(id);
+      continue;
+    }
+    mode.set(id, "write");
+  }
+  const writeIds: string[] = [];
+  const reindexIds: string[] = [];
+  for (const [id, next] of mode) {
+    if (next === "write") writeIds.push(id);
+    else reindexIds.push(id);
+  }
+  const removedIds: string[] = [];
+  for (const id of known.keys()) {
+    if (!nextIds.has(id)) removedIds.push(id);
+  }
+  return { writeIds, reindexIds, removedIds };
+}
+
+type ArticleHashCache = {
+  path: string;
+  hashes: Map<string, string>;
+  indexVersion: string | null;
+};
+let articleHashCache: ArticleHashCache | null = null;
+
+function articleHashState(db: DatabaseSync): ArticleHashCache {
+  const file = databasePath();
+  if (articleHashCache?.path === file) return articleHashCache;
+  const rows = db.prepare("SELECT id, payload_hash FROM articles").all() as Array<{ id: string; payload_hash?: string | null }>;
+  const hashes = new Map<string, string>();
+  for (const row of rows) hashes.set(String(row.id), row.payload_hash ? String(row.payload_hash) : "");
+  const versionRow = db.prepare(
+    "SELECT value FROM app_meta WHERE key = ?"
+  ).get("article_index_version") as { value?: string } | undefined;
+  articleHashCache = {
+    path: file,
+    hashes,
+    indexVersion: versionRow?.value ? String(versionRow.value) : null,
+  };
+  return articleHashCache;
+}
+
+function replaceArticleProjections(
+  deleteRegions: { run: (...args: any[]) => unknown },
+  insertRegion: { run: (...args: any[]) => unknown },
+  deleteSearch: { run: (...args: any[]) => unknown },
+  insertSearch: { run: (...args: any[]) => unknown },
+  id: string,
+  article: any,
+): void {
+  deleteRegions.run(id);
+  const regions = new Set<string>(
+    (Array.isArray(article?.regionMentions) ? article.regionMentions : [])
+      .map((item: any) => String(item?.region || "").trim())
+      .filter(Boolean)
+  );
+  for (const region of regions) insertRegion.run(id, region);
+  deleteSearch.run(id);
+  insertSearch.run(id, articleSearchBody(article));
+}
+
 export function persistArticlesToDatabase(articles: any[]): void {
   const db = openDatabase();
+  const state = articleHashState(db);
+  const indexStale = state.indexVersion !== ARTICLE_INDEX_VERSION;
+  const byId = new Map<string, { article: any; payload: string; hash: string }>();
+  for (const article of articles) {
+    const id = String(article?.id || "");
+    if (!id) continue;
+    const payload = JSON.stringify(article);
+    const hash = crypto.createHash("sha256").update(payload).digest("hex");
+    byId.set(id, { article, payload, hash });
+  }
+  const plan = planArticlePersistence(
+    [...byId.entries()].map(([id, item]) => ({ id, hash: item.hash })),
+    state.hashes,
+    indexStale,
+  );
+  if (
+    plan.writeIds.length === 0 &&
+    plan.reindexIds.length === 0 &&
+    plan.removedIds.length === 0 &&
+    !indexStale
+  ) {
+    return;
+  }
+  const deleteRegions = db.prepare("DELETE FROM article_regions WHERE article_id = ?");
+  const insertRegion = db.prepare(
+    "INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)"
+  );
+  const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
+  const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
+  const upsert = db.prepare(`
+    INSERT INTO articles (
+      id, sort_time, source_name, published_at, is_external, payload, updated_at, payload_hash
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      sort_time = excluded.sort_time,
+      source_name = excluded.source_name,
+      published_at = excluded.published_at,
+      is_external = excluded.is_external,
+      payload = excluded.payload,
+      updated_at = excluded.updated_at,
+      payload_hash = excluded.payload_hash
+    WHERE articles.payload_hash IS NULL OR articles.payload_hash != excluded.payload_hash
+  `);
+  const deleteArticle = db.prepare("DELETE FROM articles WHERE id = ?");
+  const now = new Date().toISOString();
   db.exec("BEGIN IMMEDIATE");
   try {
-    db.exec("CREATE TEMP TABLE IF NOT EXISTS current_article_ids (id TEXT PRIMARY KEY)");
-    db.exec("DELETE FROM current_article_ids");
-    const markCurrent = db.prepare("INSERT OR IGNORE INTO current_article_ids (id) VALUES (?)");
-    const upsert = db.prepare(`
-      INSERT INTO articles (
-        id, sort_time, source_name, published_at, is_external, payload, updated_at, payload_hash
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        sort_time = excluded.sort_time,
-        source_name = excluded.source_name,
-        published_at = excluded.published_at,
-        is_external = excluded.is_external,
-        payload = excluded.payload,
-        updated_at = excluded.updated_at,
-        payload_hash = excluded.payload_hash
-      WHERE articles.payload_hash IS NULL OR articles.payload_hash != excluded.payload_hash
-    `);
-    const deleteRegions = db.prepare("DELETE FROM article_regions WHERE article_id = ?");
-    const insertRegion = db.prepare(
-      "INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)"
-    );
-    const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
-    const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
-    const now = new Date().toISOString();
-    for (const article of articles) {
-      const id = String(article?.id || "");
-      if (!id) continue;
-      const payload = JSON.stringify(article);
-      const payloadHash = crypto.createHash("sha256").update(payload).digest("hex");
-      markCurrent.run(id);
+    for (const id of plan.writeIds) {
+      const item = byId.get(id);
+      if (!item) continue;
       upsert.run(
         id,
-        articleSortTime(article),
-        String(article?.sourceName || ""),
-        article?.publishedAt ? String(article.publishedAt) : null,
-        article?.isExternal === true ? 1 : 0,
-        payload,
+        articleSortTime(item.article),
+        String(item.article?.sourceName || ""),
+        item.article?.publishedAt ? String(item.article.publishedAt) : null,
+        item.article?.isExternal === true ? 1 : 0,
+        item.payload,
         now,
-        payloadHash
+        item.hash
       );
-      deleteRegions.run(id);
-      const regions = new Set<string>(
-        (Array.isArray(article?.regionMentions) ? article.regionMentions : [])
-          .map((item: any) => String(item?.region || "").trim())
-          .filter(Boolean)
-      );
-      for (const region of regions) insertRegion.run(id, region);
-      deleteSearch.run(id);
-      insertSearch.run(id, articleSearchBody(article));
+      replaceArticleProjections(deleteRegions, insertRegion, deleteSearch, insertSearch, id, item.article);
     }
-    db.exec("DELETE FROM articles WHERE id NOT IN (SELECT id FROM current_article_ids)");
-    db.exec("DELETE FROM article_regions WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
-    db.exec("DELETE FROM article_search WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
+    for (const id of plan.reindexIds) {
+      const item = byId.get(id);
+      if (!item) continue;
+      replaceArticleProjections(deleteRegions, insertRegion, deleteSearch, insertSearch, id, item.article);
+    }
+    for (const id of plan.removedIds) {
+      deleteArticle.run(id);
+      deleteRegions.run(id);
+      deleteSearch.run(id);
+    }
+    if (indexStale) {
+      db.prepare(`
+        INSERT INTO app_meta (key, value) VALUES ('article_index_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run(ARTICLE_INDEX_VERSION);
+    }
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
   }
+  for (const id of plan.writeIds) {
+    const item = byId.get(id);
+    if (item) state.hashes.set(id, item.hash);
+  }
+  for (const id of plan.removedIds) state.hashes.delete(id);
+  if (indexStale) state.indexVersion = ARTICLE_INDEX_VERSION;
 }
 
 export function databaseStats(): {

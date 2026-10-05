@@ -190,11 +190,15 @@ const CORPUS_JSON_DEBOUNCE_MS = 1500;
 let corpusJsonTimer: ReturnType<typeof setTimeout> | null = null;
 let corpusJsonPending = false;
 
-function writeCorpusJsonSnapshot(): void {
+function writeCorpusJsonFile(items: any[]): void {
   fs.mkdirSync(path.dirname(CORPUS_FILE), { recursive: true });
   const temp = `${CORPUS_FILE}.tmp`;
-  fs.writeFileSync(temp, JSON.stringify(serverCorpus), "utf-8");
+  fs.writeFileSync(temp, JSON.stringify(items), "utf-8");
   fs.renameSync(temp, CORPUS_FILE);
+}
+
+function writeCorpusJsonSnapshot(): void {
+  writeCorpusJsonFile(serverCorpus);
 }
 
 /** 立刻写出兼容用的 corpus.json。SQLite 仍在 persistCorpus 里同步落盘。 */
@@ -251,6 +255,7 @@ function loadCorpus(): any[] {
   const fromDatabase = loadArticlesFromDatabase();
   if (fromDatabase !== null) {
     let cleaned = withoutLegacyDemo(fromDatabase);
+    const removedDemo = fromDatabase.length - cleaned.length;
     if (demoDataEnabled()) {
       const dbMap = new Map<string, any>(cleaned.map((art) => [String(art?.id || ""), art]));
       for (const cur of freshCurated) {
@@ -278,9 +283,14 @@ function loadCorpus(): any[] {
     const regions = withCanonicalRegionMentions(deduped.items);
     const entities = withCanonicalEntityMentions(regions.items);
     const migrated = withLegacyAiMetadata(entities.items);
+    const structuralChange = removedDemo
+      + deduped.changed
+      + regions.changed
+      + entities.changed
+      + migrated.changed;
     if (!NO_PERSIST) {
       persistArticlesToDatabase(migrated.items);
-      fs.writeFileSync(CORPUS_FILE, JSON.stringify(migrated.items), "utf-8");
+      if (demoDataEnabled() || structuralChange > 0) writeCorpusJsonFile(migrated.items);
     }
     return migrated.items;
   }
@@ -293,11 +303,16 @@ function loadCorpus(): any[] {
         const regions = withCanonicalRegionMentions(deduped.items);
         const entities = withCanonicalEntityMentions(regions.items);
         const migrated = withLegacyAiMetadata(entities.items);
-        if (!NO_PERSIST && (cleaned.length !== arr.length || deduped.changed > 0)) {
+        const structuralChange = (cleaned.length !== arr.length ? 1 : 0)
+          + deduped.changed
+          + regions.changed
+          + entities.changed
+          + migrated.changed;
+        if (!NO_PERSIST && structuralChange > 0) {
           backupCorpus("remove-legacy-demo");
         }
         persistArticlesToDatabase(migrated.items);
-        fs.writeFileSync(CORPUS_FILE, JSON.stringify(migrated.items), "utf-8");
+        if (structuralChange > 0) writeCorpusJsonFile(migrated.items);
         return migrated.items;
       }
     }

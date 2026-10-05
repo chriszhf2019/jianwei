@@ -62,6 +62,7 @@ import { normalizeRegionMentions, regionScopeOf } from '../src/utils/regionSeman
 import { clearEnrichCache, enrichKey, getOrCreateCached, predictKey } from '../src/server/cache';
 import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
+import { planArticlePersistence } from '../src/server/database';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
@@ -974,4 +975,30 @@ test('appendActionMemo: 追加行动备忘并跳过重复', () => {
   assert.equal(appendActionMemo('已有', '盯紧交付'), '已有\n\n盯紧交付');
   assert.equal(appendActionMemo('已有\n\n盯紧交付', '盯紧交付'), '已有\n\n盯紧交付');
   assert.equal(appendActionMemo('abcdef', 'xyz', 6), 'abcdef');
+});
+
+test('planArticlePersistence: 未变化的文章不写，重复 id 以最后一条为准', () => {
+  const known = new Map([
+    ['keep', 'hash-keep'],
+    ['edit', 'hash-old'],
+    ['gone', 'hash-gone'],
+  ]);
+  const plan = planArticlePersistence([
+    { id: 'keep', hash: 'hash-keep' },
+    { id: 'edit', hash: 'hash-new' },
+    { id: 'dup', hash: 'hash-first' },
+    { id: 'dup', hash: 'hash-second' },
+    { id: '', hash: 'ignored' },
+  ], known, false);
+  assert.deepEqual(plan.writeIds, ['edit', 'dup']);
+  assert.deepEqual(plan.reindexIds, []);
+  assert.deepEqual(plan.removedIds, ['gone']);
+
+  const stale = planArticlePersistence([
+    { id: 'keep', hash: 'hash-keep' },
+    { id: 'edit', hash: 'hash-new' },
+  ], known, true);
+  assert.deepEqual(stale.writeIds, ['edit']);
+  assert.deepEqual(stale.reindexIds, ['keep']);
+  assert.deepEqual(stale.removedIds, ['gone']);
 });
