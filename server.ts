@@ -2,6 +2,7 @@ import express from "express";
 import compression from "compression";
 import path from "path";
 import fs from "node:fs";
+import https from "node:https";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { createServer as createViteServer } from "vite";
@@ -55,9 +56,11 @@ import {
   clearPredictCache,
   clearInFlightAI,
   cacheSizes,
+  rateAllowance,
   RATE_MAX_PER_MIN,
   RATE_WINDOW_MS,
 } from "./src/server/cache";
+import { assessPublicExposure, resolveBindHost } from "./src/server/publicExposure";
 import { zhFullDate, isoToday, nowHHmm } from "./src/server/date";
 import {
   PROMPT_VERSIONS,
@@ -144,10 +147,31 @@ const PORT = Number(process.env.PORT || 3000);
 const serverStartTime = Date.now();
 const AUTH_TOKEN = process.env.JIANWEI_AUTH_TOKEN || "";
 const AUTH_ENABLED = !!AUTH_TOKEN;
-const BIND_HOST =
-  process.env.JIANWEI_BIND_HOST ||
-  process.env.BIND_HOST ||
-  (AUTH_ENABLED ? "0.0.0.0" : "127.0.0.1");
+const BIND_HOST = resolveBindHost(process.env.JIANWEI_BIND_HOST || process.env.BIND_HOST);
+const TLS_CERT_PATH = String(process.env.JIANWEI_TLS_CERT || "").trim();
+const TLS_KEY_PATH = String(process.env.JIANWEI_TLS_KEY || "").trim();
+function tlsMaterialReadable(): boolean {
+  if (!TLS_CERT_PATH || !TLS_KEY_PATH) return false;
+  try {
+    fs.accessSync(TLS_CERT_PATH, fs.constants.R_OK);
+    fs.accessSync(TLS_KEY_PATH, fs.constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+const exposure = assessPublicExposure({
+  bindHost: BIND_HOST,
+  authToken: AUTH_TOKEN,
+  encryptionSecret: process.env.JIANWEI_SECRET || "",
+  adminUser: process.env.JIANWEI_ADMIN_USER || "",
+  adminPassword: process.env.JIANWEI_ADMIN_PASSWORD || "",
+  persistDisabled: NO_PERSIST,
+  tlsCertPath: TLS_CERT_PATH,
+  tlsKeyPath: TLS_KEY_PATH,
+  tlsMaterialReadable: tlsMaterialReadable(),
+  behindTls: process.env.JIANWEI_BEHIND_TLS,
+});
 const DEMO_DATA_ENABLED = isDemoDataEnabled();
 const SOURCE_CHECK_TTL_MS = Number(process.env.SOURCE_CHECK_TTL_MS || 24 * 60 * 60 * 1000);
 const BOOTSTRAP_ADMIN_USER = process.env.JIANWEI_ADMIN_USER || "";
@@ -693,6 +717,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     authRequired: AUTH_ENABLED && !auth,
+    exposure,
     user: auth ? {
       username: auth.username,
       role: auth.role,
@@ -1730,8 +1755,11 @@ app.get("/api/admin/status", (_req, res) => {
     },
     rateLimit: {
       maxPerMinute: RATE_MAX_PER_MIN,
+      guestPerMinute: rateAllowance({ isGuest: true }),
+      viewerPerMinute: rateAllowance({ role: "viewer" }),
       windowMs: RATE_WINDOW_MS,
     },
+    exposure,
     aiUsage: getAIUsage(),
     caches: cacheSizes(),
     corpus: {
@@ -3215,15 +3243,32 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, BIND_HOST, () => {
-    console.log(`见微 Genway Server running on http://${BIND_HOST}:${PORT}`);
+  if (!exposure.ok) {
+    console.error(exposure.note);
+    for (const item of exposure.missing) console.error(`- ${item}`);
+    process.exit(1);
+  }
+  const onListen = () => {
+    const scheme = exposure.tls === "node" ? "https" : "http";
+    console.log(`见微 Genway Server running on ${scheme}://${BIND_HOST}:${PORT}`);
+    if (exposure.tls === "upstream") {
+      console.log("进程本身仍是 HTTP，TLS 由前置代理终止。");
+    }
     startFeedScheduler();
     startBackupScheduler();
     if (!NO_PERSIST) {
       const sessionCleanup = setInterval(() => cleanupExpiredUserSessions(), 60 * 60 * 1000);
       sessionCleanup.unref?.();
     }
-  });
+  };
+  if (exposure.tls === "node") {
+    https.createServer({
+      cert: fs.readFileSync(TLS_CERT_PATH),
+      key: fs.readFileSync(TLS_KEY_PATH),
+    }, app).listen(PORT, BIND_HOST, onListen);
+  } else {
+    app.listen(PORT, BIND_HOST, onListen);
+  }
 }
 
 function shutdownProcess(signal: "SIGINT" | "SIGTERM"): void {

@@ -9,6 +9,8 @@ import path from 'node:path';
 import { parseArticleDate, articleSortTime, formatArticleTime, isStaleArticle } from '../src/utils/articleTime';
 import { appendActionMemo } from '../src/utils/actionMemo';
 import { demoDataEnabledFrom, feedMaxAgeDaysFrom } from '../src/server/settings';
+import { assessPublicExposure, resolveBindHost } from '../src/server/publicExposure';
+import { rateAllowance } from '../src/server/cache';
 import { formatListedUsd, summarizeListedSpend } from '../src/utils/aiPriceTable';
 import { lexiconSentiment, sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../src/utils/corpusMetrics';
 import { acceptModelSentiment, sentimentSourceText } from '../src/utils/sentimentClassify';
@@ -1243,6 +1245,61 @@ test('eventCandidates: 使用标题、实体和时间窗生成待人工判断候
   assert.equal(candidates[0].articleA.id, 'a');
   assert.equal(candidates[0].articleB.id, 'b');
   assert.deepEqual(candidates[0].sharedEntities, ['英伟达']);
+});
+
+test('publicExposure: 本机不强制令牌，对外缺少条件就拒绝', () => {
+  assert.equal(resolveBindHost(undefined), '127.0.0.1');
+  assert.equal(resolveBindHost(''), '127.0.0.1');
+  assert.equal(resolveBindHost('0.0.0.0'), '0.0.0.0');
+  const local = assessPublicExposure({ bindHost: '127.0.0.1' });
+  assert.equal(local.exposed, false);
+  assert.equal(local.ok, true);
+  assert.equal(local.tls, 'none');
+  assert.equal(local.missing.length, 0);
+
+  const open = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    behindTls: 'true',
+  });
+  assert.equal(open.ok, false);
+  assert.equal(open.tls, 'none');
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_SECRET')), true);
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_BEHIND_TLS')), true);
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_ADMIN_USER')), true);
+
+  const proxied = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    encryptionSecret: 'secret',
+    adminUser: 'admin',
+    adminPassword: 'long-password',
+    behindTls: '1',
+  });
+  assert.equal(proxied.ok, true);
+  assert.equal(proxied.tls, 'upstream');
+  assert.equal(proxied.note.includes('进程本身仍是 HTTP'), true);
+
+  const certified = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    encryptionSecret: 'secret',
+    adminUser: 'admin',
+    adminPassword: 'long-password',
+    tlsCertPath: '/tmp/cert.pem',
+    tlsKeyPath: '/tmp/key.pem',
+    tlsMaterialReadable: true,
+  });
+  assert.equal(certified.ok, true);
+  assert.equal(certified.tls, 'node');
+});
+
+test('rateAllowance: 游客、只读和管理员使用不同上限', () => {
+  assert.equal(rateAllowance(null), 30);
+  assert.equal(rateAllowance({ isGuest: true, role: 'viewer' }), 30);
+  assert.equal(rateAllowance({ role: 'viewer' }), 60);
+  assert.equal(rateAllowance({ role: 'admin' }), 300);
+  assert.equal(rateAllowance({ role: 'analyst' }), 300);
 });
 
 test('demoDataEnabledFrom: 只有显式 1 才加载演示语料', () => {

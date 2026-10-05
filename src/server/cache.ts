@@ -10,17 +10,34 @@ export const RATE_WINDOW_MS = 60_000;
 export const RATE_MAX_PER_MIN = Number(process.env.RATE_LIMIT_MAX || 300);
 const hitCounts = new Map<string, number[]>();
 
-export function applyRateLimit(req: { ip?: string; socket?: { remoteAddress?: string } }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void): void {
+function positiveLimit(flag: string | undefined, fallback: number): number {
+  const parsed = Number(flag);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.floor(parsed);
+}
+
+/** 游客和未登录更紧，只读账号居中，编辑和管理员用总上限。 */
+export function rateAllowance(auth?: { role?: string; isGuest?: boolean } | null): number {
+  const cap = positiveLimit(String(RATE_MAX_PER_MIN), 300);
+  if (!auth || auth.isGuest) return Math.min(cap, positiveLimit(process.env.RATE_LIMIT_GUEST, 30));
+  if (auth.role === 'viewer') return Math.min(cap, positiveLimit(process.env.RATE_LIMIT_VIEWER, 60));
+  return cap;
+}
+
+export function applyRateLimit(req: { ip?: string; socket?: { remoteAddress?: string }; auth?: { role?: string; isGuest?: boolean } }, res: { status: (code: number) => { json: (body: unknown) => void } }, next: () => void): void {
   const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  const tier = !req.auth || req.auth.isGuest ? "guest" : req.auth.role === "viewer" ? "viewer" : "editor";
+  const bucket = `${ip}\n${tier}`;
   const now = Date.now();
   const windowStart = now - RATE_WINDOW_MS;
-  const hits = (hitCounts.get(ip) || []).filter((t) => t > windowStart);
-  if (hits.length >= RATE_MAX_PER_MIN) {
+  const hits = (hitCounts.get(bucket) || []).filter((t) => t > windowStart);
+  const allowance = rateAllowance(req.auth);
+  if (hits.length >= allowance) {
     res.status(429).json({ error: "请求过于频繁，请稍后再试 (rate limited)" });
     return;
   }
   hits.push(now);
-  hitCounts.set(ip, hits);
+  hitCounts.set(bucket, hits);
   next();
 }
 
