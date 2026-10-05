@@ -12,6 +12,7 @@ import {
   sanitizeRegionImpact,
   sanitizeEnrichPayload,
 } from "./aiValidation";
+import { acceptModelSentiment, sentimentSourceText } from "../utils/sentimentClassify";
 export interface RateLimiter { (req: express.Request, res: express.Response, next: express.NextFunction): void; }
 export function registerDeepEndpoints(app: express.Express, limit: RateLimiter): void {
   const applyRateLimit = limit;
@@ -874,6 +875,62 @@ app.all("/api/trend-comparison", applyRateLimit, async (req, res) => {
   } catch (err: any) {
     console.error("trend-comparison error:", err);
     return res.status(500).json({ ok: false, reason: "error" });
+  }
+});
+
+// 词典旁边的模型四分类：只在这次请求里返回，不写回语料，也不写入人工评测。
+app.post("/api/sentiment/classify", applyRateLimit, async (req, res) => {
+  const title = String(req.body?.title || "").trim().slice(0, 240);
+  const summary = String(req.body?.summary || "").trim().slice(0, 900);
+  const sourceText = sentimentSourceText(title, summary);
+  if (!sourceText) return res.status(400).json({ ok: false, reason: "empty_text" });
+
+  const provider = activeProvider();
+  if (!provider) return res.json({ ok: false, reason: "no_api_key" });
+  const model = providerModel(provider);
+  const cacheKey = `sentiment:${djb2([
+    sourceText,
+    provider,
+    model,
+    PROMPT_VERSIONS.sentiment_classify,
+  ].join("\n"))}`;
+  const prompt = `你是「见微 Genway」的情感分类员。只根据下面的标题和摘要，判断材料的倾向。严格只输出 JSON，不要解释：
+{"label":"positive|negative|mixed|neutral","evidence":"从标题或摘要里原样抄出的连续片段，不超过40字；没有可引用片段则空字符串"}
+规则：positive=偏正面，negative=偏负面，mixed=正负交织，neutral=材料不足或看不出方向。正负方向同时出现时必须用 mixed。不得输出概率、分数或置信度。evidence 必须是输入文本里的连续子串，不得改写。
+标题和摘要：
+${sourceText}`;
+
+  try {
+    const generated = await getOrCreateCached(cacheKey, async () => {
+      const text = await callAI(prompt, { json: true, temperature: 0 });
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(String(text || "").trim().replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim());
+      } catch {
+        throw new Error("invalid_model_output");
+      }
+      const accepted = acceptModelSentiment(parsed, sourceText);
+      if (!accepted) throw new Error("invalid_model_output");
+      return accepted;
+    });
+    res.json({
+      ok: true,
+      cached: generated.cached || generated.deduped,
+      classification: {
+        ...generated.data,
+        provider,
+        model,
+        promptVersion: PROMPT_VERSIONS.sentiment_classify,
+        calibrationStatus: "uncalibrated",
+      },
+    });
+  } catch (err: any) {
+    const message = String(err?.message || err);
+    if (message.includes("invalid_model_output")) {
+      return res.json({ ok: false, reason: "invalid_model_output" });
+    }
+    console.error("sentiment classify error:", err);
+    res.json({ ok: false, reason: "error" });
   }
 });
 }

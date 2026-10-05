@@ -9,7 +9,8 @@ import path from 'node:path';
 import { parseArticleDate, articleSortTime, formatArticleTime, isStaleArticle } from '../src/utils/articleTime';
 import { appendActionMemo } from '../src/utils/actionMemo';
 import { demoDataEnabledFrom, feedMaxAgeDaysFrom } from '../src/server/settings';
-import { sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../src/utils/corpusMetrics';
+import { lexiconSentiment, sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../src/utils/corpusMetrics';
+import { acceptModelSentiment, sentimentSourceText } from '../src/utils/sentimentClassify';
 import { monitorHits } from '../src/utils/monitorKeywords';
 import { mediaProfile, tierBadge, mediaKey } from '../src/utils/mediaAuthority';
 import { topHotWords, detectBreaking } from '../src/utils/todayBrief';
@@ -62,7 +63,7 @@ import { rankEventCandidates } from '../src/utils/eventCandidates';
 import { normalizeRegionMentions, regionScopeOf } from '../src/utils/regionSemantics';
 import { clearEnrichCache, enrichKey, getOrCreateCached, predictKey } from '../src/server/cache';
 import { predictionDueInfo } from '../src/utils/predictionLedger';
-import { certificationSpec } from '../src/utils/methodRegistry';
+import { certificationSpec, methodSpec } from '../src/utils/methodRegistry';
 import { articleIdsToHash, planArticlePersistence } from '../src/server/database';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 import { deriveBlindspots, deriveSourceHealth, deriveTomorrowHeat } from '../src/utils/corpusSnapshot';
@@ -118,6 +119,48 @@ test('sentimentCounts/netSentiment: 词典命中与公式', () => {
   assert.equal(mixed.negative, 0);
   assert.equal(mixed.mixed, 1);
   assert.equal(mixed.scanned, 1);
+});
+
+test('lexiconSentiment: 正负都命中记为交织，并列出命中词', () => {
+  const mixed = lexiconSentiment({ title: '增长上涨但风险上升', summary: '' });
+  assert.equal(mixed.label, 'mixed');
+  assert.deepEqual(mixed.positiveHits, ['增长', '上涨']);
+  assert.deepEqual(mixed.negativeHits, ['风险']);
+  assert.equal(lexiconSentiment({ title: '业绩增长', summary: '' }).label, 'positive');
+  assert.equal(lexiconSentiment({ title: '公司亏损', summary: '' }).label, 'negative');
+  assert.equal(lexiconSentiment({ title: '普通新闻无关键词', summary: '' }).label, 'neutral');
+});
+
+test('acceptModelSentiment: 只收四分类和原文证据，丢掉概率', () => {
+  const source = sentimentSourceText('业绩增长', '公司宣布扩产');
+  const accepted = acceptModelSentiment({
+    label: 'POSITIVE',
+    evidence: '业绩增长',
+    confidence: 0.91,
+    probability: 0.8,
+  }, source);
+  assert.deepEqual(accepted, {
+    label: 'positive',
+    evidence: '业绩增长',
+    evidenceStatus: 'quoted',
+    calibrationStatus: 'uncalibrated',
+  });
+  assert.equal(JSON.stringify(accepted).includes('0.91'), false);
+
+  const folded = acceptModelSentiment({ label: 'negative', evidence: 'growth' }, 'Growth slows');
+  assert.equal(folded?.evidence, 'Growth');
+  assert.equal(folded?.evidenceStatus, 'quoted');
+
+  const discarded = acceptModelSentiment({ label: '偏负面', evidence: '虚构暴跌' }, source);
+  assert.equal(discarded?.label, 'negative');
+  assert.equal(discarded?.evidence, null);
+  assert.equal(discarded?.evidenceStatus, 'discarded');
+
+  assert.equal(acceptModelSentiment({ label: 'bullish', evidence: '业绩增长' }, source), null);
+  assert.equal(acceptModelSentiment({ probability: 0.7 }, source), null);
+  const absent = acceptModelSentiment({ label: '中性', evidence: '' }, source);
+  assert.equal(absent?.evidenceStatus, 'absent');
+  assert.equal(absent?.calibrationStatus, 'uncalibrated');
 });
 
 test('corpusDerived: 30 天窗口排除旧闻，无 publishedAt 保留', () => {
@@ -727,6 +770,9 @@ test('regionSemantics: 区分提及、发生、受影响和未标范围', () => 
 test('methodRegistry: 认证标准与方法类型分离', () => {
   assert.equal(certificationSpec('source_page_verification').id, 'deterministic');
   assert.equal(certificationSpec('lexicon_sentiment').id, 'heuristic');
+  assert.equal(certificationSpec('model_sentiment').id, 'ai_single');
+  assert.equal(methodSpec('model_sentiment').calibrated, false);
+  assert.equal(methodSpec('model_sentiment').assertionType, 'model_inference');
   assert.equal(certificationSpec('model_extraction').id, 'ai_single');
   assert.equal(certificationSpec('model_forecast').id, 'prediction_uncalibrated');
   assert.equal(certificationSpec('calibrated_forecast').id, 'prediction_calibrated');

@@ -194,7 +194,7 @@ export const EvaluationLabPanel: React.FC = () => {
             <MethodBadge methodId="human_annotation" compact />
           </div>
           <p className="text-xs text-stone-500 mt-1">
-            从真实语料逐条标注。系统只保存人工答案，不生成伪标签；至少两名标注者后才能计算一致性。
+            从真实语料逐条标注。系统只保存人工答案，不生成伪标签；至少两名标注者后才能计算一致性。首页卡片上的模型情感要单独点击才会请求，结果未校准，也不会写入这个队列。
           </p>
         </div>
         <div className="flex items-center gap-2">

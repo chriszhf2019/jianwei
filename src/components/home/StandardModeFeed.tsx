@@ -30,7 +30,7 @@ import {
 
 import { formatArticleTime, isStaleArticle } from '../../utils/articleTime';
 import { monitorHits } from '../../utils/monitorKeywords';
-import { POSITIVE_WORDS, NEGATIVE_WORDS } from '../../utils/corpusMetrics';
+import { SentimentPair } from '../common/SentimentPair';
 import { SECTOR_TAXONOMY, keywordMatches } from '../../utils/sectorTaxonomy';
 import { mediaProfile, tierBadge } from '../../utils/mediaAuthority';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
@@ -38,17 +38,6 @@ import { EvidenceBadge } from '../common/EvidenceBadge';
 import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
 import type { RadarKeyword } from '../../types';
 import type { NewsSkill } from './HomeView';
-
-/** 逐篇情绪：对标题+摘要做财经情感词典命中判定 */
-function articleSentiment(article: { title?: string; summary?: string }): string {
-  const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
-  let pos = 0;
-  let neg = 0;
-  for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) pos += 1;
-  for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) neg += 1;
-  if (pos === 0 && neg === 0) return '⚪ 中性';
-  return pos > neg ? '🟢 偏正面' : neg > pos ? '🔴 偏负面' : '🟡 多空交织';
-}
 
 /** 派生涉事地点 */
 function deriveLocation(article: NewsArticle): string {
@@ -323,6 +312,8 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
                 </div>
 
+                <SentimentPair title={article.title} summary={article.summary} />
+
                 {/* 2. 标题区 */}
                 <div className="cursor-pointer" onClick={() => onSelectArticle(article)}>
                   <h2 className="text-lg sm:text-xl font-serif font-black text-stone-950 hover:text-[#E3120B] transition-colors leading-snug">
@@ -561,7 +552,6 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
               const isBookmarked = bookmarkedIds.includes(article.id);
               const location = deriveLocation(article);
               const heatIndex = deriveHeatIndex(article);
-              const sentiment = articleSentiment(article);
               const entities = (article.entityMentions || []).map((e) => e.name);
 
               const prof = mediaProfile(article.sourceName, article.sourceUrl);
@@ -605,7 +595,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                         <Flame className="w-3 h-3 text-amber-600 fill-amber-500" />
                         {heatIndex}
                       </span>
-                      <span className="font-mono text-stone-500">{sentiment}</span>
+                      <SentimentPair title={article.title} summary={article.summary} compact />
                       <EvidenceBadge article={article} corpus={contextArticles} compact />
                     </div>
 

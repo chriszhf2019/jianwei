@@ -15,6 +15,40 @@ export interface SentimentCounts {
   scanned: number;
 }
 
+export type SentimentLabel = 'positive' | 'negative' | 'mixed' | 'neutral';
+
+export interface LexiconSentiment {
+  label: SentimentLabel;
+  positiveHits: string[];
+  negativeHits: string[];
+}
+
+const SENTIMENT_LABEL_TEXT: Record<SentimentLabel, string> = {
+  positive: '🟢 偏正面',
+  negative: '🔴 偏负面',
+  mixed: '🟡 多空交织',
+  neutral: '⚪ 中性',
+};
+
+export function sentimentLabelText(label: SentimentLabel): string {
+  return SENTIMENT_LABEL_TEXT[label];
+}
+
+/** 单篇词典归类。正负词都出现时记为交织，不按命中次数改判。 */
+export function lexiconSentiment(article: { title?: string; summary?: string }): LexiconSentiment {
+  const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
+  const positiveHits = POSITIVE_WORDS.filter((word) => text.includes(word.toLowerCase()));
+  const negativeHits = NEGATIVE_WORDS.filter((word) => text.includes(word.toLowerCase()));
+  const label: SentimentLabel = positiveHits.length > 0 && negativeHits.length > 0
+    ? 'mixed'
+    : positiveHits.length > 0
+      ? 'positive'
+      : negativeHits.length > 0
+        ? 'negative'
+        : 'neutral';
+  return { label, positiveHits, negativeHits };
+}
+
 /** 词典法粗粒度情感计数（标题+摘要）；每篇只归入正/负/中性/交织其中一类。 */
 export function sentimentCounts(
   articles: Array<{ title?: string; summary?: string }>

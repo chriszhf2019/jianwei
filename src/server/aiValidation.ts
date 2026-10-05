@@ -9,6 +9,7 @@ export const PROMPT_VERSIONS = {
   frequency_analysis: "frequency-analysis-2026-09-13-v1",
   annotations: "annotations-2026-09-12-v3",
   evidence_reextract: "evidence-reextract-2026-09-12-v1",
+  sentiment_classify: "sentiment-classify-2026-10-05-v1",
 } as const;
 
 function asText(value: unknown, max = 500): string {
