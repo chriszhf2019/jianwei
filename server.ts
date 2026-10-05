@@ -8,6 +8,7 @@ import { createServer as createViteServer } from "vite";
 import { ingestAllFeeds, type RawFeedItem } from "./src/server/feeds";
 import { parseArticleDate } from "./src/utils/articleTime";
 import { serverSectorList, serverDetectSectors } from "./src/server/sectors";
+import { deriveBlindspots, deriveSourceHealth, deriveTomorrowHeat } from "./src/utils/corpusSnapshot";
 import { registerAnnotationRoutes } from "./src/server/annotations";
 import { startFeedScheduler } from "./src/server/scheduler";
 import { scheduledBackupStatus, startBackupScheduler } from "./src/server/backupScheduler";
@@ -979,7 +980,6 @@ app.post("/api/analyze", applyRateLimit, async (req, res) => {
   "sourceName": "${source || "见微·特约深度观察"}",
   "sourceDate": "${isoToday(new Date())} ${nowHHmm(new Date())}",
   "sourceCount": 1,
-  "credibilityStars": 2,
   "impactScope": "全球",
   "changeVelocity": "↑ 快速",
   "summary": "100-150字见微速读：直击核心真相",
@@ -1499,7 +1499,8 @@ app.get("/api/snapshot", (_req, res) => {
   res.setHeader("Cache-Control", "private, max-age=15, must-revalidate");
   try {
     const arts: any[] = serverCorpus;
-    const cacheKey = `${getCorpusRevision()}:${feedUrls().length}:${DEMO_DATA_ENABLED ? 1 : 0}`;
+    const sectorKey = serverSectorList().map((sector) => `${sector.id}:${sector.keywords.join(",")}`).join("|");
+    const cacheKey = `${getCorpusRevision()}:${feedUrls().length}:${DEMO_DATA_ENABLED ? 1 : 0}:${sectorKey}`;
     if (
       snapshotCache &&
       snapshotCache.key === cacheKey &&
@@ -1576,11 +1577,13 @@ app.get("/api/snapshot", (_req, res) => {
         traceableCount,
         regionMentionDistribution,
         regionAnnotatedCount: annotatedCount,
+        sourceHealth: deriveSourceHealth(arts),
+        blindspots: deriveBlindspots(arts, serverSectorList()),
+        tomorrowWatch: deriveTomorrowHeat(arts, serverSectorList()),
       },
-      // 以下指标需要真实信源的时间/立场/冲突信号，接入采集器后逐步实现
-      // 说明：heatmap/density/crossEvent 已由前端基于语料实时计算；
-      // 以下三项需逐源 tier/立场/覆盖率口径，服务端暂不派生（UI 以示例口径展示并如实标注）
-      notYetDerived: ["sourceHealth", "blindspots", "tomorrowForecasts"],
+      // 热力、密度、跨事件共振仍由浏览器按已加载语料计算。
+      // 信源完整度、覆盖扫描和明日热度已在 derived 中，按计数口径，不是健康分或概率。
+      notYetDerived: ["heatmap", "density", "crossEvent"],
     };
     snapshotCache = { key: cacheKey, at: Date.now(), payload };
     res.json(payload);

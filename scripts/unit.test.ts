@@ -64,6 +64,7 @@ import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
 import { articleIdsToHash, planArticlePersistence } from '../src/server/database';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
+import { deriveBlindspots, deriveSourceHealth, deriveTomorrowHeat } from '../src/utils/corpusSnapshot';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
   assert.equal(parseArticleDate('Fri, 04 Sep 2026 02:33:08 +0000')! > 0, true);
@@ -288,6 +289,91 @@ test('sectorTaxonomy: 英文缩写按词边界匹配，避免 pcgamer 命中 PC'
   assert.equal(keywordMatches('This is a spacecraft.', 'PC'), false);
   assert.equal(detectSectors({ title: '暴雪《魔兽世界》官宣上线：pcgamer 评论', summary: '' }).includes('consume'), false);
   assert.equal(detectSectors({ title: 'PC 出货量回暖', summary: '' }).includes('consume'), true);
+});
+
+test('corpusSnapshot: 信源计数、低覆盖阈值与明日窗口占比', () => {
+  const health = deriveSourceHealth([
+    {
+      title: '新华',
+      sourceName: 'news.cn',
+      sourceUrl: 'https://www.news.cn/a',
+      isExternal: true,
+      publishedAt: '2026-09-01T00:00:00Z',
+    },
+    {
+      title: '未知站',
+      sourceName: 'example.com',
+      sourceUrl: 'https://example.com/b',
+      isExternal: true,
+      publishedAt: '2026-09-02T00:00:00Z',
+    },
+    { title: '无链接', sourceName: '内部', isExternal: false },
+  ]);
+  assert.equal(health.total, 3);
+  assert.equal(health.externalCount, 2);
+  assert.equal(health.curatedCount, 1);
+  assert.equal(health.distinctExternalHosts, 2);
+  assert.equal(health.withOriginalLink, 2);
+  assert.equal(health.withTimestamp, 2);
+  assert.equal(health.fullyTraceable, 2);
+  assert.equal(health.knownGroupCount, 1);
+  assert.equal(health.unknownDomainCount, 1);
+  assert.equal(health.topSources[0].count >= health.topSources[health.topSources.length - 1].count, true);
+  assert.equal('score' in health, false);
+
+  const taxonomy = [
+    { id: 'hot', name: '热门', keywords: ['芯片'] },
+    { id: 'edge', name: '边界', keywords: ['光伏'] },
+    { id: 'cold', name: '冷门', keywords: ['出海'] },
+  ];
+  const coverageArticles = [
+    ...Array.from({ length: 20 }, (_, index) => ({ title: `芯片新闻 ${index}`, summary: '' })),
+    ...Array.from({ length: 7 }, (_, index) => ({ title: `光伏装机 ${index}`, summary: '' })),
+    { title: '出海工厂', summary: '' },
+  ];
+  const blind = deriveBlindspots(coverageArticles, taxonomy);
+  assert.equal(blind.maxCount, 20);
+  assert.equal(blind.matchedTotal, 28);
+  assert.equal(blind.coveredSectorCount, 3);
+  // 7/20 = 0.35，阈值是严格小于 35%，边界赛道不进入低覆盖。
+  assert.deepEqual(blind.lowCoverage.map((item) => item.sectorId), ['cold']);
+  assert.equal(blind.lowCoverage[0].count, 1);
+
+  const recent = Array.from({ length: 80 }, (_, index) => ({
+    title: 'AI 新闻',
+    publishedAt: `2026-06-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z`,
+  }));
+  const heat = deriveTomorrowHeat(
+    [{ title: '电动车旧闻', publishedAt: '2020-01-01T00:00:00Z' }, ...recent],
+    [
+      { id: 'ai', name: 'AI', keywords: ['AI'] },
+      { id: 'ev', name: '汽车', keywords: ['电动车'] },
+    ],
+  );
+  assert.equal(heat.corpusSize, 81);
+  assert.equal(heat.totalWindow, 80);
+  assert.equal(heat.list.length, 1);
+  assert.equal(heat.list[0].sectorId, 'ai');
+  assert.equal(heat.list[0].count, 80);
+  assert.equal(heat.list[0].share, 100);
+  assert.equal('probability' in heat, false);
+  assert.equal('probability' in heat.list[0], false);
+
+  const mixed = deriveTomorrowHeat(
+    [
+      { title: 'AI 一', publishedAt: '2026-09-04T00:00:00Z' },
+      { title: 'AI 二', publishedAt: '2026-09-03T00:00:00Z' },
+      { title: '电动车', publishedAt: '2026-09-02T00:00:00Z' },
+      { title: '未命中', publishedAt: '2026-09-01T00:00:00Z' },
+    ],
+    [
+      { id: 'ai', name: 'AI', keywords: ['AI'] },
+      { id: 'ev', name: '汽车', keywords: ['电动车'] },
+    ],
+  );
+  assert.equal(mixed.totalWindow, 4);
+  assert.equal(mixed.list.find((item) => item.sectorId === 'ai')?.share, 50);
+  assert.equal(mixed.list.find((item) => item.sectorId === 'ev')?.share, 25);
 });
 
 test('evidenceProfile: 只按真实语料计算独立来源，AI 来源线索不计入', () => {

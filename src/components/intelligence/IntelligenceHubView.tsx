@@ -420,7 +420,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       {section === 'sources' && (
       <>
       {/* 5. Data Source Health（语料派生真实统计） */}
-      <DataSourceHealthPanel articles={contextArticles} />
+      <DataSourceHealthPanel articles={contextArticles} sourceHealth={snapshot?.derived.sourceHealth} />
 
       {/* 5.0 实体覆盖：只统计已经写入语料的 entityMentions */}
       <EntityCoveragePanel articles={contextArticles} />
@@ -459,8 +459,8 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {/* 6. 2-Columns: Today's Blindspots + Tomorrow's Watchlist */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <TodayBlindspotWidget articles={contextArticles} onOpenSettings={onOpenSettings} />
-        <TomorrowWatchlistWidget articles={contextArticles} />
+        <TodayBlindspotWidget articles={contextArticles} blindspots={snapshot?.derived.blindspots} onOpenSettings={onOpenSettings} />
+        <TomorrowWatchlistWidget articles={contextArticles} tomorrowWatch={snapshot?.derived.tomorrowWatch} />
       </div>
       </>
       )}

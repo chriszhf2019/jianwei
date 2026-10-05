@@ -62,11 +62,14 @@ export function keywordMatches(text: string, keyword: string): boolean {
   return text.toLowerCase().includes(value.toLowerCase());
 }
 
-/** 对一篇新闻的标题+摘要统计其命中的赛道 */
-export function detectSectors(article: { title?: string; summary?: string; tags?: string[] }): string[] {
+/** 对一篇新闻的标题+摘要+标签统计其命中的赛道。taxonomy 缺省为当前生效词库。 */
+export function detectSectors(
+  article: { title?: string; summary?: string; tags?: string[] },
+  taxonomy: SectorDef[] = SECTOR_TAXONOMY,
+): string[] {
   const text = `${article.title || ''} ${article.summary || ''} ${(article.tags || []).join(' ')}`.toLowerCase();
   const hits: string[] = [];
-  for (const sector of SECTOR_TAXONOMY) {
+  for (const sector of taxonomy) {
     if (sector.keywords.some((kw) => kw.trim().length >= 2 && keywordMatches(text, kw))) {
       hits.push(sector.id);
     }
@@ -103,18 +106,21 @@ export function matchesNewsInterestGroups(
 }
 
 /** 多篇：返回每个赛道的覆盖计数与命中示例标题 */
-export function scanCoverage(articles: Array<{ title?: string; summary?: string; tags?: string[] }>) {
+export function scanCoverage(
+  articles: Array<{ title?: string; summary?: string; tags?: string[] }>,
+  taxonomy: SectorDef[] = SECTOR_TAXONOMY,
+) {
   const counts = new Map<string, number>();
   const samples = new Map<string, string[]>();
   for (const a of articles) {
-    for (const id of detectSectors(a)) {
+    for (const id of detectSectors(a, taxonomy)) {
       counts.set(id, (counts.get(id) || 0) + 1);
       const arr = samples.get(id) || [];
       if (a.title && arr.length < 3) arr.push(a.title);
       samples.set(id, arr);
     }
   }
-  return SECTOR_TAXONOMY.map((s) => ({
+  return taxonomy.map((s) => ({
     sector: s,
     count: counts.get(s.id) || 0,
     samples: samples.get(s.id) || [],

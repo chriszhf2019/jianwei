@@ -1,52 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { NewsArticle } from '../../types';
 import { ShieldCheck, Globe, Scale, RefreshCw, Link2 } from 'lucide-react';
-import { articleSortTime } from '../../utils/articleTime';
-import { sourceGroupInfo } from '../../utils/sourceGrouping';
+import { deriveSourceHealth, type SourceHealthSnapshot } from '../../utils/corpusSnapshot';
 import { MethodBadge } from '../common/MethodBadge';
 
 interface DataSourceHealthPanelProps {
   articles: NewsArticle[];
+  sourceHealth?: SourceHealthSnapshot | null;
 }
 
-export const DataSourceHealthPanel: React.FC<DataSourceHealthPanelProps> = ({ articles }) => {
-  const stats = useMemo(() => {
-    const total = articles.length;
-    const external = articles.filter((a) => a.isExternal === true);
-    const curated = articles.filter((a) => !a.isExternal);
-
-    // 按来源计数（外部=域名；其他=来源名）
-    const sourceCounts = new Map<string, number>();
-    for (const a of articles) {
-      const name = String(a.sourceName || (a.isExternal ? '外部信源' : '未标来源') || '未知');
-      sourceCounts.set(name, (sourceCounts.get(name) || 0) + 1);
-    }
-    const topSources = [...sourceCounts.entries()]
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
-
-    const withOriginalLink = articles.filter((a) => Boolean(a.sourceUrl)).length;
-    const withTimestamp = articles.filter((a) => articleSortTime(a) > 0).length;
-    const fullyTraceable = articles.filter((a) => Boolean(a.sourceUrl) && articleSortTime(a) > 0).length;
-    const distinctExternalHosts = new Set(external.map((a) => a.sourceName)).size;
-    const sourceGroups = external.map((article) => sourceGroupInfo(article.sourceName, article.sourceUrl));
-    const knownGroupCount = new Set(sourceGroups.filter((group) => group.known).map((group) => group.key)).size;
-    const unknownDomainCount = new Set(sourceGroups.filter((group) => !group.known).map((group) => group.key)).size;
-
-    return {
-      total,
-      externalCount: external.length,
-      curatedCount: curated.length,
-      distinctExternalHosts,
-      topSources,
-      withOriginalLink,
-      withTimestamp,
-      fullyTraceable,
-      knownGroupCount,
-      unknownDomainCount,
-    };
-  }, [articles]);
+export const DataSourceHealthPanel: React.FC<DataSourceHealthPanelProps> = ({ articles, sourceHealth }) => {
+  const stats = useMemo(
+    () => sourceHealth ?? deriveSourceHealth(articles),
+    [articles, sourceHealth],
+  );
 
   const sourceMax = Math.max(...stats.topSources.map((s) => s.count), 1);
 

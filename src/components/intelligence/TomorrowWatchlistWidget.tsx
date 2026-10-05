@@ -1,38 +1,18 @@
 import React, { useMemo } from 'react';
 import { NewsArticle } from '../../types';
 import { CalendarClock, AlertTriangle, Info } from 'lucide-react';
-import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
-import { articleSortTime } from '../../utils/articleTime';
+import { deriveTomorrowHeat, type TomorrowHeatSnapshot } from '../../utils/corpusSnapshot';
 
 interface TomorrowWatchlistWidgetProps {
   articles: NewsArticle[];
+  tomorrowWatch?: TomorrowHeatSnapshot | null;
 }
 
-export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = ({ articles }) => {
-  const watchlist = useMemo(() => {
-    // 按真实发布时间取最近 N 条；不能依赖数组首尾，因为语料合并来源不同。
-    const recent = [...articles]
-      .sort((a, b) => articleSortTime(b) - articleSortTime(a))
-      .slice(0, Math.min(articles.length, 80));
-    const counts = new Map<string, number>();
-    for (const a of recent) {
-      for (const id of detectSectors(a)) {
-        counts.set(id, (counts.get(id) || 0) + 1);
-      }
-    }
-    const totalWindow = recent.length || 1;
-    const list = SECTOR_TAXONOMY.map((sector) => ({
-      sector,
-      count: counts.get(sector.id) || 0,
-      share: Math.round(((counts.get(sector.id) || 0) / totalWindow) * 100),
-    }))
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    const maxCount = Math.max(...list.map((x) => x.count), 1);
-    return { list, maxCount, totalWindow };
-  }, [articles]);
+export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = ({ articles, tomorrowWatch }) => {
+  const watchlist = useMemo(
+    () => tomorrowWatch ?? deriveTomorrowHeat(articles),
+    [articles, tomorrowWatch],
+  );
 
   return (
     <div className="bg-white border-2 border-stone-800 rounded-xl p-6 shadow-xs font-sans space-y-6">
@@ -57,15 +37,15 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
         </div>
       </div>
 
-      {articles.length === 0 || watchlist.list.length === 0 ? (
+      {watchlist.corpusSize === 0 || watchlist.list.length === 0 ? (
         <div className="py-8 text-center text-stone-400 text-xs">
           当前语料为空或未命中任何赛道关键词（请先配置 RSS 并摄取）。
         </div>
       ) : (
         <div className="space-y-3">
           {watchlist.list.map((item, idx) => (
-            <div
-              key={item.sector.id}
+              <div
+              key={item.sectorId}
               className="p-4 bg-[#FAF8F5] border border-stone-300 hover:border-stone-800 rounded-xl transition-all space-y-2"
             >
               <div className="flex items-center justify-between">
@@ -74,7 +54,7 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
                     {idx + 1}
                   </span>
                   <span className="text-sm font-serif font-bold text-stone-950">
-                    {item.sector.name}
+                    {item.name}
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -88,7 +68,7 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
                 <div style={{ width: `${(item.count / watchlist.maxCount) * 100}%` }} className="bg-stone-900 h-full" />
               </div>
               <p className="text-xs text-stone-600 leading-relaxed font-sans">
-                近 {watchlist.totalWindow} 条中命中 <strong>{item.count} 条</strong>（关键词：{item.sector.keywords.slice(0, 5).join('、')}）。
+                近 {watchlist.totalWindow} 条中命中 <strong>{item.count} 条</strong>（关键词：{item.keywords.join('、')}）。
                 建议明日持续跟踪该赛道的新增信号。
               </p>
             </div>

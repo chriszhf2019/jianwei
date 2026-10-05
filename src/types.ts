@@ -764,6 +764,34 @@ export interface SnapshotDerived {
   /** AI 涉事地区标注（/api/regions/annotate 写回后才有） */
   regionMentionDistribution?: Array<{ region: string; weight: number }>;
   regionAnnotatedCount?: number;
+  /** 来源构成与可追溯计数，不合成健康分 */
+  sourceHealth?: {
+    total: number;
+    externalCount: number;
+    curatedCount: number;
+    distinctExternalHosts: number;
+    topSources: Array<{ name: string; count: number }>;
+    withOriginalLink: number;
+    withTimestamp: number;
+    fullyTraceable: number;
+    knownGroupCount: number;
+    unknownDomainCount: number;
+  };
+  /** 赛道覆盖扫描。低覆盖是相对候选，不是全局盲区 */
+  blindspots?: {
+    total: number;
+    matchedTotal: number;
+    maxCount: number;
+    coveredSectorCount: number;
+    lowCoverage: Array<{ sectorId: string; name: string; count: number; samples: string[] }>;
+  };
+  /** 最近窗口的赛道热度。share 是占比，不是概率 */
+  tomorrowWatch?: {
+    corpusSize: number;
+    totalWindow: number;
+    maxCount: number;
+    list: Array<{ sectorId: string; name: string; keywords: string[]; count: number; share: number }>;
+  };
 }
 
 export interface SnapshotResponse {
