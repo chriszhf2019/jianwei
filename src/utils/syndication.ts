@@ -9,6 +9,8 @@ export type SyndicationSignal =
   | 'same_headline'
   | 'likely_text_reuse';
 
+export type TextBasis = 'page_text' | 'excerpt';
+
 export interface SyndicationCandidate {
   id: string;
   signal: SyndicationSignal;
@@ -17,9 +19,15 @@ export interface SyndicationCandidate {
   articleB: { id: string; title: string; sourceName: string; sourceUrl?: string };
   titleSimilarity: number;
   textSimilarity: number;
+  textBasis: TextBasis;
   timeDeltaHours: number | null;
   note: string;
 }
+
+/** 短于这段的抓取结果当导航残片，不参与正文比较。 */
+export const MIN_PAGE_TEXT_CHARS = 200;
+/** 只比较正文开头，避免整页导航和页脚把重合度抬高。 */
+export const PAGE_TEXT_COMPARE_CHARS = 4000;
 
 function canonicalUrl(raw?: string | null): string {
   if (!raw) return '';
@@ -76,9 +84,19 @@ function signalPriority(signal: SyndicationSignal): number {
   return 1;
 }
 
+export function hoursBetween(earlierMs: number, laterMs: number): number {
+  return Math.round((Math.abs(laterMs - earlierMs) / 3_600_000) * 10) / 10;
+}
+
+function usablePageText(pageTexts: Map<string, string> | undefined, articleId: string): string {
+  const text = String(pageTexts?.get(articleId) || '').trim().slice(0, PAGE_TEXT_COMPARE_CHARS);
+  return text.length >= MIN_PAGE_TEXT_CHARS ? text : '';
+}
+
 export function findSyndicationCandidates(
   articles: NewsArticle[],
-  limit = 20
+  limit = 20,
+  pageTexts?: Map<string, string>,
 ): SyndicationCandidate[] {
   const pool = articles
     .filter((article) => article.isExternal !== false && article.title && article.sourceUrl)
@@ -93,9 +111,12 @@ export function findSyndicationCandidates(
       const urlA = canonicalUrl(a.sourceUrl);
       const urlB = canonicalUrl(b.sourceUrl);
       const titleSimilarity = headlineSimilarity(a.title, b.title);
+      const pageA = usablePageText(pageTexts, a.id);
+      const pageB = usablePageText(pageTexts, b.id);
+      const textBasis: TextBasis = pageA && pageB ? 'page_text' : 'excerpt';
       const textSimilarity = textOverlap(
-        `${a.title || ''}${a.subtitle || ''}${a.summary || ''}`,
-        `${b.title || ''}${b.subtitle || ''}${b.summary || ''}`
+        textBasis === 'page_text' ? pageA : `${a.title || ''}${a.subtitle || ''}${a.summary || ''}`,
+        textBasis === 'page_text' ? pageB : `${b.title || ''}${b.subtitle || ''}${b.summary || ''}`,
       );
       let signal: SyndicationSignal | null = null;
       let confirmed = false;
@@ -115,7 +136,9 @@ export function findSyndicationCandidates(
         note = '标题高度一致，可能为同题报道、转载或同源稿件，尚未确认授权关系。';
       } else if (titleSimilarity >= 0.45 && textSimilarity >= 0.78) {
         signal = 'likely_text_reuse';
-        note = '标题和摘要文本高度重合，可能存在复用，不能据此认定转载或版权关系。';
+        note = textBasis === 'page_text'
+          ? '已保存正文开头高度重合，可能存在复用，不能据此认定转载或版权关系。'
+          : '标题和摘要文本高度重合，可能存在复用，不能据此认定转载或版权关系。';
       }
 
       if (!signal) continue;
@@ -129,7 +152,8 @@ export function findSyndicationCandidates(
         articleB: { id: b.id, title: b.title, sourceName: b.sourceName, sourceUrl: b.sourceUrl },
         titleSimilarity: Math.round(titleSimilarity * 100),
         textSimilarity: Math.round(textSimilarity * 100),
-        timeDeltaHours: timeA && timeB ? Math.round(Math.abs(timeA - timeB) / 360000) / 10 : null,
+        textBasis,
+        timeDeltaHours: timeA && timeB ? hoursBetween(timeA, timeB) : null,
         note,
       });
     }
@@ -161,6 +185,7 @@ export interface SyndicationEdge {
   confirmed: boolean;
   titleSimilarity: number;
   textSimilarity: number;
+  textBasis: TextBasis;
   timeDeltaHours: number;
   note: string;
 }
@@ -178,6 +203,10 @@ export interface SyndicationGraph {
   nodes: SyndicationNode[];
   edges: SyndicationEdge[];
   chains: SyndicationChain[];
+  meta: {
+    pageTextCount: number;
+    note: string;
+  };
 }
 
 /**
@@ -185,14 +214,23 @@ export interface SyndicationGraph {
  * 按发布时间确定传播方向（早→晚），聚合为传播链。
  * 局限：文本相似不等于授权转载；时间早不一定是首发（可能是不同信源同时报道）。
  */
-export function buildSyndicationGraph(articles: NewsArticle[], limit = 50): SyndicationGraph {
-  const candidates = findSyndicationCandidates(articles, limit);
+export function buildSyndicationGraph(
+  articles: NewsArticle[],
+  limit = 50,
+  pageTexts?: Map<string, string>,
+): SyndicationGraph {
+  const pool = articles
+    .filter((article) => article.isExternal !== false && article.title && article.sourceUrl)
+    .slice(0, 500);
+  const pageTextCount = pool.filter((article) => usablePageText(pageTexts, article.id)).length;
+  const byId = new Map(articles.map((article) => [article.id, article]));
+  const candidates = findSyndicationCandidates(articles, limit, pageTexts);
   const nodeMap = new Map<string, SyndicationNode>();
   const edges: SyndicationEdge[] = [];
 
   for (const c of candidates) {
-    const timeA = articleSortTime(articles.find((a) => a.id === c.articleA.id) as NewsArticle);
-    const timeB = articleSortTime(articles.find((a) => a.id === c.articleB.id) as NewsArticle);
+    const timeA = articleSortTime(byId.get(c.articleA.id) as NewsArticle);
+    const timeB = articleSortTime(byId.get(c.articleB.id) as NewsArticle);
     if (!timeA || !timeB) continue;
 
     // 确定方向：时间早的为 from（疑似首发），时间晚的为 to（跟进）
@@ -201,10 +239,10 @@ export function buildSyndicationGraph(articles: NewsArticle[], limit = 50): Synd
     const toArticle = aFirst ? c.articleB : c.articleA;
     const fromTime = aFirst ? timeA : timeB;
     const toTime = aFirst ? timeB : timeA;
-    const deltaHours = Math.round(Math.abs(toTime - fromTime) / 360) / 10;
+    const deltaHours = hoursBetween(fromTime, toTime);
 
-    const fromFull = articles.find((a) => a.id === fromArticle.id);
-    const toFull = articles.find((a) => a.id === toArticle.id);
+    const fromFull = byId.get(fromArticle.id);
+    const toFull = byId.get(toArticle.id);
     if (fromFull) {
       nodeMap.set(fromArticle.id, {
         id: fromArticle.id, title: fromArticle.title, sourceName: fromArticle.sourceName,
@@ -224,6 +262,7 @@ export function buildSyndicationGraph(articles: NewsArticle[], limit = 50): Synd
       from: fromArticle.id, to: toArticle.id,
       signal: c.signal, confirmed: c.confirmed,
       titleSimilarity: c.titleSimilarity, textSimilarity: c.textSimilarity,
+      textBasis: c.textBasis,
       timeDeltaHours: deltaHours, note: c.note,
     });
   }
@@ -261,7 +300,7 @@ export function buildSyndicationGraph(articles: NewsArticle[], limit = 50): Synd
       nodes: sorted.map((n) => n.id),
       earliestAt: sorted[0].publishedAt,
       latestAt: sorted[sorted.length - 1].publishedAt,
-      spanHours: Math.round((sorted[sorted.length - 1].publishedAt - sorted[0].publishedAt) / 360) / 10,
+      spanHours: hoursBetween(sorted[0].publishedAt, sorted[sorted.length - 1].publishedAt),
       sourceCount: sourceSet.size,
     });
   }
@@ -271,5 +310,11 @@ export function buildSyndicationGraph(articles: NewsArticle[], limit = 50): Synd
     nodes: [...nodeMap.values()].sort((a, b) => a.publishedAt - b.publishedAt),
     edges,
     chains: chains.slice(0, 20),
+    meta: {
+      pageTextCount,
+      note: pageTextCount > 0
+        ? `其中 ${pageTextCount} 篇有已保存正文，双方都有正文时按正文前 ${PAGE_TEXT_COMPARE_CHARS} 字比较。到达更早只表示记录时间更早，不是首发证明。`
+        : '当前没有可用的来源正文快照，文本重合只比较标题和摘要。到达更早只表示记录时间更早，不是首发证明。',
+    },
   };
 }

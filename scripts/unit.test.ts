@@ -47,7 +47,7 @@ import {
   normalizeEntityMentions,
 } from '../src/utils/entityGraph';
 import { sourceGroupInfo, sourceGroupKey } from '../src/utils/sourceGrouping';
-import { findSyndicationCandidates } from '../src/utils/syndication';
+import { buildSyndicationGraph, findSyndicationCandidates } from '../src/utils/syndication';
 import {
   expectedCalibrationError,
   krippendorffAlphaNominal,
@@ -955,6 +955,53 @@ test('syndication: 确认 URL/已知同集团，文本相似只标疑似', () =>
   ] as any);
   assert.ok(['same_headline', 'likely_text_reuse'].includes(likely[0]?.signal));
   assert.equal(likely[0]?.confirmed, false);
+  assert.equal(likely[0]?.textBasis, 'excerpt');
+});
+
+test('syndication: 双方都有正文时按正文比较，传播链按小时而不是毫秒', () => {
+  const summary = '公司发布新品并宣布扩大生产规模，供应链将同步调整。';
+  const title = '公司宣布扩大海外产能并调整供应链';
+  const articles = [
+    {
+      id: 'a',
+      isExternal: true,
+      title,
+      subtitle: '',
+      summary,
+      sourceName: 'a.example',
+      sourceUrl: 'https://a.example/a',
+      publishedAt: '2026-09-12T08:00:00Z',
+    },
+    {
+      id: 'b',
+      isExternal: true,
+      title,
+      subtitle: '',
+      summary,
+      sourceName: 'b.example',
+      sourceUrl: 'https://b.example/b',
+      publishedAt: '2026-09-12T10:00:00Z',
+    },
+  ] as any;
+  const pageA = `${'甲'.repeat(220)}产能细节与交付时间表`;
+  const pageB = `${'乙'.repeat(220)}财务人事与完全不同的说明`;
+  const withPages = findSyndicationCandidates(articles, 5, new Map([['a', pageA], ['b', pageB]]));
+  const withoutPages = findSyndicationCandidates(articles, 5);
+  assert.equal(withPages[0]?.textBasis, 'page_text');
+  assert.ok((withPages[0]?.textSimilarity || 0) < 30);
+  assert.equal(withoutPages[0]?.textBasis, 'excerpt');
+  assert.ok((withoutPages[0]?.textSimilarity || 0) > 80);
+
+  const oneSided = findSyndicationCandidates(articles, 5, new Map([['a', pageA], ['b', '太短']]));
+  assert.equal(oneSided[0]?.textBasis, 'excerpt');
+
+  const graph = buildSyndicationGraph(articles, 10, new Map([['a', pageA], ['b', pageB]]));
+  assert.equal(graph.meta.pageTextCount, 2);
+  assert.equal(graph.edges[0]?.timeDeltaHours, 2);
+  assert.equal(graph.edges[0]?.from, 'a');
+  assert.equal(graph.edges[0]?.to, 'b');
+  assert.equal(graph.chains[0]?.spanHours, 2);
+  assert.deepEqual(graph.chains[0]?.nodes, ['a', 'b']);
 });
 
 test('evaluationMetrics: 分类、概率和排序指标', () => {

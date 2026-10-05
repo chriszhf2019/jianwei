@@ -125,6 +125,7 @@ import {
   deleteDatabaseAnalysis,
   batchDeleteDatabaseAnalyses,
   getDatabaseOverview,
+  loadSourcePageTexts,
 } from "./src/server/database";
 import { deriveFromList } from "./src/utils/corpusMetrics";
 import {
@@ -2237,8 +2238,20 @@ app.post("/api/ai/test", applyRateLimit, async (_req, res) => {
 
 // —— 通讯社/转载传播图 ——
 app.get("/api/syndication/graph", (_req, res) => {
-  const graph = buildSyndicationGraph(serverCorpus as any[], 50);
-  res.json(graph);
+  const articles = serverCorpus as any[];
+  const pool = articles
+    .filter((article) => article?.isExternal !== false && article?.title && article?.sourceUrl)
+    .slice(0, 500);
+  const pageTexts = new Map<string, string>();
+  if (!NO_PERSIST && pool.length > 0) {
+    const keyByArticle = new Map(pool.map((article) => [sourceCheckKey(article.sourceUrl, ""), article.id]));
+    const stored = loadSourcePageTexts([...keyByArticle.keys()]);
+    for (const [checkKey, text] of stored) {
+      const articleId = keyByArticle.get(checkKey);
+      if (articleId) pageTexts.set(articleId, text);
+    }
+  }
+  res.json(buildSyndicationGraph(articles, 50, pageTexts));
 });
 
 // —— 来源页面核验：SSRF 防护、页面指纹、引句匹配 ——

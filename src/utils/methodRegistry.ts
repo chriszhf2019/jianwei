@@ -227,9 +227,9 @@ export const METHOD_REGISTRY: Record<string, MethodSpec> = {
     id: 'syndication_detection',
     label: '通讯社/转载识别',
     assertionType: 'heuristic_signal',
-    method: '标题与 RSS 摘要相似度 + 已知来源集团归一',
+    method: '相同 URL、已登记来源集团、标题相似度；双方都有已保存正文时，文本重合改用正文前 4000 字',
     basis: '文本近重复检测 + 所有权归一',
-    limitations: ['高相似候选不等于授权或转载方向', '未登记集团按域名分开'],
+    limitations: ['高相似候选不等于授权或转载方向', '未登记集团按域名分开', '没有正文快照时只比较标题和摘要', '到达时间早不等于首发'],
     calibrated: false,
   },
   media_authority: {

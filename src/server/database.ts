@@ -682,6 +682,31 @@ export function loadSourcePageText(checkKey: string): string | null {
   return row?.page_text || null;
 }
 
+/** 按核验键批量读取已保存正文。短于 minimumLength 的快照不返回。 */
+export function loadSourcePageTexts(
+  checkKeys: string[],
+  minimumLength = 200,
+  maxChars = 4000,
+): Map<string, string> {
+  const wanted = [...new Set(checkKeys.map((key) => String(key || "").trim()).filter(Boolean))];
+  const found = new Map<string, string>();
+  if (wanted.length === 0 || !fs.existsSync(databasePath())) return found;
+  const db = openDatabase();
+  for (let offset = 0; offset < wanted.length; offset += 200) {
+    const slice = wanted.slice(offset, offset + 200);
+    const placeholders = slice.map(() => "?").join(",");
+    const rows = db.prepare(
+      `SELECT check_key, page_text FROM source_checks WHERE check_key IN (${placeholders}) AND page_text IS NOT NULL`
+    ).all(...slice) as Array<{ check_key?: string; page_text?: string | null }>;
+    for (const row of rows) {
+      const text = String(row.page_text || "").trim();
+      if (!row.check_key || text.length < minimumLength) continue;
+      found.set(row.check_key, text.slice(0, maxChars));
+    }
+  }
+  return found;
+}
+
 export function clearTransientSourceChecks(): number {
   if (!fs.existsSync(databasePath())) return 0;
   const db = openDatabase();
