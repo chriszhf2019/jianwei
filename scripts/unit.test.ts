@@ -27,7 +27,7 @@ import {
   sanitizeGrayscaleAssessment,
   sanitizeRegionImpact,
 } from '../src/server/aiValidation';
-import { calibrationBuckets, forecastMetrics, predictionOutcomes } from '../src/utils/predictionCalibration';
+import { calibrationBuckets, collectCalibrationSample, forecastMetrics, monthlyCalibration, predictionOutcomes } from '../src/utils/predictionCalibration';
 import {
   extractPageMetadata,
   evaluateQuoteMatch,
@@ -550,6 +550,50 @@ test('predictionCalibration: Brier / Log Loss / 分桶口径', () => {
   assert.equal(buckets.length, 5);
   assert.equal(buckets[1].userCount, 1);
   assert.equal(buckets[4].aiObserved, 100);
+});
+
+test('monthlyCalibration: 按回测月汇总，样本不足不计算 ECE', () => {
+  const base = {
+    ledger: 'server',
+    integrityValid: true,
+    reviewStatus: 'confirmed',
+    actualOutcome: '已记录结果',
+    status: 'verified_hit_user',
+    userPred: { confidence: 100 },
+    aiPred: { confidence: 0 },
+  };
+  const dated = (id: string, resolutionDate: string, status = 'verified_hit_user') => ({
+    ...base,
+    id,
+    resolutionDate,
+    status,
+  });
+  const sample = collectCalibrationSample([
+    dated('sep', '2026-09-02T00:00:00.000Z'),
+    dated('oct', '2026-10-01T00:00:00.000Z', 'verified_hit_ai'),
+    dated('undated', ''),
+    dated('bad-month', '2026-13-01'),
+    { ...dated('local', '2026-09-03T00:00:00.000Z'), ledger: 'local' },
+    { ...dated('pending', '2026-09-04T00:00:00.000Z'), status: 'pending', actualOutcome: '' },
+  ] as any);
+  assert.equal(sample.user.length, 4);
+  assert.equal(sample.undatedCount, 2);
+  const months = monthlyCalibration(sample);
+  assert.deepEqual(months.map((row) => row.month), ['2026-10', '2026-09']);
+  assert.equal(months[0].user.count, 1);
+  assert.equal(months[0].user.brier, 1);
+  assert.equal(months[0].ai.brier, 1);
+  assert.equal(months[0].userEce, null);
+  assert.equal(months[1].user.brier, 0);
+
+  const enough = collectCalibrationSample(
+    Array.from({ length: 20 }, (_, index) => dated(`enough-${index}`, '2026-08-15T12:00:00.000Z')) as any,
+  );
+  const august = monthlyCalibration(enough)[0];
+  assert.equal(august.month, '2026-08');
+  assert.equal(august.user.count, 20);
+  assert.equal(august.userEce, 0);
+  assert.equal(august.aiEce, 0);
 });
 
 test('sourceVerification: 阻止本机、内网、链路本地和保留地址', () => {
