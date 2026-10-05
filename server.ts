@@ -10,6 +10,7 @@ import { ingestAllFeeds, type RawFeedItem } from "./src/server/feeds";
 import { parseArticleDate } from "./src/utils/articleTime";
 import { serverSectorList, serverDetectSectors } from "./src/server/sectors";
 import { deriveBlindspots, deriveSourceHealth, deriveTomorrowHeat } from "./src/utils/corpusSnapshot";
+import { deriveArrivalHeatBundle, deriveCrossEventTop, deriveDensityCurve } from "./src/utils/arrivalPanels";
 import { registerAnnotationRoutes } from "./src/server/annotations";
 import { startFeedScheduler } from "./src/server/scheduler";
 import { scheduledBackupStatus, startBackupScheduler } from "./src/server/backupScheduler";
@@ -1607,10 +1608,13 @@ app.get("/api/snapshot", (_req, res) => {
         sourceHealth: deriveSourceHealth(arts),
         blindspots: deriveBlindspots(arts, serverSectorList()),
         tomorrowWatch: deriveTomorrowHeat(arts, serverSectorList()),
+        arrivalHeat: deriveArrivalHeatBundle(arts),
+        density: deriveDensityCurve(arts, { taxonomy: serverSectorList() }),
+        crossEvent: deriveCrossEventTop(arts),
       },
-      // 热力、密度、跨事件共振仍由浏览器按已加载语料计算。
-      // 信源完整度、覆盖扫描和明日热度已在 derived 中，按计数口径，不是健康分或概率。
-      notYetDerived: ["heatmap", "density", "crossEvent"],
+      // 热力、密度、跨事件共振与其余派生项使用同一套计数公式。
+      // 时段按服务端本地时区分桶；共振分是信号重叠加权，不是因果强度或概率。
+      notYetDerived: [],
     };
     snapshotCache = { key: cacheKey, at: Date.now(), payload };
     res.json(payload);

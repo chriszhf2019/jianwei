@@ -407,16 +407,25 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       <CrossEventNexusPanel
         articles={contextArticles}
+        crossEvent={snapshot?.derived.crossEvent}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
 
 
       {/* 3. 24-Hour Content-Arrival Heatmap（真实时间统计） */}
-      <SentimentHeatmap24h articles={contextArticles} onSelectArticleTitle={onSelectArticleTitle} />
+      <SentimentHeatmap24h
+        articles={contextArticles}
+        arrivalHeat={snapshot?.derived.arrivalHeat}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
 
       {/* 4. Intelligence Density Curve（真实统计） */}
-      <IntelligenceDensityCurve articles={contextArticles} onSelectArticleTitle={onSelectArticleTitle} />
+      <IntelligenceDensityCurve
+        articles={contextArticles}
+        density={snapshot?.derived.density}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
       </>
       )}
 

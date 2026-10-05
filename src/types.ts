@@ -803,6 +803,12 @@ export interface SnapshotDerived {
     maxCount: number;
     list: Array<{ sectorId: string; name: string; keywords: string[]; count: number; share: number }>;
   };
+  /** 近 30 天到达热力。六种行列组合都按同一计数口径，intensity 只是相对峰值分级 */
+  arrivalHeat?: import('./utils/arrivalPanels').ArrivalHeatBundle;
+  /** 2 小时槽到达密度。按来源、按赛道从同一批计数拆出 */
+  density?: import('./utils/arrivalPanels').DensityCurveSnapshot;
+  /** 跨篇信号重叠前 5 对。共振分是加权统计，不是因果强度 */
+  crossEvent?: import('./utils/arrivalPanels').CrossEventSnapshot;
 }
 
 export interface SnapshotResponse {

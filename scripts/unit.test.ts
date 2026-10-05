@@ -70,6 +70,8 @@ import { certificationSpec, methodSpec } from '../src/utils/methodRegistry';
 import { articleIdsToHash, planArticlePersistence } from '../src/server/database';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 import { deriveBlindspots, deriveSourceHealth, deriveTomorrowHeat } from '../src/utils/corpusSnapshot';
+import { analyzePair, deriveArrivalHeat, deriveCrossEventTop, deriveDensityCurve } from '../src/utils/arrivalPanels';
+import { parseLocalHour } from '../src/utils/publishedAt';
 import { categoryBaseRate, dueWatchItems } from '../src/utils/forecastReference';
 import type { PredictionContract } from '../src/types';
 
@@ -453,6 +455,70 @@ test('corpusSnapshot: 信源计数、低覆盖阈值与明日窗口占比', () =
   assert.equal(mixed.totalWindow, 4);
   assert.equal(mixed.list.find((item) => item.sectorId === 'ai')?.share, 50);
   assert.equal(mixed.list.find((item) => item.sectorId === 'ev')?.share, 25);
+});
+
+test('arrivalPanels: 30 天窗口、热力分级、密度槽与共振分都不发明概率', () => {
+  const now = Date.parse('2026-10-05T12:00:00Z');
+  const recent = new Date(now - 3 * 3600 * 1000).toISOString();
+  const older = new Date(now - 40 * 24 * 3600 * 1000).toISOString();
+  const hour = parseLocalHour(recent);
+  assert.equal(hour !== null, true);
+  const slot = `${String(Math.floor((hour as number) / 4) * 4).padStart(2, '0')}:00`;
+  const articles = [
+    { id: 'new-1', title: '芯片出口管制更新', summary: '美国限制先进芯片', publishedAt: recent, sourceName: 'reuters.com', tags: ['芯片'], category: '科技' },
+    { id: 'new-2', title: '晶圆厂扩产', summary: '国内晶圆产能', publishedAt: recent, sourceName: 'reuters.com', tags: ['芯片'], category: '科技' },
+    { id: 'new-3', title: '另一来源的芯片新闻', summary: '封装测试', publishedAt: recent, sourceName: 'example.com', tags: ['封装'], category: '制造' },
+    { id: 'old', title: '历史旧闻', summary: '不应进入窗口', publishedAt: older, sourceName: 'reuters.com', tags: ['芯片'], category: '科技' },
+    { id: 'undated', title: '没有时间', summary: '不参与', sourceName: 'reuters.com' },
+  ];
+
+  const heat = deriveArrivalHeat(articles, { now, mode: 'hour', groupBy: 'source' });
+  assert.equal(heat.timedCount, 3);
+  assert.equal(heat.rows[0], 'reuters.com');
+  const peak = heat.cells.find((cell) => cell.row === 'reuters.com' && cell.colRaw === slot);
+  const other = heat.cells.find((cell) => cell.row === 'example.com' && cell.colRaw === slot);
+  assert.equal(peak?.count, 2);
+  assert.equal(other?.count, 1);
+  assert.equal(peak?.intensity, 5);
+  assert.equal(other?.intensity, Math.max(1, Math.round((1 / 2) * 5)));
+  assert.deepEqual(peak?.samples, ['芯片出口管制更新', '晶圆厂扩产']);
+  assert.equal(heat.cells.every((cell) => cell.samples.every((title) => articles.some((article) => article.title === title))), true);
+  assert.equal('probability' in heat, false);
+
+  const byDay = deriveArrivalHeat(articles, { now, mode: 'day', groupBy: 'region' });
+  assert.equal(byDay.columns.length, 7);
+  assert.equal(byDay.rows.includes('英美（国际财经）'), true);
+
+  const density = deriveDensityCurve(articles, {
+    now,
+    taxonomy: [{ id: 'semi', name: '半导体', keywords: ['芯片'] }],
+  });
+  assert.equal(density.timed, 3);
+  assert.equal(density.rows.reduce((sum, row) => sum + row.total, 0), 3);
+  const dense = density.rows.find((row) => row.total === 3);
+  assert.equal(dense?.sectorSegments[0]?.id, 'semi');
+  assert.equal(dense?.sectorSegments[0]?.count, 3);
+  assert.equal(density.max, 3);
+
+  const pair = analyzePair(articles[0], articles[1]);
+  assert.equal(pair.signal.sharedTags.includes('芯片'), true);
+  assert.equal(pair.resonanceScore > 0 && pair.resonanceScore <= 100, true);
+  assert.equal(['突变级共振', '结构级交汇', '周期级传导'].includes(pair.resonanceLevel), true);
+  assert.equal('probability' in pair, false);
+  const unrelated = analyzePair(
+    { id: 'c', title: '甲', tags: [], category: 'A', summary: '一二三' },
+    { id: 'd', title: '乙', tags: [], category: 'B', summary: '四五六' },
+  );
+  assert.equal(unrelated.resonanceScore, 0);
+
+  const ranked = deriveCrossEventTop([
+    ...articles,
+    { id: 'deep-a', title: '深层甲', tags: ['独有甲'], category: '甲', summary: '甲的摘要完全不同', spectrumLayers: [{}] },
+    { id: 'deep-b', title: '深层乙', tags: ['独有乙'], category: '乙', summary: '乙的摘要也完全不同', spectrumLayers: [{}] },
+  ]);
+  assert.equal(ranked.pairs.length <= 5, true);
+  assert.equal(ranked.pairs.every((item, index) => index === 0 || ranked.pairs[index - 1].resonanceScore >= item.resonanceScore), true);
+  assert.equal(ranked.poolSize <= 40, true);
 });
 
 test('evidenceProfile: 只按真实语料计算独立来源，AI 来源线索不计入', () => {
