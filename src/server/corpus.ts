@@ -2,7 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { CURATED_ARTICLES } from "../data/newsData";
 import { canonicalFeedUrl, normalizedTitleKey, type RawFeedItem } from "./feeds";
-import { NO_PERSIST } from "./settings";
+import { NO_PERSIST, isDemoDataEnabled } from "./settings";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
 import { parseArticleDate } from "../utils/articleTime";
 import { sourceGroupKey } from "../utils/sourceGrouping";
@@ -19,7 +19,7 @@ const CORPUS_FILE = path.join(process.cwd(), "data", "corpus.json");
 
 const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
 const BACKUP_KEEP = 10;
-const ALLOW_DEMO_DATA = process.env.JIANWEI_ENABLE_DEMO_DATA !== "0";
+const demoDataEnabled = () => isDemoDataEnabled();
 const LEGACY_DEMO_IDS = new Set((CURATED_ARTICLES as any[]).map((article) => String(article?.id || "")));
 
 function getFreshCuratedArticles(): any[] {
@@ -46,7 +46,7 @@ function getFreshCuratedArticles(): any[] {
 }
 
 function withoutLegacyDemo(items: any[]): any[] {
-  if (ALLOW_DEMO_DATA) return items;
+  if (demoDataEnabled()) return items;
   return items.filter((article) => !LEGACY_DEMO_IDS.has(String(article?.id || "")));
 }
 
@@ -203,12 +203,12 @@ function loadCorpus(): any[] {
   const freshCurated = getFreshCuratedArticles();
 
   if (NO_PERSIST) {
-    return ALLOW_DEMO_DATA ? freshCurated : [];
+    return demoDataEnabled() ? freshCurated : [];
   }
   const fromDatabase = loadArticlesFromDatabase();
   if (fromDatabase !== null) {
     let cleaned = withoutLegacyDemo(fromDatabase);
-    if (ALLOW_DEMO_DATA) {
+    if (demoDataEnabled()) {
       const dbMap = new Map<string, any>(cleaned.map((art) => [String(art?.id || ""), art]));
       for (const cur of freshCurated) {
         const curId = String(cur.id || "");
@@ -227,7 +227,7 @@ function loadCorpus(): any[] {
       }
       cleaned = Array.from(dbMap.values());
     }
-    if (cleaned.length === 0 && ALLOW_DEMO_DATA) {
+    if (cleaned.length === 0 && demoDataEnabled()) {
       persistArticlesToDatabase(freshCurated);
       return freshCurated;
     }
@@ -262,7 +262,7 @@ function loadCorpus(): any[] {
     console.error("corpus file unreadable, returning empty corpus:", e);
   }
 
-  if (ALLOW_DEMO_DATA) {
+  if (demoDataEnabled()) {
     persistArticlesToDatabase(freshCurated);
     return freshCurated;
   }
@@ -430,7 +430,7 @@ export function appendFeedItems(
 }
 
 export function resetCorpus(): void {
-  serverCorpus = ALLOW_DEMO_DATA ? (CURATED_ARTICLES as any[]).map((a) => ({ ...a })) : [];
+  serverCorpus = demoDataEnabled() ? (CURATED_ARTICLES as any[]).map((a) => ({ ...a })) : [];
   lastIngest = null;
   persistCorpus();
 }

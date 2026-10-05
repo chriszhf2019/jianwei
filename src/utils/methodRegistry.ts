@@ -104,6 +104,7 @@ const METHOD_CERTIFICATION: Record<string, CertificationStandard> = {
   title_similarity: 'heuristic',
   bm25_retrieval: 'heuristic',
   source_grouping: 'curated',
+  editorial_template: 'curated',
   source_independence: 'derived',
   syndication_detection: 'heuristic',
   media_authority: 'curated',
@@ -382,6 +383,15 @@ export const METHOD_REGISTRY: Record<string, MethodSpec> = {
     method: '7 天窗口内标题相似度 ≥46% 聚合为同题候选；跨媒体稿记为额外来源',
     basis: '文本近重复检测 + 时间窗口',
     limitations: ['标题相似不等于同一事件', '阈值 46% 为经验值非最优解'],
+    calibrated: false,
+  },
+  editorial_template: {
+    id: 'editorial_template',
+    label: '编辑模板',
+    assertionType: 'scenario',
+    method: '人工维护的固定叙述、权重或情景表',
+    basis: '编辑口径，不按当前文章计算',
+    limitations: ['不能当作该新闻的模型结论或实时数据', '只适合说明阅读框架'],
     calibrated: false,
   },
   evidence_profile: {

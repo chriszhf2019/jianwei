@@ -20,6 +20,15 @@ export interface RuntimeSettings {
 }
 
 export const NO_PERSIST = process.env.JIANWEI_NO_SETTINGS === "1";
+
+/** 演示语料只在显式 JIANWEI_ENABLE_DEMO_DATA=1 时加载。缺省、0、true 都视为关闭。 */
+export function demoDataEnabledFrom(flag: string | undefined): boolean {
+  return flag === "1";
+}
+
+export function isDemoDataEnabled(): boolean {
+  return demoDataEnabledFrom(process.env.JIANWEI_ENABLE_DEMO_DATA);
+}
 export const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
 const ENCRYPTION_SECRET = process.env.JIANWEI_SECRET || "";
 

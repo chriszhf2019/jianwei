@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem } from '../../types';
+import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem, ReadingDensity, DefaultReadingRhythm } from '../../types';
 import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
 import { SevenElementsTab } from './SevenElementsTab';
 const LogicTreeTab = React.lazy(() => import('./LogicTreeTab').then(m => ({ default: m.LogicTreeTab })));
@@ -27,6 +27,7 @@ import { KeyTermNote, KeyTermHighlight } from '../common/KeyTermHighlight';
 
 
 import { FeatureSummary } from '../common/FeatureSummary';
+import { EditorialNotice } from '../common/EditorialNotice';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 import { EvidenceBadge } from '../common/EvidenceBadge';
 import { formatArticleTime } from '../../utils/articleTime';
@@ -123,7 +124,16 @@ interface LogicWeightItem {
   verdict: string;
 }
 
-const getArticleLogicWeights = (id: string, title: string): LogicWeightItem[] => {
+const CURATED_LOGIC_WEIGHT_IDS = new Set([
+  'news-anthropic-claude37',
+  'news-tsmc-2nm-yield',
+  'news-pboc-liquidity-tool',
+  'news-catl-solid-state-pilot',
+  'news-deepseek-enterprise-deployment',
+  'news-quantum-topological-qubit',
+]);
+
+const getArticleLogicWeights = (id: string, _title: string): LogicWeightItem[] => {
   switch (id) {
     case 'news-anthropic-claude37':
       return [
@@ -199,6 +209,9 @@ interface NewsDetailViewProps {
   onOpenShareCard?: (article: NewsArticle) => void;
   isDepositedInKnowledge?: boolean;
   onDepositToKnowledge?: (item: KnowledgeItem) => void;
+  onAppendActionMemo?: (entry: string) => void;
+  readingDensity?: ReadingDensity;
+  defaultRhythm?: DefaultReadingRhythm;
 }
 
 export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
@@ -220,6 +233,9 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   onOpenShareCard,
   isDepositedInKnowledge = false,
   onDepositToKnowledge,
+  onAppendActionMemo,
+  readingDensity = 'comfortable',
+  defaultRhythm = 'classic',
 }) => {
   const [activeTab, setActiveTab] = useState<CognitiveDetailTab>(initialTab);
 
@@ -418,16 +434,16 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans ${readingDensity === 'compact' ? 'py-4' : 'py-8'}`}>
       <div
         className="fixed top-0 left-0 h-0.5 bg-[#E3120B] z-[60] transition-[width] duration-150"
         style={{ width: `${readingProgress}%` }}
         aria-hidden="true"
       />
 
-      <div className="flex flex-col xl:flex-row gap-8 items-start">
+      <div className={`flex flex-col xl:flex-row items-start ${readingDensity === 'compact' ? 'gap-4' : 'gap-8'}`}>
         {/* Main Article Reading & Deep Cognitive Content Area */}
-        <div className="flex-1 min-w-0 space-y-8 max-w-5xl">
+        <div className={`flex-1 min-w-0 max-w-5xl ${readingDensity === 'compact' ? 'space-y-4' : 'space-y-8'}`}>
           {/* Top Action Bar */}
           <div className="flex items-center justify-between border-b border-stone-200 pb-4">
 
@@ -849,7 +865,11 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                       <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                       <span>新闻事实 & 论点逻辑权重热力分布 (Weight Map)</span>
                     </h4>
-                    <p className="text-[10px] text-stone-500 font-sans">由见微认知引擎对新闻核心支撑材料进行的多维度语义比重分配模型（常态归一化）</p>
+                    <EditorialNotice title={CURATED_LOGIC_WEIGHT_IDS.has(article.id) ? '编辑预设权重' : '通用权重模板'}>
+                      {CURATED_LOGIC_WEIGHT_IDS.has(article.id)
+                        ? '这组 35/25/20/20 只写给少数示范稿，不是对本文的语义模型。'
+                        : '未匹配示范稿时固定为 40/30/15/15，不按本文计算。'}
+                    </EditorialNotice>
                   </div>
                   <span className="text-[9px] font-mono bg-stone-100 text-stone-600 px-1.5 py-0.2 rounded shrink-0 self-start sm:self-center">归一化总重: 100%</span>
                 </div>
@@ -1116,13 +1136,14 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               activePersona={activePersona}
               onSelectPersona={onSelectPersona}
               onRunPersonaForecast={onRunPersonaForecast}
+              onAppendActionMemo={onAppendActionMemo}
             />
           )}
 
           {/* 附录：五层通读全览 */}
           {activeTab === 'deep_spectrum' &&
             ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
-              <DeepSpectrumTab article={article} />
+              <DeepSpectrumTab article={article} initialRhythm={defaultRhythm} />
             ) : (
               <MissingDeep feature="五层光谱深度全览" note={deepNote} />
             ))}

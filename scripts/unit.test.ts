@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { parseArticleDate, articleSortTime, formatArticleTime, isStaleArticle } from '../src/utils/articleTime';
+import { appendActionMemo } from '../src/utils/actionMemo';
+import { demoDataEnabledFrom } from '../src/server/settings';
 import { sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../src/utils/corpusMetrics';
 import { monitorHits } from '../src/utils/monitorKeywords';
 import { mediaProfile, tierBadge, mediaKey } from '../src/utils/mediaAuthority';
@@ -950,4 +952,19 @@ test('eventCandidates: 使用标题、实体和时间窗生成待人工判断候
   assert.equal(candidates[0].articleA.id, 'a');
   assert.equal(candidates[0].articleB.id, 'b');
   assert.deepEqual(candidates[0].sharedEntities, ['英伟达']);
+});
+
+test('demoDataEnabledFrom: 只有显式 1 才加载演示语料', () => {
+  assert.equal(demoDataEnabledFrom(undefined), false);
+  assert.equal(demoDataEnabledFrom(''), false);
+  assert.equal(demoDataEnabledFrom('0'), false);
+  assert.equal(demoDataEnabledFrom('true'), false);
+  assert.equal(demoDataEnabledFrom('1'), true);
+});
+
+test('appendActionMemo: 追加行动备忘并跳过重复', () => {
+  assert.equal(appendActionMemo('', '盯紧交付'), '盯紧交付');
+  assert.equal(appendActionMemo('已有', '盯紧交付'), '已有\n\n盯紧交付');
+  assert.equal(appendActionMemo('已有\n\n盯紧交付', '盯紧交付'), '已有\n\n盯紧交付');
+  assert.equal(appendActionMemo('abcdef', 'xyz', 6), 'abcdef');
 });

@@ -3,7 +3,8 @@ import {
   NewsArticle, 
   HomeReadingMode, 
   UserPersona, 
-  RadarKeyword 
+  RadarKeyword,
+  ReadingDensity,
 } from '../../types';
 import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
@@ -62,6 +63,7 @@ interface HomeViewProps {
   onOpenTermExplain: (term: string) => void;
   onOpenSettings?: () => void;
   onOpenShareCard?: (article: NewsArticle) => void;
+  readingDensity?: ReadingDensity;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -84,6 +86,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenTermExplain,
   onOpenSettings,
   onOpenShareCard,
+  readingDensity = 'comfortable',
 }) => {
 
   const [selectedCategory, setSelectedCategory] = useState<string>(() =>
@@ -371,7 +374,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 font-sans">
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans ${readingDensity === 'compact' ? 'py-3' : 'py-6'}`}>
       {/* 1. Hero Bar —— 今日简报（词典统计：情绪/热词/突发，口径透明可复核） */}
       <HomeHeroStatus
         stats={{
@@ -613,6 +616,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* Render Active Reading Mode Feed（每次展示前 20 条） */}
           {readingMode === 'standard' && (
             <StandardModeFeed
+              readingDensity={readingDensity}
               articles={displayFeed}
               bookmarkedIds={bookmarkedIds}
               followedTags={followedTags}

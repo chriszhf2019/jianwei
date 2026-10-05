@@ -9,7 +9,9 @@ import {
   RadarKeyword,
   PredictionContract,
   CognitiveDetailTab,
-  KnowledgeItem
+  KnowledgeItem,
+  ReadingDensity,
+  DefaultReadingRhythm,
 } from './types';
 
 import { 
@@ -19,8 +21,6 @@ import {
   INITIAL_PREDICTION_CONTRACTS,
   INITIAL_KNOWLEDGE_ITEMS
 } from './data/intelligenceData';
-import { CURATED_ARTICLES } from './data/newsData';
-
 import { Header } from './components/Header';
 import { HomeView, NewsSkill } from './components/home/HomeView';
 import { useLocalState } from './hooks/useLocalState';
@@ -28,6 +28,7 @@ import { useSnapshot } from './hooks/useSnapshot';
 import { corpusDerived, deriveFromList } from './utils/corpusMetrics';
 import { parseArticleDate } from './utils/articleTime';
 import { logUserActivity } from './utils/activityTracker';
+import { appendActionMemo } from './utils/actionMemo';
 import { Sparkles } from 'lucide-react';
 
 type AppViewTab = PrimaryNavTab | 'detail';
@@ -202,7 +203,8 @@ export const App: React.FC = () => {
   );
 
   // Core Data State
-  const [articles, setArticles] = useState<NewsArticle[]>(CURATED_ARTICLES);
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const corpusAuthoritativeRef = useRef(false);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [detailInitialTab, setDetailInitialTab] = useState<CognitiveDetailTab>('seven_elements');
   const articlesRef = useRef<NewsArticle[]>(articles);
@@ -214,7 +216,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     let active = true;
     loadCachedCorpus().then((cached) => {
-      if (active && cached && cached.length > 0) {
+      if (active && !corpusAuthoritativeRef.current && cached && cached.length > 0) {
         setArticles(cached);
       }
     });
@@ -886,6 +888,16 @@ export const App: React.FC = () => {
 
   // 用户昵称（设置页与 Header 问候共享同一状态源）
   const [nickname, setNickname] = useLocalState<string>('user-nickname', '');
+  const [readingDensity, setReadingDensity] = useLocalState<ReadingDensity>(
+    'reading-density',
+    'comfortable',
+    { version: 1 }
+  );
+  const [defaultRhythm, setDefaultRhythm] = useLocalState<DefaultReadingRhythm>(
+    'default-rhythm',
+    'classic',
+    { version: 1 }
+  );
 
   useEffect(() => {
     let alive = true;
@@ -903,17 +915,41 @@ export const App: React.FC = () => {
       if (Array.isArray(payload.interestGroups)) setInterestGroups(payload.interestGroups.map(String));
       if (typeof payload.nickname === 'string') setNickname(payload.nickname.slice(0, 80));
       if (typeof payload.personalNotes === 'string') setPersonalNotes(payload.personalNotes.slice(0, 20_000));
+      if (payload.readingDensity === 'comfortable' || payload.readingDensity === 'compact') {
+        setReadingDensity(payload.readingDensity);
+      }
+      if (payload.defaultRhythm === 'classic' || payload.defaultRhythm === 'fast_dialogue' || payload.defaultRhythm === 'data_driven') {
+        setDefaultRhythm(payload.defaultRhythm);
+      }
+    };
+    const absorbStrayActionMemo = () => {
+      let stray = '';
+      try {
+        stray = localStorage.getItem('action-memo') || '';
+        if (stray) localStorage.removeItem('action-memo');
+      } catch {
+        return;
+      }
+      if (!stray.trim()) return;
+      setPersonalNotes((prev) => appendActionMemo(prev, stray));
     };
     fetch('/api/preferences')
       .then((response) => response.ok ? response.json() : null)
       .then((data) => {
-        if (!alive || !data) return;
+        if (!alive) return;
+        if (!data) {
+          absorbStrayActionMemo();
+          return;
+        }
         applyServerPreferences(data.payload);
+        absorbStrayActionMemo();
         preferencesVersionRef.current = Number(data.version || 0);
         preferencesHydratedRef.current = true;
         setPreferencesHydrated(true);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (alive) absorbStrayActionMemo();
+      });
     return () => {
       alive = false;
     };
@@ -931,6 +967,8 @@ export const App: React.FC = () => {
         interestGroups,
         nickname,
         personalNotes,
+        readingDensity,
+        defaultRhythm,
       };
       try {
         const response = await fetch('/api/preferences', {
@@ -960,6 +998,8 @@ export const App: React.FC = () => {
     interestGroups,
     nickname,
     personalNotes,
+    readingDensity,
+    defaultRhythm,
   ]);
 
   // 顶栏情绪值口径：与首页 Hero 一致——“今日(本地日期)发布优先，样本不足回退近30天”
@@ -991,8 +1031,12 @@ export const App: React.FC = () => {
         if (!res.ok) throw new Error(`corpus ${res.status}`);
         const json = await res.json();
         const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
-        if (page.length > 0) {
-          loadedCount += page.length;
+        corpusAuthoritativeRef.current = true;
+        loadedCount += page.length;
+        if (offset === 0) {
+          setArticles(page);
+          saveCachedCorpus(page);
+        } else if (page.length > 0) {
           setArticles((prev) => {
             const seen = new Set(prev.map((a) => a.id));
             const fresh = page.filter((a) => !seen.has(a.id));
@@ -1101,6 +1145,9 @@ export const App: React.FC = () => {
             onEnrichArticle={handleEnrichArticle}
             onRunSkill={runNewsSkill}
             onRunPersonaForecast={runPersonaForecast}
+            onAppendActionMemo={(entry) => setPersonalNotes((prev) => appendActionMemo(prev, entry))}
+            readingDensity={readingDensity}
+            defaultRhythm={defaultRhythm}
             contextArticles={articles}
             onOpenArticle={handleSelectArticle}
             onOpenShareCard={(art) => setShareCardArticle(art)}
@@ -1132,6 +1179,7 @@ export const App: React.FC = () => {
             onOpenTermExplain={(term) => setActiveTermExplain(term)}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenShareCard={(art) => setShareCardArticle(art)}
+            readingDensity={readingDensity}
           />
         )}
 
@@ -1449,6 +1497,10 @@ export const App: React.FC = () => {
             onRemoveRadar={handleRemoveRadar}
             onAddRadarOpen={() => setIsAddRadarOpen(true)}
             selectedPersona={selectedPersona}
+            readingDensity={readingDensity}
+            onReadingDensityChange={setReadingDensity}
+            defaultRhythm={defaultRhythm}
+            onDefaultRhythmChange={setDefaultRhythm}
           />
         )}
 

@@ -17,26 +17,15 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
+import { EditorialNotice } from '../common/EditorialNotice';
+import { fetchArticleTimeline, type ArticleTimelineResult } from '../../utils/articleTimeline';
 
 interface EventEvolutionTimelineProps {
   article: NewsArticle;
   onOpenTermExplain?: (term: string) => void;
 }
 
-interface TimelineNode {
-  phase: 'antecedent' | 'current' | 'future';
-  phaseLabel: string;
-  timeLabel: string;
-  title: string;
-  detail: string;
-  impact: string;
-  keySignals: string[];
-}
-
-interface TimelineResponse {
-  summary: string;
-  timeline: TimelineNode[];
-}
+type TimelineResponse = ArticleTimelineResult;
 
 export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
   article,
@@ -44,76 +33,25 @@ export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
 }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [data, setData] = useState<TimelineResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [activeNodeIdx, setActiveNodeIdx] = useState<number>(1); // Default to current node (idx: 1)
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const fetchTimeline = async (forceRefresh = false) => {
     setLoading(true);
-    setError(null);
     const plainTongsu = typeof article.tongsuSummary === 'string'
       ? article.tongsuSummary
       : article.tongsuSummary?.simpleSay || '';
-
-    try {
-      const res = await fetch('/api/article-timeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          article: {
-            title: article.title,
-            summary: article.summary,
-            tongsuSummary: plainTongsu,
-            oneSentenceVerdict: article.oneSentenceVerdict,
-            category: article.category,
-            publishedAt: article.publishedAt,
-          },
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`分析接口响应异常: ${res.status}`);
-      }
-      const json: TimelineResponse = await res.json();
-      setData(json);
-    } catch (err: any) {
-      console.error('Failed to load article timeline:', err);
-      // Fallback local derivation if offline/network error
-      setData({
-        summary: `围绕《${article.title}》的演变脉络：从前置技术/政策积累，到当前核心突破，再到未来连锁溢出。`,
-        timeline: [
-          {
-            phase: 'antecedent',
-            phaseLabel: '📜 前因与溯源',
-            timeLabel: '前序积累期 (T-180D ~ T-30D)',
-            title: '技术预研与地缘政策前期酝酿',
-            detail: '在此次事件正式爆发前，产业主体已在底层技术验证、原材料采购及跨国合规摸底上完成了关键准备。',
-            impact: '推升了行业准入门槛与竞争壁垒。',
-            keySignals: ['早期专利公布', '产业试点征求意见'],
-          },
-          {
-            phase: 'current',
-            phaseLabel: '⚡ 当前关键节点',
-            timeLabel: '当前实质突破 (T0)',
-            title: article.title,
-            detail: article.summary || plainTongsu || '核心性能参数达到商用标准，或关键政策法案正式签署生效。',
-            impact: article.oneSentenceVerdict || '重塑产业链定价权与上下游利润分配机制。',
-            keySignals: ['官方正式通告', '同业竞品价格跟进'],
-          },
-          {
-            phase: 'future',
-            phaseLabel: '🔮 潜在未来触发点',
-            timeLabel: '未来演化窗口 (T+30D ~ T+180D)',
-            title: '商业化规模量产爬坡与衍生监管终裁',
-            detail: '重点关注未来数月内大客户装车部署反馈、良品率爬坡曲线以及跨国反制措施。',
-            impact: '决定该技术路线或商业模式能否确立跨周期主导地位。',
-            keySignals: ['客户复购与出货量数据', '反倾销终裁节点'],
-          },
-        ],
-      });
-    } finally {
-      setLoading(false);
-    }
+    const json = await fetchArticleTimeline({
+      id: article.id,
+      title: article.title,
+      summary: article.summary,
+      tongsuSummary: plainTongsu,
+      oneSentenceVerdict: article.oneSentenceVerdict,
+      category: article.category,
+      publishedAt: article.publishedAt,
+    }, forceRefresh);
+    setData(json);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -151,6 +89,11 @@ export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
           <p className="text-xs text-stone-500">
             点击任意时间节点即可直接滚动至可视区域，并高亮该节点的上下文因果链
           </p>
+          {data?.fallback && (
+            <EditorialNotice title="模板时间线">
+              {data.fallbackNote || '本次不是模型判断。'}
+            </EditorialNotice>
+          )}
         </div>
 
         <button
@@ -214,7 +157,7 @@ export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
         <div className="py-12 text-center space-y-3">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-stone-200 border-t-[#E3120B]" />
           <p className="text-xs text-stone-500 font-serif">
-            正在调用智能分析引擎，拆解事件前因背景与潜在未来触发分支…
+            正在整理事件时间线…
           </p>
         </div>
       )}
@@ -289,7 +232,7 @@ export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
                     </div>
 
                     <div className="flex flex-wrap gap-1">
-                      {node.keySignals.map((sig, i) => (
+                      {(node.keySignals || []).map((sig, i) => (
                         <span
                           key={i}
                           className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-stone-100 text-stone-600 border border-stone-200"

@@ -75,6 +75,8 @@ interface RelevanceIdentityTabProps {
   onSelectPersona: (id: UserPersonaId) => void;
   /** 身份化「正反双向预测」：按需生成（仅服务全局默认身份） */
   onRunPersonaForecast?: (persona: UserPersona, article: NewsArticle) => Promise<NewsArticle | null>;
+  /** 写入「我的关注」行动备忘录，与 jianwei:action-memo 同一状态。 */
+  onAppendActionMemo?: (entry: string) => void;
 }
 
 export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
@@ -83,6 +85,7 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
   activePersona,
   onSelectPersona,
   onRunPersonaForecast,
+  onAppendActionMemo,
 }) => {
   const [selectedTabId, setSelectedTabId] = useState<UserPersonaId>(activePersona.id);
   const [forecastBusy, setForecastBusy] = useState(false);
@@ -112,11 +115,9 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
   };
 
   const handleSyncMemo = () => {
-    if (!currentImpact) return;
-    const currentMemo = localStorage.getItem('action-memo') || '';
+    if (!currentImpact || !onAppendActionMemo) return;
     const personaName = USER_PERSONAS.find((p) => p.id === currentImpact.personaId)?.name || '';
-    const newEntry = `\n\n【${article.title}】(${personaName}专属行动)：\n• ${currentImpact.recommendedAction}`;
-    localStorage.setItem('action-memo', currentMemo + newEntry);
+    onAppendActionMemo(`【${article.title}】(${personaName}专属行动)：\n• ${currentImpact.recommendedAction}`);
     setMemoSynced(true);
     setTimeout(() => setMemoSynced(false), 3000);
   };

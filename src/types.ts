@@ -36,6 +36,11 @@ export type ReadingMode =
   | 'magazine'         // 现代杂志 (Kinfolk · 界面新闻)
   | 'immersive';       // 沉浸叙事 (NYT Longform · The Pudding)
 
+export type ReadingDensity = 'comfortable' | 'compact';
+
+/** 设置页可选的默认通读节奏。杂志和沉浸仍可在光谱页临时切换。 */
+export type DefaultReadingRhythm = 'classic' | 'fast_dialogue' | 'data_driven';
+
 export type SpectrumLayerType = 'micro_signal' | 'interests' | 'logic_chain' | 'data_signal' | 'deduction';
 
 export interface SpectrumLayer {

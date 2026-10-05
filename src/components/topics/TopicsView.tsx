@@ -442,12 +442,13 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
               <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
                 长周期战略专题档案库
               </span>
+              <MethodBadge methodId="editorial_template" compact />
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
               见微 · 深度专题脉络与结构性博弈
             </h1>
             <p className="text-xs sm:text-sm text-stone-300 font-sans max-w-2xl">
-              摆脱碎片化单点新闻干扰，将跨周期的底层技术跃迁、地缘关税博弈与产业链重构编织为完整的全景演化图景。
+              专题里的博弈、利益方、阶段和证伪条件是编辑种子；下方文章列表才来自当前语料的关键词匹配。
             </p>
           </div>
 

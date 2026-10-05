@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NewsArticle, UserPersona, CognitiveDetailTab } from '../../types';
+import { NewsArticle, UserPersona, CognitiveDetailTab, ReadingDensity } from '../../types';
 import {
   ArrowRight,
   Bookmark,
@@ -112,6 +112,7 @@ interface StandardModeFeedProps {
   onOpenShareCard?: (article: NewsArticle) => void;
   onOpenAudioBriefing?: () => void;
   onOpenTermExplain?: (term: string) => void;
+  readingDensity?: ReadingDensity;
 }
 
 const renderPersonaIcon = (iconName: string) => {
@@ -142,7 +143,9 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
   onOpenShareCard,
   onOpenAudioBriefing,
   onOpenTermExplain,
+  readingDensity = 'comfortable',
 }) => {
+  const compact = readingDensity === 'compact';
   const [expandedSummaries, setExpandedSummaries] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [trackToastId, setTrackToastId] = useState<string | null>(null);
@@ -207,7 +210,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className={`grid grid-cols-1 lg:grid-cols-2 ${compact ? 'gap-3' : 'gap-5'}`}>
           {featuredArticles.map((article, idx) => {
             const isBookmarked = bookmarkedIds.includes(article.id);
             const hits = monitorHits(article, radarKeywords);
@@ -250,7 +253,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
             return (
               <article
                 key={article.id}
-                className="bg-white border border-stone-300/90 rounded-2xl p-5 shadow-xs hover:border-stone-800 hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative"
+                className={`bg-white border border-stone-300/90 rounded-2xl shadow-xs hover:border-stone-800 hover:shadow-md transition-all flex flex-col justify-between relative ${compact ? 'p-3 space-y-2' : 'p-5 space-y-4'}`}
               >
                 {/* 1. 顶部多维元数据栏 */}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-stone-100 pb-3">

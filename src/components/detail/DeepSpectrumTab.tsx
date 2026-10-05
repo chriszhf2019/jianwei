@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NewsArticle, SpectrumLayerType, ReadingMode, SourceInspectionResult } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { NewsArticle, SpectrumLayerType, ReadingMode, DefaultReadingRhythm, SourceInspectionResult } from '../../types';
 import { 
   Sparkles, 
   Layers, 
@@ -17,10 +17,14 @@ import { MethodBadge } from '../common/MethodBadge';
 
 interface DeepSpectrumTabProps {
   article: NewsArticle;
+  initialRhythm?: DefaultReadingRhythm;
 }
 
-export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article }) => {
-  const [readingRhythm, setReadingRhythm] = useState<ReadingMode>('classic');
+export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article, initialRhythm = 'classic' }) => {
+  const [readingRhythm, setReadingRhythm] = useState<ReadingMode>(initialRhythm);
+  useEffect(() => {
+    setReadingRhythm(initialRhythm);
+  }, [article.id, initialRhythm]);
   const [activeLayer, setActiveLayer] = useState<SpectrumLayerType | 'all'>('all');
   const [sourceChecks, setSourceChecks] = useState<Record<string, {
     loading: boolean;

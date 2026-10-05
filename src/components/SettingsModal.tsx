@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { NEWS_INTEREST_GROUPS } from '../utils/sectorTaxonomy';
-import { RadarKeyword, NewsArticle, UserPersona } from '../types';
+import { RadarKeyword, NewsArticle, UserPersona, ReadingDensity, DefaultReadingRhythm } from '../types';
 import { monitorHits } from '../utils/monitorKeywords';
 
 interface SettingsModalProps {
@@ -46,6 +46,10 @@ interface SettingsModalProps {
   /** 用于显示每个监控词在当前语料的命中数 */
   articles?: NewsArticle[];
   selectedPersona?: UserPersona;
+  readingDensity: ReadingDensity;
+  onReadingDensityChange: (value: ReadingDensity) => void;
+  defaultRhythm: DefaultReadingRhythm;
+  onDefaultRhythmChange: (value: DefaultReadingRhythm) => void;
 }
 
 type PersonalSection = 'profile' | 'interests' | 'radar' | 'subscription' | 'security';
@@ -64,14 +68,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onRemoveRadar,
   articles = [],
   selectedPersona,
+  readingDensity,
+  onReadingDensityChange,
+  defaultRhythm,
+  onDefaultRhythmChange,
 }) => {
   useEscapeClose(isOpen, onClose);
 
   const [activeSection, setActiveSection] = useState<PersonalSection>('profile');
   const [tempNickname, setTempNickname] = useState(nickname);
   const [newTagInput, setNewTagInput] = useState('');
-  const [readingDensity, setReadingDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [defaultRhythm, setDefaultRhythm] = useState<string>('classic');
+  const [draftDensity, setDraftDensity] = useState<ReadingDensity>(readingDensity);
+  const [draftRhythm, setDraftRhythm] = useState<DefaultReadingRhythm>(defaultRhythm);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -90,6 +98,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
   const [testingDispatch, setTestingDispatch] = useState(false);
   const [testSentMsg, setTestSentMsg] = useState('');
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setTempNickname(nickname);
+    setDraftDensity(readingDensity);
+    setDraftRhythm(defaultRhythm);
+  }, [isOpen, nickname, readingDensity, defaultRhythm]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -152,6 +167,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSaveProfile = () => {
     onNicknameChange(tempNickname.trim() || '资深分析师');
+    onReadingDensityChange(draftDensity);
+    onDefaultRhythmChange(draftRhythm);
     onClose();
   };
 
@@ -313,9 +330,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ].map((r) => (
                     <div
                       key={r.id}
-                      onClick={() => setDefaultRhythm(r.id)}
+                      onClick={() => setDraftRhythm(r.id as DefaultReadingRhythm)}
                       className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        defaultRhythm === r.id
+                        draftRhythm === r.id
                           ? 'border-stone-900 bg-[#FAF8F5] shadow-xs'
                           : 'border-stone-200 hover:border-stone-400 bg-white'
                       }`}
@@ -340,14 +357,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <input
                         type="radio"
                         name="density"
-                        checked={readingDensity === d.id}
-                        onChange={() => setReadingDensity(d.id as any)}
+                        checked={draftDensity === d.id}
+                        onChange={() => setDraftDensity(d.id as ReadingDensity)}
                         className="text-stone-900 focus:ring-stone-900"
                       />
                       <span className="font-serif text-stone-800">{d.label}</span>
                     </label>
                   ))}
                 </div>
+                <p className="text-[11px] text-stone-400">
+                  点「保存偏好」后生效：紧凑会收紧首页标准卡片和详情页段落间距；默认节奏用于详情「五层通读」。
+                </p>
               </div>
             </div>
           )}
