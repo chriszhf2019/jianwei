@@ -21,7 +21,7 @@ export function UsersTab({ s }: { s: AdminTabScope }) {
                 企业组织与用户权限管理 (RBAC)
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                支持新增用户、按角色分权（管理员/资深分析师/观察员）、审核待注册账号及重置凭证。
+                管理员可：新建用户、批准/拒绝注册、改角色、重置密码、下线会话。API Key 在「密钥」页，登录与使用情况在「使用情况」页。
               </p>
             </div>
 
@@ -49,7 +49,7 @@ export function UsersTab({ s }: { s: AdminTabScope }) {
 
             <div className="flex items-center space-x-2 text-xs">
               <span className="font-serif font-bold text-stone-600">角色筛选:</span>
-              {['all', 'admin', 'analyst', 'viewer'].map((role) => (
+              {(['all', 'admin', 'analyst', 'editor', 'viewer'] as const).map((role) => (
                 <button
                   key={role}
                   onClick={() => setRoleFilter(role)}
@@ -59,7 +59,15 @@ export function UsersTab({ s }: { s: AdminTabScope }) {
                       : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                   }`}
                 >
-                  {role === 'all' ? '全部' : role === 'admin' ? '管理员' : role === 'analyst' ? '分析师' : '观察员'}
+                  {role === 'all'
+                    ? '全部'
+                    : role === 'admin'
+                      ? '管理员'
+                      : role === 'analyst'
+                        ? '分析师'
+                        : role === 'editor'
+                          ? '编辑'
+                          : '观察员'}
                 </button>
               ))}
             </div>
@@ -97,6 +105,7 @@ export function UsersTab({ s }: { s: AdminTabScope }) {
                         >
                           <option value="admin">超级管理员 (Admin)</option>
                           <option value="analyst">资深分析师 (Analyst)</option>
+                          <option value="editor">编辑 (Editor)</option>
                           <option value="viewer">观察员 (Viewer)</option>
                         </select>
                       </td>
@@ -126,11 +135,27 @@ export function UsersTab({ s }: { s: AdminTabScope }) {
                       <td className="p-3 font-mono text-stone-500 text-[11px]">{u.createdAt || '-'}</td>
                       <td className="p-3 text-right space-x-2">
                         {u.approvalStatus === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateUser(u.id, { approvalStatus: 'approved' })}
+                              className="text-[11px] font-serif font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                            >
+                              批准准入
+                            </button>
+                            <button
+                              onClick={() => handleUpdateUser(u.id, { approvalStatus: 'rejected' })}
+                              className="text-[11px] font-serif font-bold text-rose-700 hover:text-rose-900 cursor-pointer"
+                            >
+                              拒绝
+                            </button>
+                          </>
+                        )}
+                        {u.approvalStatus === 'rejected' && (
                           <button
                             onClick={() => handleUpdateUser(u.id, { approvalStatus: 'approved' })}
                             className="text-[11px] font-serif font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
                           >
-                            批准准入
+                            重新批准
                           </button>
                         )}
                         <button
@@ -229,6 +254,7 @@ export function UsersTab({ s }: { s: AdminTabScope }) {
                       className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900"
                     >
                       <option value="analyst">资深分析师 (Analyst · 具备 AI 深度研判与推演权限)</option>
+                      <option value="editor">编辑 (Editor · 可写语料与设置，非全权管理)</option>
                       <option value="admin">超级管理员 (Admin · 全系统配置与用户管理)</option>
                       <option value="viewer">观察员 (Viewer · 仅浏览与报告阅读)</option>
                     </select>

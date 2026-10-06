@@ -216,7 +216,8 @@ export function listUsers(): Array<{
   if (!fs.existsSync(databasePath())) return [];
   const db = openDatabase();
   return (db.prepare(`
-    SELECT id, username, role, active, must_change_password, approval_status,
+    SELECT id, username, role, active, must_change_password AS mustChangePassword,
+           approval_status AS approvalStatus,
            approved_at AS approvedAt, approved_by AS approvedBy,
            created_at AS createdAt, updated_at AS updatedAt
     FROM users ORDER BY created_at ASC
@@ -225,7 +226,7 @@ export function listUsers(): Array<{
     username: String(row.username),
     role: String(row.role) as UserRole,
     active: Number(row.active) === 1,
-    mustChangePassword: Number(row.must_change_password) === 1,
+    mustChangePassword: Number(row.mustChangePassword) === 1,
     approvalStatus: String(row.approvalStatus || "approved") as UserApprovalStatus,
     approvedAt: row.approvedAt ? String(row.approvedAt) : null,
     approvedBy: row.approvedBy ? String(row.approvedBy) : null,
@@ -366,12 +367,19 @@ export function cleanupExpiredUserSessions(): number {
   return Number(result.changes || 0);
 }
 
-export function ensureBootstrapUser(username: string, password: string): void {
-  if (!username || !password || !fs.existsSync(databasePath())) return;
+export function ensureBootstrapUser(username: string, password: string): {
+  created: boolean;
+  username: string;
+} | null {
+  const name = String(username || "").trim();
+  const pass = String(password || "");
+  if (!name || !pass || NO_PERSIST) return null;
+  // openDatabase 会建库建表；勿仅用 existsSync，否则冷启动种子会空跑。
   const db = openDatabase();
-  const exists = db.prepare("SELECT 1 FROM users WHERE username = ?").get(username);
-  if (exists) return;
-  createUser({ username, password, role: "admin", mustChangePassword: true });
+  const exists = db.prepare("SELECT 1 FROM users WHERE username = ?").get(name);
+  if (exists) return { created: false, username: name };
+  createUser({ username: name, password: pass, role: "admin", mustChangePassword: true });
+  return { created: true, username: name };
 }
 
 export function getUserPreferences(userId: string): { payload: Record<string, any> | null; version: number; updatedAt: string | null } {

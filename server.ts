@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import compression from "compression";
 import path from "path";
@@ -41,6 +42,7 @@ import {
   persistSourceCheck,
   closeDatabase,
 } from "./src/server/database";
+import { PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD } from "./src/server/presetAdmin";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -62,8 +64,8 @@ const exposure = assessPublicExposure({
   bindHost: BIND_HOST,
   authToken: AUTH_TOKEN,
   encryptionSecret: process.env.JIANWEI_SECRET || "",
-  adminUser: process.env.JIANWEI_ADMIN_USER || "",
-  adminPassword: process.env.JIANWEI_ADMIN_PASSWORD || "",
+  adminUser: PRESET_ADMIN_USER,
+  adminPassword: PRESET_ADMIN_PASSWORD,
   persistDisabled: NO_PERSIST,
   tlsCertPath: TLS_CERT_PATH,
   tlsKeyPath: TLS_KEY_PATH,
@@ -71,12 +73,17 @@ const exposure = assessPublicExposure({
   behindTls: process.env.JIANWEI_BEHIND_TLS,
 });
 const DEMO_DATA_ENABLED = isDemoDataEnabled();
-const BOOTSTRAP_ADMIN_USER = process.env.JIANWEI_ADMIN_USER || "";
-const BOOTSTRAP_ADMIN_PASSWORD = process.env.JIANWEI_ADMIN_PASSWORD || "";
 
-if (AUTH_ENABLED && BOOTSTRAP_ADMIN_USER && BOOTSTRAP_ADMIN_PASSWORD) {
+if (AUTH_ENABLED && PRESET_ADMIN_USER && PRESET_ADMIN_PASSWORD) {
   try {
-    ensureBootstrapUser(BOOTSTRAP_ADMIN_USER, BOOTSTRAP_ADMIN_PASSWORD);
+    const boot = ensureBootstrapUser(PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD);
+    if (boot?.created) {
+      console.log(`[auth] preset admin created: ${boot.username} (must change password on first login)`);
+    } else if (boot) {
+      console.log(`[auth] preset admin ready: ${boot.username}`);
+    } else {
+      console.warn("[auth] preset admin skipped (persistence disabled or empty credentials)");
+    }
   } catch (error) {
     console.error("failed to bootstrap admin user:", error);
   }

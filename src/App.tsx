@@ -527,7 +527,7 @@ export const App: React.FC = () => {
           data?.error === 'username_exists'
             ? '用户名已存在。'
             : data?.error === 'password_too_weak'
-              ? '密码至少 12 位，并需包含至少三类字符。'
+              ? '密码至少 6 位。'
               : '注册失败，请检查用户名和密码。'
         );
         return;
@@ -555,7 +555,7 @@ export const App: React.FC = () => {
       if (!response.ok) {
         setAuthError(
           data?.error === 'password_change_failed'
-            ? '密码不符合要求或当前密码错误。密码至少 12 位，并需包含至少三类字符。'
+            ? '密码不符合要求或当前密码错误。密码至少 6 位。'
             : '密码修改失败。'
         );
         return;
@@ -1356,11 +1356,11 @@ export const App: React.FC = () => {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="新密码，至少 12 位"
+                  placeholder="新密码，至少 6 位"
                   className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm focus:outline-hidden focus:border-stone-900"
                 />
                 <p className="text-[10px] text-stone-400">
-                  至少 12 位，并包含大小写字母、数字、符号或中文字符中的至少三类。
+                  密码至少 6 位。首次登录改密后需用新密码重新登录。
                 </p>
               </div>
             ) : authMode === 'register' ? (
@@ -1392,7 +1392,7 @@ export const App: React.FC = () => {
                     type="password"
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
-                    placeholder="密码，至少 12 位"
+                    placeholder="密码，至少 6 位"
                     autoComplete="new-password"
                     className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm focus:outline-hidden focus:border-stone-900"
                   />
@@ -1405,7 +1405,7 @@ export const App: React.FC = () => {
                     className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm focus:outline-hidden focus:border-stone-900"
                   />
                   <p className="text-[10px] text-stone-400">
-                    密码至少 12 位，并包含大小写字母、数字、符号或中文字符中的至少三类。
+                    密码至少 6 位。注册后需管理员批准方可完整使用。
                   </p>
                 </div>
               )

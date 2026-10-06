@@ -1000,12 +1000,15 @@ test('predictionLedger: 创建后不可覆盖，结果只能锁定一次并校�
       role: 'viewer',
       approvalStatus: 'pending',
     });
+    const listedPending = database.listUsers().find((u) => u.id === pending.id);
+    assert.equal(listedPending?.approvalStatus, 'pending');
     const pendingSession = database.createUserSession({
       username: 'pending-test',
       password: 'Pending-Password-123',
     });
     assert.deepEqual(pendingSession, { ok: false, reason: 'pending_approval' });
     database.updateUser({ id: pending.id, approvalStatus: 'approved', approvedBy: 'admin-test' });
+    assert.equal(database.listUsers().find((u) => u.id === pending.id)?.approvalStatus, 'approved');
     assert.equal(database.createUserSession({
       username: 'pending-test',
       password: 'Pending-Password-123',
@@ -1605,4 +1608,77 @@ test('时间分工：首页当日看板，情报中心近窗最近', async () =>
   assert.match(hub, /HUB_RECENT_DAYS/);
   assert.match(hub, /recentArticles/);
   assert.match(hub, /最近态势/);
+});
+
+test('预设管理员：默认账号与 UsersTab 审批能力', async () => {
+  const { PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD } = await import('../src/server/presetAdmin');
+  assert.equal(PRESET_ADMIN_USER, '18611010281@163.com');
+  assert.equal(PRESET_ADMIN_PASSWORD, '123456');
+  const usersTab = fs.readFileSync(path.join(process.cwd(), 'src/components/admin/tabs/UsersTab.tsx'), 'utf8');
+  assert.match(usersTab, /批准准入/);
+  assert.match(usersTab, /拒绝/);
+  assert.match(usersTab, /重置密码/);
+  assert.match(usersTab, /新建系统用户/);
+  assert.match(usersTab, /editor/);
+  const envExample = fs.readFileSync(path.join(process.cwd(), '.env.example'), 'utf8');
+  assert.match(envExample, /JIANWEI_ADMIN_USER=18611010281@163\.com/);
+  assert.match(envExample, /JIANWEI_ADMIN_PASSWORD=123456/);
+  assert.match(envExample, /JIANWEI_AUTH_TOKEN/);
+  const adminView = fs.readFileSync(path.join(process.cwd(), 'src/components/admin/AdminConsoleView.tsx'), 'utf8');
+  assert.match(adminView, /KeysTab/);
+  assert.match(adminView, /ActivityTab/);
+  assert.match(adminView, /使用情况/);
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
+  assert.match(serverSrc, /import "dotenv\/config"/);
+  assert.match(serverSrc, /ensureBootstrapUser\(PRESET_ADMIN_USER/);
+});
+
+test('预设管理员：冷启动建库后可登录并强制改密', async () => {
+  const tmpDb = path.join(os.tmpdir(), `jianwei-bootstrap-${Date.now()}.db`);
+  const previousDb = process.env.JIANWEI_DB_FILE;
+  process.env.JIANWEI_DB_FILE = tmpDb;
+  try {
+    if (fs.existsSync(tmpDb)) fs.unlinkSync(tmpDb);
+    const database = await import('../src/server/database');
+    database.closeDatabase();
+    assert.equal(fs.existsSync(tmpDb), false);
+    const boot = database.ensureBootstrapUser('18611010281@163.com', '123456');
+    assert.ok(boot?.created);
+    assert.equal(boot?.username, '18611010281@163.com');
+    const again = database.ensureBootstrapUser('18611010281@163.com', '123456');
+    assert.equal(again?.created, false);
+    const session = database.createUserSession({
+      username: '18611010281@163.com',
+      password: '123456',
+    });
+    assert.equal(session.ok, true);
+    if (!session.ok) throw new Error('preset admin session');
+    assert.equal(session.user.role, 'admin');
+    assert.equal(session.user.mustChangePassword, true);
+    assert.equal(
+      database.changeUserPassword({
+        userId: session.user.id,
+        currentPassword: '123456',
+        newPassword: 'NewAdminPass-789',
+      }),
+      true
+    );
+    const after = database.createUserSession({
+      username: '18611010281@163.com',
+      password: 'NewAdminPass-789',
+    });
+    assert.equal(after.ok, true);
+    if (!after.ok) throw new Error('after password change');
+    assert.equal(after.user.mustChangePassword, false);
+  } finally {
+    try {
+      const database = await import('../src/server/database');
+      database.closeDatabase();
+    } catch {
+      /* ignore */
+    }
+    if (previousDb === undefined) delete process.env.JIANWEI_DB_FILE;
+    else process.env.JIANWEI_DB_FILE = previousDb;
+    if (fs.existsSync(tmpDb)) fs.unlinkSync(tmpDb);
+  }
 });
