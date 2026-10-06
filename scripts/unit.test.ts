@@ -205,7 +205,7 @@ test('corpusDerived: 30 天窗口排除旧闻，无 publishedAt 保留', () => {
     { title: '增长', summary: '', publishedAt: '2025-06-01' }, // 窗口外（排除）
     { title: '增长', summary: '' }, // 无时刻（保留）
   ];
-  const d = corpusDerived(arts as any, 30);
+  const d = corpusDerived(arts as any, 30, now);
   // 用“增长”命中正词：窗口内 1 篇 + 无时刻 1 篇 = 2（2025 被滤）
   assert.equal(d.positive, 2);
 });
@@ -317,7 +317,8 @@ test('splitKeyTerms: 词典/数字/普通文本分段且不重叠', () => {
   const segs = splitKeyTerms('今日指数上涨 3.2%，AI Agent 落地。');
   assert.ok(segs.some((s) => s.text === '上涨' && s.tone === 'pos'));
   assert.ok(segs.some((s) => s.text.includes('3.2%') && s.tone === 'num'));
-  assert.ok(segs.some((s) => s.text.includes('Agent') && s.tone === 'key'));
+  // 「AI Agent」在术语词典里，优先标成 term，而不是单独的 key 词 Agent
+  assert.ok(segs.some((s) => s.text === 'AI Agent' && s.tone === 'term'));
   assert.equal(segs.map((s) => s.text).join(''), '今日指数上涨 3.2%，AI Agent 落地。');
 });
 

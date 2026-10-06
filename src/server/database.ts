@@ -11,9 +11,32 @@ function databasePath(): string {
   return process.env.JIANWEI_DB_FILE || path.join(process.cwd(), "data", "corpus.db");
 }
 
-type OpenDatabase = { path: string; db: DatabaseSync };
+type OpenDatabase = { path: string; db: DatabaseSync; ftsEnabled: boolean };
 let openDatabaseCache: OpenDatabase | null = null;
 let databaseEpoch = 0;
+
+const noopStatement = { run: (..._args: any[]) => undefined };
+
+/** 探测并创建 FTS5 检索表；当前 Node 未编入 fts5 时降级，全文检索改走 LIKE。 */
+function ensureArticleSearchFts(db: DatabaseSync): boolean {
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
+        article_id UNINDEXED,
+        body,
+        tokenize='trigram'
+      );
+    `);
+    return true;
+  } catch (error: any) {
+    const reason = String(error?.message || error);
+    if (/no such module:\s*fts5/i.test(reason)) {
+      console.warn("SQLite FTS5 unavailable; article search falls back to LIKE.");
+      return false;
+    }
+    throw error;
+  }
+}
 
 /** 连接关闭或换库后递增。语料层据此丢掉“未改动”标记，下次保存会重新计算哈希。 */
 export function databaseCacheEpoch(): number {
@@ -69,12 +92,6 @@ function openDatabase(): DatabaseSync {
     CREATE TABLE IF NOT EXISTS app_meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    );
-
-    CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
-      article_id UNINDEXED,
-      body,
-      tokenize='trigram'
     );
 
     CREATE TABLE IF NOT EXISTS source_checks (
@@ -281,12 +298,19 @@ function openDatabase(): DatabaseSync {
   }
   const articleCount = Number((db.prepare("SELECT COUNT(*) AS count FROM articles").get() as any)?.count || 0);
   const regionCount = Number((db.prepare("SELECT COUNT(*) AS count FROM article_regions").get() as any)?.count || 0);
-  const searchCount = Number((db.prepare("SELECT COUNT(*) AS count FROM article_search").get() as any)?.count || 0);
-  if (articleCount > 0 && (regionCount === 0 || searchCount === 0)) {
+  const ftsEnabled = ensureArticleSearchFts(db);
+  const searchCount = ftsEnabled
+    ? Number((db.prepare("SELECT COUNT(*) AS count FROM article_search").get() as any)?.count || 0)
+    : 0;
+  if (articleCount > 0 && (regionCount === 0 || (ftsEnabled && searchCount === 0))) {
     const rows = db.prepare("SELECT id, payload FROM articles").all() as Array<{ id: string; payload: string }>;
     const insertRegion = db.prepare("INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)");
-    const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
-    const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
+    const deleteSearch = ftsEnabled
+      ? db.prepare("DELETE FROM article_search WHERE article_id = ?")
+      : noopStatement;
+    const insertSearch = ftsEnabled
+      ? db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)")
+      : noopStatement;
     db.exec("BEGIN IMMEDIATE");
     try {
       for (const row of rows) {
@@ -298,8 +322,10 @@ function openDatabase(): DatabaseSync {
               .filter(Boolean)
           );
           for (const region of regions) insertRegion.run(row.id, region);
-          deleteSearch.run(row.id);
-          insertSearch.run(row.id, articleSearchBody(article));
+          if (ftsEnabled) {
+            deleteSearch.run(row.id);
+            insertSearch.run(row.id, articleSearchBody(article));
+          }
         } catch {
           /* 单条损坏数据不阻断索引迁移。 */
         }
@@ -310,8 +336,13 @@ function openDatabase(): DatabaseSync {
       throw error;
     }
   }
-  openDatabaseCache = { path: file, db };
+  openDatabaseCache = { path: file, db, ftsEnabled };
   return db;
+}
+
+function articleSearchEnabled(): boolean {
+  openDatabase();
+  return openDatabaseCache?.ftsEnabled === true;
 }
 
 function articleSearchBody(article: any): string {
@@ -371,7 +402,7 @@ export function queryArticlesPage(input: {
       params.push(region);
     }
     if (q) {
-      if (q.length >= 3 && !/\s/.test(q)) {
+      if (articleSearchEnabled() && q.length >= 3 && !/\s/.test(q)) {
         conditions.push("articles.id IN (SELECT article_id FROM article_search WHERE article_search MATCH ?)");
         params.push(`"${q.replace(/"/g, '""')}"`);
       } else {
@@ -546,8 +577,13 @@ export function persistArticlesToDatabase(
   const insertRegion = db.prepare(
     "INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)"
   );
-  const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
-  const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
+  const ftsEnabled = articleSearchEnabled();
+  const deleteSearch = ftsEnabled
+    ? db.prepare("DELETE FROM article_search WHERE article_id = ?")
+    : noopStatement;
+  const insertSearch = ftsEnabled
+    ? db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)")
+    : noopStatement;
   const upsert = db.prepare(`
     INSERT INTO articles (
       id, sort_time, source_name, published_at, is_external, payload, updated_at, payload_hash
