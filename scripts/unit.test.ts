@@ -635,7 +635,7 @@ test('predictionLedger: 创建后不可覆盖，结果只能锁定一次并校�
   const previousDb = process.env.JIANWEI_DB_FILE;
   process.env.JIANWEI_DB_FILE = path.join(dir, 'ledger.db');
   try {
-    const database = await import('../src/server/database.ts');
+    const database = await import('../src/server/database');
     const user = database.createUser({
       username: 'editor-test',
       password: 'Strong-Password-123',
