@@ -383,6 +383,9 @@ export function toFeedArticle(raw: RawFeedItem, index: number): any {
     /* 保持默认 */
   }
   const summary = raw.description || raw.title;
+  const ingestedAt = new Date().toISOString();
+  const pubTs = raw.pubDate ? parseArticleDate(raw.pubDate) : null;
+  const displayDate = pubTs !== null ? new Date(pubTs) : new Date();
   return {
     id: `feed-${Date.now()}-${index}`,
     title: raw.title,
@@ -390,14 +393,15 @@ export function toFeedArticle(raw: RawFeedItem, index: number): any {
     oneSentenceVerdict: "",
     category: "外部信源",
     tags: [],
-    date: zhFullDate(new Date()),
+    date: zhFullDate(displayDate),
     timeAgo: "刚刚",
     readTimeMinutes: 3,
     summary,
     coreQuote: "",
     quoteAuthor: "",
     sourceName,
-    sourceDate: `${isoToday(new Date())} ${nowHHmm(new Date())}`,
+    sourceDate: `${isoToday(displayDate)} ${nowHHmm(displayDate)}`,
+    ingestedAt,
     sourceCount: 1,
     impactScope: "特定行业",
     sourceUrl: raw.link,

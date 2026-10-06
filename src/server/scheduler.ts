@@ -90,6 +90,15 @@ export async function runScheduledIngest(): Promise<{
 }
 
 export function startFeedScheduler(): NodeJS.Timeout {
+  // 启动即预热一次：避免打开应用时语料为空、还要等 6h 或手动摄取。
+  void runScheduledIngest()
+    .then((stats) => {
+      console.log(
+        `[feeds] boot ingest: added=${stats.added} skipped=${stats.skipped} pruned=${stats.pruned} corpus=${stats.corpusSize} errors=${stats.errors.length}`
+      );
+    })
+    .catch((e) => console.error("boot feed ingest failed:", e));
+
   const timer = setInterval(() => {
     void runScheduledIngest().catch((e) =>
       console.error("scheduled feed ingest failed:", e)

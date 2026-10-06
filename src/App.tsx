@@ -1040,40 +1040,54 @@ export const App: React.FC = () => {
     return { value: corpusDerived(articles, 30), scope: '30d' as const };
   }, [articles]);
 
-  // 服务端运行时语料合并：摄取 RSS 后首页信息流立即可见新条目（按 id 去重）
+  // 服务端运行时语料合并：启动预热摄取后首页应直接可见；空结果短等再拉一次，避免覆盖本地缓存
   useEffect(() => {
     const controller = new AbortController();
     const pageSize = 200;
     const maxLoaded = 10000;
     let cancelled = false;
+    const fetchAllPages = async (): Promise<NewsArticle[]> => {
+      const collected: NewsArticle[] = [];
+      const seen = new Set<string>();
+      let offset = 0;
+      let loadedCount = 0;
+      while (loadedCount < maxLoaded) {
+        const res = await fetch(`/api/corpus?limit=${pageSize}&offset=${offset}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`corpus ${res.status}`);
+        const json = await res.json();
+        const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
+        loadedCount += page.length;
+        for (const article of page) {
+          if (!article?.id || seen.has(article.id)) continue;
+          seen.add(article.id);
+          collected.push(article);
+        }
+        const hasMore = Boolean(json?.meta?.hasMore) && page.length > 0 && loadedCount < maxLoaded;
+        if (!hasMore) break;
+        offset += page.length;
+      }
+      return collected;
+    };
     const loadAll = async (): Promise<void> => {
       setActiveRequests((c) => c + 1);
       try {
-        const collected: NewsArticle[] = [];
-        const seen = new Set<string>();
-        let offset = 0;
-        let loadedCount = 0;
-        while (loadedCount < maxLoaded) {
-          const res = await fetch(`/api/corpus?limit=${pageSize}&offset=${offset}`, {
-            signal: controller.signal,
-          });
-          if (!res.ok) throw new Error(`corpus ${res.status}`);
-          const json = await res.json();
-          const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
-          loadedCount += page.length;
-          for (const article of page) {
-            if (!article?.id || seen.has(article.id)) continue;
-            seen.add(article.id);
-            collected.push(article);
-          }
-          const hasMore = Boolean(json?.meta?.hasMore) && page.length > 0 && loadedCount < maxLoaded;
-          if (!hasMore) break;
-          offset += page.length;
+        let collected = await fetchAllPages();
+        // 启动瞬间语料可能尚在 boot ingest：空则等待后再拉一次
+        if (collected.length === 0 && !cancelled) {
+          await new Promise((r) => setTimeout(r, 3500));
+          if (!cancelled) collected = await fetchAllPages();
         }
         if (cancelled) return;
         corpusAuthoritativeRef.current = true;
-        setArticles(collected);
-        if (collected.length > 0) saveCachedCorpus(collected);
+        if (collected.length > 0) {
+          setArticles(collected);
+          saveCachedCorpus(collected);
+        } else if (articlesRef.current.length === 0) {
+          setArticles([]);
+        }
+        // 若服务端仍空但本地有缓存，保留缓存，不强制清空
       } finally {
         setActiveRequests((c) => Math.max(0, c - 1));
       }

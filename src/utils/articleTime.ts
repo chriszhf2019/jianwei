@@ -7,6 +7,8 @@ export interface ArticleTimeLike {
   sourceDate?: string;
   date?: string;
   timeAgo?: string;
+  ingestedAt?: string | null;
+  isExternal?: boolean;
 }
 
 const RFC_MONTHS: Record<string, number> = {
@@ -162,6 +164,40 @@ export function filterTodayArticles<T extends ArticleTimeLike>(
   now = Date.now()
 ): T[] {
   return filterRecentArticles(articles, 1, now);
+}
+
+/**
+ * 首页当日看板：
+ * - 今日真实发布（publishedAt / 站内 sourceDate）
+ * - 或今日刚同步入库的外部条目（ingestedAt；兼容旧数据的 sourceDate）
+ * 不把「近 30 天旧稿」静默扩进今日，但允许「今天同步到的稿」出现在当日看板。
+ */
+export function filterTodayBoardArticles<T extends ArticleTimeLike>(
+  articles: T[],
+  now = Date.now()
+): T[] {
+  const local = new Date(now);
+  const dayStart = new Date(local.getFullYear(), local.getMonth(), local.getDate()).getTime();
+  const dayEnd = dayStart + DAY;
+  return articles.filter((a) => {
+    const published = a.publishedAt ? parseArticleDate(a.publishedAt) : null;
+    if (published !== null && published >= dayStart && published < dayEnd) return true;
+
+    const synced =
+      parseArticleDate(a.ingestedAt) ??
+      (a.isExternal ? parseArticleDate(a.sourceDate) : null);
+    if (synced !== null && synced >= dayStart && synced < dayEnd) {
+      // 外部今日同步：即使原文发布日更早，也进入当日看板（展示仍用真实 publishedAt）
+      if (a.isExternal) return true;
+    }
+
+    // 无 publishedAt 的站内/投递：按 sourceDate/date
+    if (!a.publishedAt) {
+      const st = parseArticleDate(a.sourceDate) ?? parseArticleDate(a.date);
+      return st !== null && st >= dayStart && st < dayEnd;
+    }
+    return false;
+  });
 }
 
 /** 判断是否为站内深度示例文（区别于 RSS 外部条目） */

@@ -11,7 +11,7 @@ import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
 import { UserCheck, ShieldCheck, Bookmark, Radio, Target, Sparkles, Link2, FileText } from 'lucide-react';
 import { deriveFromList } from '../../utils/corpusMetrics';
-import { articleSortTime, parseArticleDate, filterTodayArticles } from '../../utils/articleTime';
+import { articleSortTime, parseArticleDate, filterTodayBoardArticles } from '../../utils/articleTime';
 import { detectBreaking } from '../../utils/todayBrief';
 import { NEWS_INTEREST_GROUPS, SECTOR_TAXONOMY, keywordMatches, matchesNewsInterestGroups } from '../../utils/sectorTaxonomy';
 import { monitorHits } from '../../utils/monitorKeywords';
@@ -112,11 +112,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
     });
   }, [interestSignature]);
 
-  // —— 当日看板：只统计本地自然日「今日」发布（含用户投递），不足也不回退近 30 天 ——
+  // —— 当日看板：今日发布 + 今日同步入库的外部条目；不足也不回退近 30 天 ——
   const { todayList, dToday, breaking, sectorHeat, dayStartTs } = useMemo(() => {
     const now = new Date();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const list = filterTodayArticles(articles);
+    const list = filterTodayBoardArticles(articles);
     const today = deriveFromList(list);
     // 今日赛道热度：每个赛道 = 命中文章数 + 命中 top 词（真实派生）
     const sectorAgg = new Map<string, { count: number; words: Map<string, number> }>();
@@ -179,20 +179,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     };
   }, [interestSignature, radarKeywords]);
 
-  // —— 当日信息流池：首页只展示“今日（本地日期）真实发布”的外部新闻；
-  //     站内/投递文章若其发布日期是今天也计入。历史旧文不再混入首页信息流。
+  // —— 当日信息流池：今日真实发布，或今日同步入库的外部稿（不静默扩到近 30 天） ——
   const todayFeed = useMemo(() => {
-    const nextDay = dayStartTs + 24 * 3600 * 1000;
-    return articles.filter((a) => {
-      // 1) 有真实发布时间的外部条目：按今日判定
-      if (a.publishedAt) {
-        const ts = parseArticleDate(a.publishedAt);
-        if (ts !== null) return ts >= dayStartTs && ts < nextDay;
-      }
-      // 2) 无 publishedAt 的站内/投递文章：按 sourceDate/date（如用户今天 AI 投递）
-      const st = parseArticleDate(a.sourceDate) ?? parseArticleDate(a.date);
-      return st !== null && st >= dayStartTs && st < nextDay;
-    });
+    return filterTodayBoardArticles(articles, dayStartTs + 12 * 3600 * 1000);
   }, [articles, dayStartTs]);
 
   // 近 3 日信息流池 (72 小时范围)
@@ -500,7 +489,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               {/* 今日空窗说明：不静默扩窗，可手动切近 3 日 / 全部，或去情报中心看最近 */}
               {isQuietDay && timeHorizon === 'today' && (
                 <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-serif text-[11px]">
-                  今日暂无新情报 · 可切「近 3 日」或去情报中心看最近
+                  今日暂无新情报 · 可切「近 3 日」或去情报中心看最近；服务启动后会自动同步信源
                 </span>
               )}
             </div>
