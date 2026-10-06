@@ -483,7 +483,7 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
                     见微 · 晨间智能简报
                   </h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950 text-red-300 border border-red-800 font-mono font-bold">
-                    AI 语音 × 实时研讨
+                    浏览器朗读 × 研讨
                   </span>
                 </div>
                 <p className="text-xs text-stone-400 font-sans mt-0.5">

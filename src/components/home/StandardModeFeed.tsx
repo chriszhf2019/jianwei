@@ -9,7 +9,6 @@ import {
   Check,
   Headphones,
   MapPin,
-  Flame,
   Clock,
   Sparkles,
   TrendingUp,
@@ -54,17 +53,6 @@ function deriveLocation(article: NewsArticle): string {
   if (/日本|东京|韩国|首尔|新加坡/.test(text)) return '亚太';
   if (/沙特|阿联酋|中东/.test(text)) return '中东';
   return '全球';
-}
-
-/** 计算热度指数 70-98 */
-function deriveHeatIndex(article: NewsArticle): number {
-  let score = 80;
-  if (article.sourceCount && article.sourceCount > 1) {
-    score += Math.min(15, (article.sourceCount - 1) * 4);
-  }
-  const len = (article.title + (article.summary || '')).length;
-  if (len > 300) score += 3;
-  return Math.min(98, score);
 }
 
 /** 提炼反常与转折点 */
@@ -219,7 +207,6 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
             const hits = monitorHits(article, radarKeywords);
             const isSummaryExpanded = Boolean(expandedSummaries[article.id]);
             const location = deriveLocation(article);
-            const heatIndex = deriveHeatIndex(article);
             const counterIntuitive = deriveCounterIntuitive(article);
             const entities = (article.entityMentions || []).map((e) => e.name);
 
@@ -294,10 +281,14 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-0.5 text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-mono font-bold text-[11px]">
-                      <Flame className="w-3 h-3 text-amber-600 fill-amber-500" />
-                      {heatIndex}
-                    </span>
+                    {typeof article.sourceCount === 'number' && article.sourceCount > 1 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-stone-700 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded font-mono font-bold text-[11px]"
+                        title="站内可见的交叉信源条数，不是市场热度指数"
+                      >
+                        信源 {article.sourceCount}
+                      </span>
+                    )}
 
                     {onOpenAudioBriefing && (
                       <button
@@ -546,7 +537,6 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
             {remainingArticles.map((article) => {
               const isBookmarked = bookmarkedIds.includes(article.id);
               const location = deriveLocation(article);
-              const heatIndex = deriveHeatIndex(article);
               const entities = (article.entityMentions || []).map((e) => e.name);
 
               const prof = mediaProfile(article.sourceName, article.sourceUrl);
@@ -586,10 +576,14 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <span className="font-mono text-stone-500">
                         {formatArticleTime(article)}
                       </span>
-                      <span className="inline-flex items-center gap-0.5 text-amber-800 font-mono">
-                        <Flame className="w-3 h-3 text-amber-600 fill-amber-500" />
-                        {heatIndex}
-                      </span>
+                      {typeof article.sourceCount === 'number' && article.sourceCount > 1 && (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-stone-600 font-mono"
+                          title="站内可见的交叉信源条数，不是市场热度指数"
+                        >
+                          信源 {article.sourceCount}
+                        </span>
+                      )}
                       <SentimentPair title={article.title} summary={article.summary} compact />
                       <EvidenceBadge article={article} corpus={contextArticles} compact />
                     </div>

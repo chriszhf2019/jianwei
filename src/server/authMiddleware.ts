@@ -6,6 +6,7 @@ import {
   GUEST_DEEP_READ_LIMIT,
   ensureGuestId,
   isGuestDeepRoute,
+  isGuestLightSkillRoute,
   isGuestReadRoute,
   requestAuth,
   type RequestAuth,
@@ -39,6 +40,9 @@ export function registerAuthMiddleware(app: express.Express): void {
       };
       (req as any).auth = guestAuth;
       if (["GET", "HEAD", "OPTIONS"].includes(req.method) && isGuestReadRoute(req.path)) {
+        return next();
+      }
+      if (req.method === "POST" && isGuestLightSkillRoute(req.path)) {
         return next();
       }
       if (req.method === "POST" && isGuestDeepRoute(req.path)) {

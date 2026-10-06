@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem, ReadingDensity, DefaultReadingRhythm } from '../../types';
 import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
 import { SevenElementsTab } from './SevenElementsTab';
@@ -36,6 +36,7 @@ import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
 import { downloadMarkdownBriefing, exportBriefingAsPdf } from '../../utils/briefingReportExport';
 import { CERTIFICATION_STANDARDS } from '../../utils/methodRegistry';
+import { classifyAiClientError } from '../../utils/aiClientErrors';
 
 import { 
   ArrowLeft, 
@@ -329,10 +330,33 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   // —— 浅层外部信源条目：深层认知 AI 懒加载补全 ——
   const isShallow = !article.spectrumLayers || article.spectrumLayers.length === 0;
   const [enrichPhase, setEnrichPhase] = useState<'idle' | 'loading' | 'done' | 'unavailable' | 'error'>('idle');
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [enrichElapsed, setEnrichElapsed] = useState(0);
+  const enrichAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (enrichPhase !== 'loading') {
+      setEnrichElapsed(0);
+      return;
+    }
+    setEnrichElapsed(0);
+    const timer = window.setInterval(() => setEnrichElapsed((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [enrichPhase]);
+
+  const handleCancelEnrich = () => {
+    enrichAbortRef.current?.abort();
+    setEnrichPhase('idle');
+    setEnrichError('已取消深度分析请求。');
+  };
 
   const handleGenerateDeepAnalysis = async () => {
     if (!isShallow || enrichPhase === 'loading') return;
+    enrichAbortRef.current?.abort();
+    const controller = new AbortController();
+    enrichAbortRef.current = controller;
     setEnrichPhase('loading');
+    setEnrichError(null);
     try {
       const response = await fetch('/api/enrich', {
         method: 'POST',
@@ -346,30 +370,41 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           publishedAt: article.publishedAt || '',
           category: article.category,
         }),
+        signal: controller.signal,
       });
-      const json = await response.json();
+      const json = await response.json().catch(() => ({}));
       if (json?.enriched && json.overrides && onEnrichArticle) {
         onEnrichArticle(mergeDeep(article, json.overrides));
         setEnrichPhase('done');
       } else if (json?.reason === 'no_api_key') {
         setEnrichPhase('unavailable');
+        setEnrichError(classifyAiClientError({ status: response.status, payload: json }));
       } else {
         setEnrichPhase('error');
+        setEnrichError(classifyAiClientError({ status: response.status, payload: json }));
       }
-    } catch {
-      setEnrichPhase('error');
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        setEnrichPhase('idle');
+        setEnrichError('已取消深度分析请求。');
+      } else {
+        setEnrichPhase('error');
+        setEnrichError(classifyAiClientError({ error: err }));
+      }
     }
   };
 
   // 浅层占位提示文案随补全状态变化
   const deepNote =
     enrichPhase === 'loading'
-      ? '正在请求 AI 懒加载补全深度认知字段…（需服务端配置 Gemini 或 DeepSeek Key）'
+      ? `正在请求深度分析… 已等待 ${enrichElapsed}s / 约 45s`
       : enrichPhase === 'unavailable'
-        ? 'AI 懒加载补全暂不可用：服务端未配置 Gemini 或 DeepSeek Key；配置后重新打开本页即可。'
-      : enrichPhase === 'error'
-          ? '深度分析生成失败（网络、额度或服务异常），请稍后重试。'
-          : '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
+        ? enrichError ||
+          'AI 懒加载补全暂不可用：服务端未配置 Gemini 或 DeepSeek Key；配置后重新打开本页即可。'
+        : enrichPhase === 'error'
+          ? enrichError || '深度分析生成失败，请稍后重试。'
+          : enrichError ||
+            '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
 
   // Find related topic cluster if any
   const relatedTopic = TOPIC_CLUSTERS.find(t => 
@@ -1019,19 +1054,30 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="text-sm font-serif font-bold text-stone-900">深度分析</div>
-            <p className="text-[11px] text-stone-500 mt-0.5">
-              当前为原文摘要，深层字段尚未生成。生成后仍是模型推断，不是已核验事实。
+            <p className="text-xs text-stone-500 mt-0.5">
+              {deepNote}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleGenerateDeepAnalysis()}
-            disabled={enrichPhase === 'loading'}
-            className="shrink-0 px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
-          >
-            {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            {enrichPhase === 'loading' ? '正在生成…' : '生成深度分析'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleGenerateDeepAnalysis()}
+              disabled={enrichPhase === 'loading'}
+              className="px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
+            >
+              {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {enrichPhase === 'loading' ? `生成中 ${enrichElapsed}s` : '生成深度分析'}
+            </button>
+            {enrichPhase === 'loading' && (
+              <button
+                type="button"
+                onClick={handleCancelEnrich}
+                className="px-3 py-2.5 border border-red-300 bg-red-50 text-red-800 rounded-lg text-xs font-serif font-bold"
+              >
+                取消
+              </button>
+            )}
+          </div>
         </div>
       )}
 

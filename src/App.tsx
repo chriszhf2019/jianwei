@@ -1131,9 +1131,9 @@ export const App: React.FC = () => {
 
       {authRequired && authUser?.isGuest && !isAuthModalOpen && !mustChangePassword && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 sm:px-6 lg:px-8 py-2.5">
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-[11px] text-amber-950">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs text-amber-950">
             <span>
-              游客模式：最多查看 <b>4</b> 条新闻，深度解读最多使用 <b>1</b> 次。
+              游客模式：最多查看 <b>4</b> 条新闻；深度解读（完整分析）限 <b>1</b> 次。「大白话」可试用，不占用该额度。
             </span>
             <div className="flex items-center gap-2">
               <button

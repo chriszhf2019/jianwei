@@ -1559,12 +1559,15 @@ test('forecastReference: 样本不足不给基准率，到期日程不含概率'
 
 test('读懂新闻：入口文案与访客深读路由包含 fetch-article', async () => {
   const { FEATURE_SUMMARIES } = await import('../src/utils/featureSummaries');
-  const { isGuestDeepRoute } = await import('../src/server/authSupport');
+  const { isGuestDeepRoute, isGuestLightSkillRoute } = await import('../src/server/authSupport');
   assert.equal(FEATURE_SUMMARIES['ai-submit'].title, '读懂新闻');
   assert.match(FEATURE_SUMMARIES['ai-submit'].purpose, /链接|正文/);
   assert.match(FEATURE_SUMMARIES['ai-submit'].boundary, /核验|核对/);
   assert.equal(isGuestDeepRoute('/fetch-article'), true);
   assert.equal(isGuestDeepRoute('/analyze'), true);
+  assert.equal(isGuestLightSkillRoute('/skill/plain'), true);
+  assert.equal(isGuestDeepRoute('/skill/plain'), false);
+  assert.equal(isGuestDeepRoute('/skill/sevenw'), true);
   const modal = fs.readFileSync(path.join(process.cwd(), 'src/components/AnalyzeModal.tsx'), 'utf8');
   assert.match(modal, /\/api\/fetch-article/);
   assert.match(modal, /贴链接/);

@@ -167,10 +167,10 @@ export function registerAiChatRoutes(app: express.Express): void {
       "how": "实现路径与操作手法",
       "soWhat": "对未来格局的终极影响",
       "aiVerdict": {
-        "confidenceScore": 92,
-        "volatility": "高",
-        "actionLevel": "行动",
-        "verdictSummary": "针对该事件的 AI 综合裁决建议"
+        "confidenceScore": "0到100的整数；仅在有依据时给出，否则省略该字段，禁止编造高置信度",
+        "volatility": "高|中|低",
+        "actionLevel": "行动|观望|规避",
+        "verdictSummary": "针对该事件的 AI 综合裁决建议（模型推断）"
       }
     },
     "logicTree": {
