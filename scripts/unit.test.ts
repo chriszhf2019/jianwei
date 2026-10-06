@@ -1632,10 +1632,38 @@ test('时间分工：首页当日看板，情报中心近窗最近', async () =>
   assert.match(corpusSrc, /ingestedAt/);
 });
 
-test('预设管理员：默认账号与 UsersTab 审批能力', async () => {
-  const { PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD } = await import('../src/server/presetAdmin');
-  assert.equal(PRESET_ADMIN_USER, '18611010281@163.com');
-  assert.equal(PRESET_ADMIN_PASSWORD, '123456');
+test('预设管理员：须由环境变量显式配置，无写死凭据', async () => {
+  const presetSrc = fs.readFileSync(path.join(process.cwd(), 'src/server/presetAdmin.ts'), 'utf8');
+  assert.equal(presetSrc.includes('18611010281'), false);
+  assert.equal(presetSrc.includes('123456'), false);
+  assert.match(presetSrc, /resolvePresetAdmin/);
+  assert.match(presetSrc, /JIANWEI_ADMIN_USER/);
+  assert.match(presetSrc, /JIANWEI_ADMIN_PASSWORD/);
+
+  const previousUser = process.env.JIANWEI_ADMIN_USER;
+  const previousPassword = process.env.JIANWEI_ADMIN_PASSWORD;
+  try {
+    delete process.env.JIANWEI_ADMIN_USER;
+    delete process.env.JIANWEI_ADMIN_PASSWORD;
+    const { resolvePresetAdmin } = await import('../src/server/presetAdmin');
+    assert.equal(resolvePresetAdmin().ok, false);
+
+    process.env.JIANWEI_ADMIN_USER = 'bootstrap-admin@example.com';
+    process.env.JIANWEI_ADMIN_PASSWORD = 'ab'; // too short
+    assert.equal(resolvePresetAdmin().ok, false);
+
+    process.env.JIANWEI_ADMIN_PASSWORD = 'BootstrapAdmin-789';
+    const ready = resolvePresetAdmin();
+    assert.equal(ready.ok, true);
+    if (!ready.ok) throw new Error('expected preset admin');
+    assert.equal(ready.username, 'bootstrap-admin@example.com');
+  } finally {
+    if (previousUser == null) delete process.env.JIANWEI_ADMIN_USER;
+    else process.env.JIANWEI_ADMIN_USER = previousUser;
+    if (previousPassword == null) delete process.env.JIANWEI_ADMIN_PASSWORD;
+    else process.env.JIANWEI_ADMIN_PASSWORD = previousPassword;
+  }
+
   const usersTab = fs.readFileSync(path.join(process.cwd(), 'src/components/admin/tabs/UsersTab.tsx'), 'utf8');
   assert.match(usersTab, /批准准入/);
   assert.match(usersTab, /拒绝/);
@@ -1643,8 +1671,10 @@ test('预设管理员：默认账号与 UsersTab 审批能力', async () => {
   assert.match(usersTab, /新建系统用户/);
   assert.match(usersTab, /editor/);
   const envExample = fs.readFileSync(path.join(process.cwd(), '.env.example'), 'utf8');
-  assert.match(envExample, /JIANWEI_ADMIN_USER=18611010281@163\.com/);
-  assert.match(envExample, /JIANWEI_ADMIN_PASSWORD=123456/);
+  assert.match(envExample, /JIANWEI_ADMIN_USER=/);
+  assert.match(envExample, /JIANWEI_ADMIN_PASSWORD=/);
+  assert.equal(envExample.includes('18611010281'), false);
+  assert.equal(envExample.includes('123456'), false);
   assert.match(envExample, /JIANWEI_AUTH_TOKEN/);
   const adminView = fs.readFileSync(path.join(process.cwd(), 'src/components/admin/AdminConsoleView.tsx'), 'utf8');
   assert.match(adminView, /KeysTab/);
@@ -1652,7 +1682,9 @@ test('预设管理员：默认账号与 UsersTab 审批能力', async () => {
   assert.match(adminView, /使用情况/);
   const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
   assert.match(serverSrc, /import "dotenv\/config"/);
-  assert.match(serverSrc, /ensureBootstrapUser\(PRESET_ADMIN_USER/);
+  assert.match(serverSrc, /resolvePresetAdmin/);
+  assert.match(serverSrc, /ensureBootstrapUser\(preset\.username/);
+  assert.match(serverSrc, /未同时设置 JIANWEI_ADMIN_USER/);
   const appSrc = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
   assert.match(appSrc, /name="username"/);
   assert.match(appSrc, /name="password"/);
@@ -1666,19 +1698,22 @@ test('预设管理员：冷启动建库后可登录并强制改密', async () =>
   const tmpDb = path.join(os.tmpdir(), `jianwei-bootstrap-${Date.now()}.db`);
   const previousDb = process.env.JIANWEI_DB_FILE;
   process.env.JIANWEI_DB_FILE = tmpDb;
+  const bootstrapUser = 'bootstrap-admin@example.com';
+  const bootstrapPassword = 'BootstrapAdmin-789';
+  const nextPassword = 'NewAdminPass-789';
   try {
     if (fs.existsSync(tmpDb)) fs.unlinkSync(tmpDb);
     const database = await import('../src/server/database');
     database.closeDatabase();
     assert.equal(fs.existsSync(tmpDb), false);
-    const boot = database.ensureBootstrapUser('18611010281@163.com', '123456');
+    const boot = database.ensureBootstrapUser(bootstrapUser, bootstrapPassword);
     assert.ok(boot?.created);
-    assert.equal(boot?.username, '18611010281@163.com');
-    const again = database.ensureBootstrapUser('18611010281@163.com', '123456');
+    assert.equal(boot?.username, bootstrapUser);
+    const again = database.ensureBootstrapUser(bootstrapUser, bootstrapPassword);
     assert.equal(again?.created, false);
     const session = database.createUserSession({
-      username: '18611010281@163.com',
-      password: '123456',
+      username: bootstrapUser,
+      password: bootstrapPassword,
     });
     assert.equal(session.ok, true);
     if (!session.ok) throw new Error('preset admin session');
@@ -1687,14 +1722,14 @@ test('预设管理员：冷启动建库后可登录并强制改密', async () =>
     assert.equal(
       database.changeUserPassword({
         userId: session.user.id,
-        currentPassword: '123456',
-        newPassword: 'NewAdminPass-789',
+        currentPassword: bootstrapPassword,
+        newPassword: nextPassword,
       }),
       true
     );
     const after = database.createUserSession({
-      username: '18611010281@163.com',
-      password: 'NewAdminPass-789',
+      username: bootstrapUser,
+      password: nextPassword,
     });
     assert.equal(after.ok, true);
     if (!after.ok) throw new Error('after password change');

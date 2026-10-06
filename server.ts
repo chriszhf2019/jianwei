@@ -42,7 +42,7 @@ import {
   persistSourceCheck,
   closeDatabase,
 } from "./src/server/database";
-import { PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD } from "./src/server/presetAdmin";
+import { PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD, resolvePresetAdmin } from "./src/server/presetAdmin";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -74,18 +74,31 @@ const exposure = assessPublicExposure({
 });
 const DEMO_DATA_ENABLED = isDemoDataEnabled();
 
-if (AUTH_ENABLED && PRESET_ADMIN_USER && PRESET_ADMIN_PASSWORD) {
-  try {
-    const boot = ensureBootstrapUser(PRESET_ADMIN_USER, PRESET_ADMIN_PASSWORD);
-    if (boot?.created) {
-      console.log(`[auth] preset admin created: ${boot.username} (must change password on first login)`);
-    } else if (boot) {
-      console.log(`[auth] preset admin ready: ${boot.username}`);
+if (AUTH_ENABLED) {
+  const preset = resolvePresetAdmin();
+  if (!preset.ok) {
+    if (preset.reason === "missing") {
+      console.warn(
+        "[auth] 未同时设置 JIANWEI_ADMIN_USER 与 JIANWEI_ADMIN_PASSWORD，已跳过预设管理员创建。请在环境变量中配置符合密码规则的管理员账号后再启动。"
+      );
     } else {
-      console.warn("[auth] preset admin skipped (persistence disabled or empty credentials)");
+      console.warn(
+        "[auth] JIANWEI_ADMIN_PASSWORD 不符合服务端密码规则，已跳过预设管理员创建。请使用更强的密码后重试。"
+      );
     }
-  } catch (error) {
-    console.error("failed to bootstrap admin user:", error);
+  } else {
+    try {
+      const boot = ensureBootstrapUser(preset.username, preset.password);
+      if (boot?.created) {
+        console.log(`[auth] preset admin created: ${boot.username} (must change password on first login)`);
+      } else if (boot) {
+        console.log(`[auth] preset admin ready: ${boot.username}`);
+      } else {
+        console.warn("[auth] preset admin skipped (persistence disabled or empty credentials)");
+      }
+    } catch (error) {
+      console.error("failed to bootstrap admin user:", error);
+    }
   }
 }
 

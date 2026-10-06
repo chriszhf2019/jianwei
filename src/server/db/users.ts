@@ -44,6 +44,8 @@ function passwordPolicyError(password: string): string | null {
   return null;
 }
 
+export { passwordPolicyError };
+
 export function createUser(input: {
   username: string;
   password: string;
