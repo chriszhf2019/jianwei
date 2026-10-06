@@ -23,13 +23,31 @@ function getGeminiClient(): GoogleGenAI | null {
   }
 }
 
+export function isPlaceholderApiKey(key: string): boolean {
+  const k = String(key || "").trim().toLowerCase();
+  if (!k || k.length < 16) return true;
+  return (
+    k.includes("placeholder") ||
+    k.includes("changeme") ||
+    k.includes("your_") ||
+    k.includes("your-") ||
+    k === "sk-test" ||
+    k.startsWith("sk-test-") ||
+    k.startsWith("sk-xxx") ||
+    k.includes("example")
+  );
+}
+
 export function geminiKeyOk(): boolean {
-  const k = settings.geminiApiKey;
-  return !!k && k !== "MY_GEMINI_API_KEY";
+  const k = String(settings.geminiApiKey || "").trim();
+  if (!k || k === "MY_GEMINI_API_KEY") return false;
+  return !isPlaceholderApiKey(k);
 }
 
 export function deepseekKeyOk(): boolean {
-  return !!settings.deepseekApiKey;
+  const k = String(settings.deepseekApiKey || "").trim();
+  if (!k) return false;
+  return !isPlaceholderApiKey(k);
 }
 
 export function activeProvider(): AIProvider | null {

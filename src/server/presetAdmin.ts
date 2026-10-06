@@ -1,4 +1,4 @@
-import { passwordPolicyError } from "./db/users";
+import { passwordPolicyError } from "./database/users";
 
 /**
  * 预设引导管理员：无写死默认值。

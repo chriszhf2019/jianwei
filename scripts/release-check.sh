@@ -39,7 +39,7 @@ fs.writeFileSync(dir + "/rss.xml", xml);
 ' "$RSS_DIR"
 python3 -m http.server 3211 --directory "$RSS_DIR" > /tmp/release-rss.log 2>&1 &
 RSS_PID=$!
-PORT=$PORT_TEST JIANWEI_AUTH_TOKEN="" JIANWEI_NO_SETTINGS=1 JIANWEI_ALLOW_PRIVATE_FEEDS=1 nohup npx tsx server.ts > /tmp/release-server.log 2>&1 &
+PORT=$PORT_TEST BIND_HOST=127.0.0.1 JIANWEI_AUTH_TOKEN="" JIANWEI_NO_SETTINGS=1 JIANWEI_ALLOW_PRIVATE_FEEDS=1 nohup npx tsx server.ts > /tmp/release-server.log 2>&1 &
 SRV_PID=$!
 trap 'kill $RSS_PID $SRV_PID 2>/dev/null || true; rm -rf "$RSS_DIR" 2>/dev/null || true' EXIT
 for i in $(seq 1 30); do

@@ -49,11 +49,17 @@ function isGuestReadRoute(pathname: string): boolean {
   );
 }
 
+function isGuestLightSkillRoute(pathname: string): boolean {
+  return pathname === "/skill/plain";
+}
+
 function isGuestDeepRoute(pathname: string): boolean {
+  if (isGuestLightSkillRoute(pathname)) return false;
   return (
     pathname === "/enrich" ||
     pathname.startsWith("/skill/") ||
     pathname === "/analyze" ||
+    pathname === "/fetch-article" ||
     pathname === "/ask-nuance" ||
     pathname === "/strategic-advisor" ||
     pathname === "/predict" ||
@@ -124,6 +130,9 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
       };
       (req as any).auth = guestAuth;
       if (["GET", "HEAD", "OPTIONS"].includes(req.method) && isGuestReadRoute(req.path)) {
+        return next();
+      }
+      if (req.method === "POST" && isGuestLightSkillRoute(req.path)) {
         return next();
       }
       if (req.method === "POST" && isGuestDeepRoute(req.path)) {
