@@ -353,7 +353,7 @@ export function registerAiChatRoutes(app: express.Express): void {
         .slice(0, 5)
         .map(
           (a: any, i: number) =>
-            `【要情${i + 1}】《${a.title}》\n  - 核心事实：${a.summary || a.subtitle || '暂无摘要'}\n  - 异动与反常：${a.anomalyNote || a.oneSentenceVerdict || '关注边际公差异动'}\n  - 涉及行业/区域：${a.category || '核心战略产业'}`
+            `【要情${i + 1}】《${a.title}》\n  - 核心事实：${a.summary || a.subtitle || '暂无摘要'}\n  - 异动与反常：${a.anomalyNote || a.oneSentenceVerdict || '（暂无解读摘要）'}\n  - 涉及行业/区域：${a.category || '未分类'}`
         )
         .join("\n\n");
 

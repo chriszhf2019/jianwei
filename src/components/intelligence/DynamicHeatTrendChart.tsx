@@ -96,15 +96,15 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
           const text = `${a.title} ${a.summary || ''}`.toLowerCase();
           for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) pos += 1;
           for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) neg += 1;
-          totalHeat += (a.sourceCount || 1) * 25 + Math.min(30, a.title.length);
+          totalHeat += (a.sourceCount || 1) * 12;
         });
 
         const count = slotArticles.length;
-        const baseHeat = Math.round(42 + (11 - i) * 2.5);
-        const avgHeat = count > 0 ? Math.min(96, Math.max(50, Math.round(totalHeat / count + 40))) : baseHeat;
+        // 热度=槽内篇数相对分（篇数*12，封顶 100）；空槽为 0，不编造基线
+        const avgHeat = count > 0 ? Math.min(100, count * 12 + Math.min(20, Math.round(totalHeat / Math.max(1, count)))) : 0;
         const topArt = slotArticles.length > 0 ? slotArticles[0] : undefined;
         const sentimentNet = pos - neg;
-        const sentimentScore = Math.min(95, Math.max(20, Math.round(50 + sentimentNet * 15)));
+        const sentimentScore = count > 0 ? Math.round(50 + ((pos - neg) / count) * 50) : 0;
 
         dataPoints.push({
           timeLabel,
@@ -145,18 +145,14 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
           for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) pos += 1;
           for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) neg += 1;
           // 热度只按可复核的来源家数加权，不再用已下线的信用星级补分
-          totalHeat += (a.sourceCount || 1) * 12 + 35;
+          totalHeat += (a.sourceCount || 1) * 12;
         });
 
         const count = dayArticles.length;
-        // 历史平滑演化基线：随近期宏观与技术周期自 T-6 至 T0 稳健升温，无伪造波谷与毛刺
-        const baseHeat = Math.round(48 + (6 - i) * 4);
-        const avgHeat = count > 0
-          ? Math.min(95, Math.max(62, Math.round(totalHeat / count + count * 5)))
-          : baseHeat;
+        const avgHeat = count > 0 ? Math.min(100, count * 12 + Math.min(20, Math.round(totalHeat / Math.max(1, count)))) : 0;
         const topArt = dayArticles.length > 0 ? dayArticles[0] : undefined;
         const sentimentNet = pos - neg;
-        const sentimentScore = Math.min(95, Math.max(20, Math.round(50 + sentimentNet * 15)));
+        const sentimentScore = count > 0 ? Math.round(50 + ((pos - neg) / count) * 50) : 0;
 
         dataPoints.push({
           timeLabel,
@@ -176,7 +172,7 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
         });
       }
     } else {
-      // 30 days grouped in 10 intervals (3 days each)
+      // 30 days grouped in 10 intervals（真实分桶；空槽热度为 0）
       for (let i = 9; i >= 0; i--) {
         const spanStart = now - (i + 1) * 3 * 24 * 3600 * 1000;
         const spanEnd = now - i * 3 * 24 * 3600 * 1000;
@@ -188,12 +184,21 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
           return t >= spanStart && t <= spanEnd;
         });
 
+        let pos = 0;
+        let neg = 0;
+        let totalHeat = 0;
+        spanArticles.forEach((a) => {
+          const textBody = `${a.title} ${a.summary || ''}`.toLowerCase();
+          for (const w of POSITIVE_WORDS) if (textBody.includes(w.toLowerCase())) pos += 1;
+          for (const w of NEGATIVE_WORDS) if (textBody.includes(w.toLowerCase())) neg += 1;
+          totalHeat += (a.sourceCount || 1) * 12;
+        });
+
         const count = spanArticles.length;
-        const baseHeat = Math.round(45 + (9 - i) * 3.5);
-        const avgHeat = count > 0 ? Math.min(96, Math.max(55, 60 + count * 6)) : baseHeat;
+        const avgHeat = count > 0 ? Math.min(100, count * 12 + Math.min(20, Math.round(totalHeat / Math.max(1, count)))) : 0;
         const topArt = spanArticles.length > 0 ? spanArticles[0] : undefined;
-        const sentimentNet = count > 0 ? Math.min(5, count) : 0;
-        const sentimentScore = Math.min(95, Math.max(20, Math.round(50 + sentimentNet * 10)));
+        const sentimentNet = pos - neg;
+        const sentimentScore = count > 0 ? Math.round(50 + ((pos - neg) / count) * 50) : 0;
 
         dataPoints.push({
           timeLabel,
@@ -201,9 +206,9 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
           heatIndex: avgHeat,
           sentimentScore,
           articleCount: count,
-          positiveCount: Math.max(0, Math.round(count * 0.6)),
-          negativeCount: Math.max(0, Math.round(count * 0.3)),
-          neutralCount: Math.max(0, count - Math.round(count * 0.9)),
+          positiveCount: pos,
+          negativeCount: neg,
+          neutralCount: Math.max(0, count - pos - neg),
           sentimentNet,
           topArticleTitle: topArt?.title,
           topArticleId: topArt?.id,
@@ -482,10 +487,10 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
             <strong className="text-stone-900">峰值洞察：</strong>
             {peakPoint?.topArticleTitle ? (
               <span>
-                近期热度最高点出现在 <b>{peakPoint.timeLabel}</b>（热度 {peakPoint.heatIndex}），主要由《{peakPoint.topArticleTitle}》等重磅事件发酵驱动。
+                近窗篇数相对分最高点在 <b>{peakPoint.timeLabel}</b>（相对分 {peakPoint.heatIndex}），对应《{peakPoint.topArticleTitle}》。相对分由站内篇数与来源家数加权，不是全网热度真值。
               </span>
             ) : (
-              <span>当前赛道热度平稳，未出现异常情绪过载与非理性异动。</span>
+              <span>近窗无样本或热度为 0；不编造「平稳/非理性」叙事。</span>
             )}
           </p>
         </div>

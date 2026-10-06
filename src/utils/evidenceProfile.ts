@@ -175,7 +175,7 @@ export function buildEvidenceProfile(
     status === 'corroborated'
       ? `${Math.max(2, sourceKeys.size || article.sourceCount || 2)} 个独立信源`
       : status === 'official-single'
-        ? '权威/独家信源'
+        ? '已登记媒体档案 · 单源'
         : status === 'single-source'
           ? '单一信源'
           : '待多源核验';

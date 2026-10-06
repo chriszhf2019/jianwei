@@ -31,7 +31,7 @@ export function generateStructuredMarkdown(article: NewsArticle): string {
   md += `${article.summary || plainTongsu || '暂无详细摘要内容。'}\n\n`;
 
   if (article.coreQuote) {
-    md += `> 💬 **核心原话**：“${article.coreQuote}” —— ${article.quoteAuthor || '涉事方发言人'}\n\n`;
+    md += `> 💬 **核心原话**：“${article.coreQuote}” —— ${article.quoteAuthor || '来源未标明'}\n\n`;
   }
 
   // 3. 事件全生命周期演变脉络 (前因 ➔ 当前 ➔ 未来)
@@ -264,13 +264,13 @@ export function exportBriefingAsPdf(article: NewsArticle): void {
   <div class="section-title">📰 内容事实与背景全貌</div>
   <p>${article.summary || plainTongsu || '暂无详细正文摘要。'}</p>
 
-  ${article.coreQuote ? `<div class="quote-box">“${article.coreQuote}” —— ${article.quoteAuthor || '涉事方发言人'}</div>` : ''}
+  ${article.coreQuote ? `<div class="quote-box">“${article.coreQuote}” —— ${article.quoteAuthor || '来源未标明'}</div>` : ''}
 
   <div class="section-title">⏳ 全生命周期演变脉络 (Evolution Timeline)</div>
   <div class="timeline-item">
     <div class="timeline-tag">📜 1. 前因与溯源 (Antecedents & Roots)</div>
     <div style="font-size: 9.5pt; color: #57534E; margin-top: 2px;">
-      ${article.backstoryTimeline?.[0]?.event || '前期技术预研积累与地缘经贸规则前期酝酿，上下游提前布局产能。'}
+      ${article.backstoryTimeline?.[0]?.event || '（尚未生成前因脉络；不使用模板补全）'}
     </div>
   </div>
 
@@ -284,7 +284,7 @@ export function exportBriefingAsPdf(article: NewsArticle): void {
   <div class="timeline-item" style="border-left-color: #8B5CF6;">
     <div class="timeline-tag" style="color: #6D28D9;">🔮 3. 潜在未来触发点 (Future Triggers & Ripple Effects)</div>
     <div style="font-size: 9.5pt; color: #57534E; margin-top: 2px;">
-      ${article.rippleEffect?.stages?.[0]?.items?.[0] || '未来需密切关注大客户验证反馈、量产良品率爬坡与跨国反制动作。'}
+      ${article.rippleEffect?.stages?.[0]?.items?.[0] || '（尚未生成未来触发点；不使用模板补全）'}
     </div>
   </div>
 
@@ -301,11 +301,11 @@ export function exportBriefingAsPdf(article: NewsArticle): void {
   <div class="grid-2">
     <div class="card" style="border-color: #A7F3D0; background: #ECFDF5;">
       <strong style="color: #065F46;">🟢 多方利好论点：</strong>
-      <p style="margin: 4px 0 0 0;">${article.bullBearDebate.bull?.[0]?.point || '技术突破确立市场优势'}</p>
+      <p style="margin: 4px 0 0 0;">${article.bullBearDebate.bull?.[0]?.point || '（暂无多方论点）'}</p>
     </div>
     <div class="card" style="border-color: #FECDD3; background: #FFF1F2;">
       <strong style="color: #9F1239;">🔴 空方风险论点：</strong>
-      <p style="margin: 4px 0 0 0;">${article.bullBearDebate.bear?.[0]?.point || '警惕良品率与商业化不及预期'}</p>
+      <p style="margin: 4px 0 0 0;">${article.bullBearDebate.bear?.[0]?.point || '（暂无空方论点）'}</p>
     </div>
   </div>
   ` : ''}

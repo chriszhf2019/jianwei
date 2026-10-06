@@ -27,8 +27,9 @@ import {
   ShieldCheck,
   Zap,
 } from 'lucide-react';
-import { POSITIVE_WORDS, NEGATIVE_WORDS } from '../../utils/corpusMetrics';
+import { lexiconSentiment } from '../../utils/corpusMetrics';
 import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
+import { articleSortTime } from '../../utils/articleTime';
 
 interface DynamicSentimentTrendChartProps {
   articles: NewsArticle[];
@@ -68,125 +69,57 @@ export const DynamicSentimentTrendChart: React.FC<DynamicSentimentTrendChartProp
     return articles.filter((a) => detectSectors(a).includes(selectedSector));
   }, [articles, selectedSector]);
 
-  // Aggregate time series sentiment data
+  // Aggregate time series sentiment data（词典启发式；空桶记 0，不编造波形）
   const chartData = useMemo(() => {
     const now = Date.now();
     const dataPoints: SentimentDataPoint[] = [];
 
-    if (horizon === '24h') {
-      // 12 slots of 2 hours each
-      for (let i = 11; i >= 0; i--) {
-        const slotStart = now - (i + 1) * 2 * 3600 * 1000;
-        const slotEnd = now - i * 2 * 3600 * 1000;
-        const d = new Date(slotEnd);
-        const timeLabel = `${String(d.getHours()).padStart(2, '0')}:00`;
+    const slotSpec =
+      horizon === '24h'
+        ? { slots: 12, spanMs: 2 * 3600 * 1000, label: (d: Date) => `${String(d.getHours()).padStart(2, '0')}:00` }
+        : horizon === '7d'
+          ? { slots: 7, spanMs: 24 * 3600 * 1000, label: (d: Date) => `${d.getMonth() + 1}/${d.getDate()}` }
+          : { slots: 10, spanMs: 3 * 24 * 3600 * 1000, label: (d: Date) => `${d.getMonth() + 1}/${d.getDate()}` };
 
-        const slotArticles = filteredArticles.filter((a) => {
-          const t = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-          return t >= slotStart && t <= slotEnd;
-        });
-
-        let posScore = 0;
-        let negScore = 0;
-        slotArticles.forEach((a) => {
-          const text = `${a.title} ${a.summary || ''}`.toLowerCase();
-          for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) posScore += 1;
-          for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) negScore += 1;
-        });
-
-        const total = posScore + negScore + Math.max(1, slotArticles.length);
-        const posPct = Math.round((posScore / total) * 100);
-        const negPct = Math.round((negScore / total) * 100);
-        const neuPct = Math.max(0, 100 - posPct - negPct);
-        
-        // Base simulated wave for realism if slot is sparse
-        const wave = Math.round(Math.sin((11 - i) * 0.8) * 25 + 20);
-        const rawNet = posScore - negScore;
-        const net = slotArticles.length > 0 ? Math.min(85, Math.max(-60, rawNet * 25 + 15)) : wave;
-        const topArt = slotArticles[0];
-
-        dataPoints.push({
-          timeLabel,
-          timestamp: slotEnd,
-          sentimentNet: net,
-          positiveRatio: Math.min(100, posPct + 40),
-          neutralRatio: neuPct,
-          negativeRatio: Math.max(5, negPct + 10),
-          volatilityIndex: Math.abs(net) + 20,
-          dominantTone: net > 15 ? 'bullish' : net < -15 ? 'bearish' : 'neutral',
-          keyTriggerEvent: topArt?.title,
-          keyArticleId: topArt?.id,
-          isTurningPoint: i === 3 || i === 8,
-          turningPointReason: i === 3 ? '情绪多空转折：突破利好催化' : i === 8 ? '局部关税消息引发波动' : undefined,
-        });
+    for (let i = slotSpec.slots - 1; i >= 0; i--) {
+      const slotStart = now - (i + 1) * slotSpec.spanMs;
+      const slotEnd = now - i * slotSpec.spanMs;
+      const d = new Date(slotEnd);
+      const timeLabel = slotSpec.label(d);
+      const slotArticles = filteredArticles.filter((a) => {
+        const t = articleSortTime(a);
+        return t > slotStart && t <= slotEnd;
+      });
+      const n = slotArticles.length;
+      let pos = 0;
+      let neg = 0;
+      let mixed = 0;
+      for (const a of slotArticles) {
+        const label = lexiconSentiment(a).label;
+        if (label === 'positive') pos += 1;
+        else if (label === 'negative') neg += 1;
+        else if (label === 'mixed') mixed += 1;
       }
-    } else if (horizon === '7d') {
-      // 7 daily points
-      for (let i = 6; i >= 0; i--) {
-        const dayStart = now - (i + 1) * 24 * 3600 * 1000;
-        const dayEnd = now - i * 24 * 3600 * 1000;
-        const d = new Date(dayEnd);
-        const timeLabel = `${d.getMonth() + 1}/${d.getDate()}`;
-
-        const dayArticles = filteredArticles.filter((a) => {
-          const t = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-          return t >= dayStart && t <= dayEnd;
-        });
-
-        let posScore = 0;
-        let negScore = 0;
-        dayArticles.forEach((a) => {
-          const text = `${a.title} ${a.summary || ''}`.toLowerCase();
-          for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) posScore += 1;
-          for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) negScore += 1;
-        });
-
-        // 7-day realistic sentiment curve
-        const waveScores = [18, 28, 12, 45, 58, 42, 65];
-        const net = dayArticles.length > 0 ? Math.min(90, Math.max(-50, (posScore - negScore) * 15 + waveScores[6 - i])) : waveScores[6 - i];
-        const topArt = dayArticles[0] || filteredArticles[i % filteredArticles.length];
-
-        dataPoints.push({
-          timeLabel,
-          timestamp: dayEnd,
-          sentimentNet: net,
-          positiveRatio: Math.min(85, Math.max(30, 50 + Math.round(net / 2))),
-          neutralRatio: 25,
-          negativeRatio: Math.max(10, 25 - Math.round(net / 3)),
-          volatilityIndex: Math.round(20 + Math.random() * 15),
-          dominantTone: net > 25 ? 'bullish' : net < -15 ? 'bearish' : 'neutral',
-          keyTriggerEvent: topArt?.title,
-          keyArticleId: topArt?.id,
-          isTurningPoint: i === 2 || i === 5,
-          turningPointReason: i === 2 ? '全固态电池中试线运转推动情绪大涨' : i === 5 ? '海外关税政策预期落地消化' : undefined,
-        });
-      }
-    } else {
-      // 30 days grouped into 10 intervals
-      for (let i = 9; i >= 0; i--) {
-        const spanEnd = now - i * 3 * 24 * 3600 * 1000;
-        const d = new Date(spanEnd);
-        const timeLabel = `${d.getMonth() + 1}/${d.getDate()}`;
-
-        const baseScores = [20, 10, 35, 42, 28, 55, 62, 48, 70, 68];
-        const net = baseScores[9 - i];
-        const topArt = filteredArticles[(i * 2) % filteredArticles.length];
-
-        dataPoints.push({
-          timeLabel,
-          timestamp: spanEnd,
-          sentimentNet: net,
-          positiveRatio: 58,
-          neutralRatio: 28,
-          negativeRatio: 14,
-          volatilityIndex: 25,
-          dominantTone: net > 20 ? 'bullish' : 'neutral',
-          keyTriggerEvent: topArt?.title,
-          keyArticleId: topArt?.id,
-          isTurningPoint: i === 3 || i === 7,
-          turningPointReason: i === 3 ? 'MoE 架构商业化爆发' : i === 7 ? '降息预期提振科技板块' : undefined,
-        });
-      }
+      const neu = Math.max(0, n - pos - neg - mixed);
+      const posPct = n > 0 ? Math.round((pos / n) * 100) : 0;
+      const negPct = n > 0 ? Math.round((neg / n) * 100) : 0;
+      const neuPct = n > 0 ? Math.max(0, 100 - posPct - negPct) : 0;
+      const net = n > 0 ? Math.round(((pos - neg) / n) * 100) : 0;
+      const topArt = slotArticles[0];
+      dataPoints.push({
+        timeLabel,
+        timestamp: slotEnd,
+        sentimentNet: net,
+        positiveRatio: posPct,
+        neutralRatio: neuPct,
+        negativeRatio: negPct,
+        volatilityIndex: Math.abs(net),
+        dominantTone: net > 20 ? 'bullish' : net < -20 ? 'bearish' : 'neutral',
+        keyTriggerEvent: topArt?.title,
+        keyArticleId: topArt?.id,
+        isTurningPoint: false,
+        turningPointReason: undefined,
+      });
     }
 
     return dataPoints;
@@ -445,11 +378,11 @@ export const DynamicSentimentTrendChart: React.FC<DynamicSentimentTrendChartProp
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             <span className="font-serif font-black text-sm text-stone-950">
-              当前舆论情绪定性评估：【温和乐观 · 净值 +{latestPoint?.sentimentNet || 65}】
+              当前词频情绪相对分：【{latestPoint ? `${latestPoint.dominantTone === 'bullish' ? '偏乐观' : latestPoint.dominantTone === 'bearish' ? '偏悲观' : '中性'} · 净值 ${latestPoint.sentimentNet > 0 ? '+' : ''}${latestPoint.sentimentNet}` : '样本不足'}】
             </span>
           </div>
           <p className="text-stone-700 leading-relaxed font-sans">
-            本周期内科技突破与商业化落地情绪持续上扬（乐观占比 62%），未出现非理性恐慌抛售；局部关税扰动已在【多空平衡线】上方被平稳消化。
+            口径：按时间槽统计标题/摘要词典倾向占比。空槽记 0，不编造波形或转折叙事；相对分不是市场情绪真值。
           </p>
         </div>
 
