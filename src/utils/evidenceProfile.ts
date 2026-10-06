@@ -164,10 +164,10 @@ export function buildEvidenceProfile(
   if (sourceKeys.size >= 2 || (article.sourceCount && article.sourceCount >= 2)) {
     status = 'corroborated';
   } else if (
-    (profile?.tier === 'A' || profile?.tier === 'B' || article.sourceName?.includes('见微') || (article.credibilityStars && article.credibilityStars >= 4))
+    profile?.tier === 'A' || profile?.tier === 'B' || article.sourceName?.includes('见微')
   ) {
     status = 'official-single';
-  } else if (hasOriginalLink || (article.credibilityStars && article.credibilityStars >= 3)) {
+  } else if (hasOriginalLink) {
     status = 'single-source';
   }
 

@@ -66,7 +66,6 @@ export function registerAiChatRoutes(app: express.Express): void {
     "sourceDate": "${isoToday(new Date())} ${nowHHmm(new Date())}",
     "sourceCount": 1,
     "impactScope": "全球",
-    "changeVelocity": "↑ 快速",
     "summary": "100-150字见微速读：直击核心真相",
     "coreQuote": "最具有穿透力的一句金句（报刊排版用）",
     "quoteAuthor": "见微·特约观察员",

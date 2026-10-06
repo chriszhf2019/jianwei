@@ -144,7 +144,8 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
           const text = `${a.title} ${a.summary || ''}`.toLowerCase();
           for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) pos += 1;
           for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) neg += 1;
-          totalHeat += (a.sourceCount || 1) * 12 + (a.credibilityStars || 3) * 6 + 35;
+          // 热度只按可复核的来源家数加权，不再用已下线的信用星级补分
+          totalHeat += (a.sourceCount || 1) * 12 + 35;
         });
 
         const count = dayArticles.length;

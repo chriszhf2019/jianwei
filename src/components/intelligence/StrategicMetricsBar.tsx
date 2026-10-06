@@ -101,8 +101,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
         text.includes('首发') ||
         text.includes('增长') ||
         text.includes('扩张') ||
-        text.includes('量产') ||
-        (a.changeVelocity && a.changeVelocity.includes('快'))
+        text.includes('量产')
       );
     });
     const posCount = posArticles.length;

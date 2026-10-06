@@ -37,6 +37,7 @@ export function registerCorpusFeedRoutes(app: express.Express, deps: CorpusFeedR
         return;
       }
       const categoryCounts: Record<string, number> = {};
+      // credibilityStars / changeVelocity 已下线，不再计入派生统计；保留空对象以兼容旧客户端字段。
       const starDistribution: Record<number, number> = {};
       const velocityCounts: Record<string, number> = {};
       const tagFreq: Record<string, number> = {};
@@ -44,12 +45,6 @@ export function registerCorpusFeedRoutes(app: express.Express, deps: CorpusFeedR
       for (const a of arts) {
         const cat = a.category || "未分类";
         categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-
-        const star = Number(a.credibilityStars) || 0;
-        starDistribution[star] = (starDistribution[star] || 0) + 1;
-
-        const vel = a.changeVelocity || "未知";
-        velocityCounts[vel] = (velocityCounts[vel] || 0) + 1;
 
         for (const t of a.tags || []) {
           tagFreq[t] = (tagFreq[t] || 0) + 1;

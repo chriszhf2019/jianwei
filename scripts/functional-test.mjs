@@ -24,8 +24,7 @@ const post = (path, body) =>
   fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => ({})) }));
+    body: body === undefined ? undefined : JSON.stringify(body) }).then(async (r) => ({ status: r.status, data: await r.json().catch(() => ({})) }));
 
 const get = async (path) => (await fetch(`${BASE}${path}`)).json();
 
@@ -54,8 +53,7 @@ async function main() {
     title: '功能测试：某存储大厂上调 HBM 全年出货指引',
     source: '功能测试源',
     category: '科技前沿',
-    content: '财报电话会披露新订单锁定至明年，产能利用率维持高位。',
-  });
+    content: '财报电话会披露新订单锁定至明年，产能利用率维持高位。' });
   check('C1 /api/analyze 无 Key 时不返回伪造分析', an.data.fallback === true && an.data.data === null);
 
   // —— D. 微观探针 / 战略顾问 ——
@@ -70,17 +68,15 @@ async function main() {
   const p1 = await post('/api/predict', {
     question: '未来90天头部SaaS是否会对Agent二次加价？',
     modelChoice: 'auto',
-    articleContext: { title: 'OpenAI Agent', credibilityStars: 5, sourceCount: 6, changeVelocity: '↑↑ 极快', logicTree: { variableWeights: [{ name: '准确率', weight: 40, impactDirection: 'up' }] } },
-    questionOptions: { positive: '会加价', negative: '不会加价' },
-  });
+    articleContext: { title: 'OpenAI Agent', sourceCount: 6, logicTree: { variableWeights: [{ name: '准确率', weight: 40, impactDirection: 'up' }] } },
+    questionOptions: { positive: '会加价', negative: '不会加价' } });
   const pd1 = p1.data.data || {};
   check('E2 无 Key 回落本地确定性引擎且结构完整', p1.data.fallback === true && pd1.modelChoice === 'jianwei-local' && ['positive', 'negative'].includes(pd1.direction) && pd1.confidenceScore >= 25 && pd1.confidenceScore <= 85 && Array.isArray(pd1.causalLogicChain));
   const p2 = await post('/api/predict', {
     question: '美联储 6 个月内是否至少两次降息？',
     modelChoice: 'local',
-    articleContext: { title: '美联储纪要', credibilityStars: 4, sourceCount: 7, changeVelocity: '→ 稳定', logicTree: null },
-    questionOptions: { positive: '是', negative: '否' },
-  });
+    articleContext: { title: '美联储纪要', sourceCount: 7, logicTree: null },
+    questionOptions: { positive: '是', negative: '否' } });
   check('E3 modelChoice=local 不发起在线、仍可解析', p2.data.fallback === true && !!p2.data.data.direction);
 
   // —— F. 深度补全（无 Key 不造假） ——

@@ -297,9 +297,9 @@ export interface NewsArticle {
   sourceName: string;
   sourceDate: string;
   sourceCount: number;
-  credibilityStars?: number; // 已下线占位字段，新建文章不再写入；保留可选以兼容历史语料
+  credibilityStars?: number; // 已下线；运行逻辑不再读取，仅兼容历史语料
   impactScope: '全球' | '区域' | '特定行业' | '本地' | string;
-  changeVelocity?: '↑↑ 极快' | '↑ 快速' | '→ 稳定' | '↓ 放缓' | string;
+  changeVelocity?: '↑↑ 极快' | '↑ 快速' | '→ 稳定' | '↓ 放缓' | string; // 已下线；运行逻辑不再读取
   coverImage?: string;
   
   // Accessible / Tongsu mode content

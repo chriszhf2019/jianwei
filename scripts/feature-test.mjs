@@ -40,9 +40,8 @@ async function main() {
   // C. AI 端点（真实在线）
   const p = await post('/api/predict', {
     question: '未来90天头部SaaS是否会对Agent能力二次加价？', modelChoice: 'auto',
-    articleContext: { title: 'OpenAI Agent 突破', credibilityStars: 5, sourceCount: 6, changeVelocity: '↑↑ 极快', logicTree: { variableWeights: [{ name: '准确率', weight: 40, impactDirection: 'up' }] } },
-    questionOptions: { positive: '会加价', negative: '不会加价' },
-  });
+    articleContext: { title: 'OpenAI Agent 突破', sourceCount: 6, logicTree: { variableWeights: [{ name: '准确率', weight: 40, impactDirection: 'up' }] } },
+    questionOptions: { positive: '会加价', negative: '不会加价' } });
   check('C1 /api/predict 在线返回结构', p.status === 200 && p.data.fallback === false && !!p.data.data.direction && typeof p.data.data.confidenceScore === 'number', '', 'C');
   const en = await post('/api/enrich', { articleId: 'feat-test-enrich', title: '某车企固态电池量产提前', summary: '中试线良率达标，量产提前两个季度。', source: '测试', category: '外部信源' });
   const en2 = await post('/api/enrich', { articleId: 'feat-test-enrich', title: '某车企固态电池量产提前', summary: '中试线良率达标，量产提前两个季度。', source: '测试', category: '外部信源' });
