@@ -989,4 +989,141 @@ test('isDemoDataEnabled: 仅显式 =1 开启，默认零演示', async () => {
   assert.equal(isDemoDataEnabled('yes'), false);
 });
 
+test('passwordPolicy: 至少 10 位且三类字符', async () => {
+  const {
+    passwordPolicyError,
+    meetsPasswordPolicy,
+    PASSWORD_MIN_LENGTH,
+  } = await import('../src/shared/passwordPolicy');
+  assert.equal(PASSWORD_MIN_LENGTH, 10);
+  assert.equal(passwordPolicyError('Short1!'), 'password_too_short');
+  assert.equal(passwordPolicyError('onlylowercase'), 'password_too_weak');
+  assert.equal(passwordPolicyError('ONLYUPPERCASE'), 'password_too_weak');
+  assert.equal(passwordPolicyError('OnlyLettersHere'), 'password_too_weak');
+  assert.equal(passwordPolicyError('lowercaseand12345'), 'password_too_weak');
+  assert.equal(meetsPasswordPolicy('BootstrapAdmin-789'), true);
+  assert.equal(passwordPolicyError('BootstrapAdmin-789'), null);
+});
+
+test('publicExposure: 本机不强制令牌，对外缺少条件就拒绝', async () => {
+  const { assessPublicExposure, resolveBindHost } = await import('../src/server/publicExposure');
+  assert.equal(resolveBindHost(undefined), '127.0.0.1');
+  assert.equal(resolveBindHost(''), '127.0.0.1');
+  assert.equal(resolveBindHost('0.0.0.0'), '0.0.0.0');
+  const local = assessPublicExposure({ bindHost: '127.0.0.1' });
+  assert.equal(local.exposed, false);
+  assert.equal(local.ok, true);
+  assert.equal(local.tls, 'none');
+  assert.equal(local.missing.length, 0);
+
+  const open = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    behindTls: 'true',
+  });
+  assert.equal(open.ok, false);
+  assert.equal(open.tls, 'none');
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_SECRET')), true);
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_BEHIND_TLS')), true);
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_ADMIN_USER')), true);
+
+  const proxied = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    encryptionSecret: 'secret',
+    adminUser: 'admin',
+    adminPassword: 'long-password',
+    behindTls: '1',
+  });
+  assert.equal(proxied.ok, true);
+  assert.equal(proxied.tls, 'upstream');
+  assert.equal(proxied.note.includes('进程本身仍是 HTTP'), true);
+
+  const certified = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    encryptionSecret: 'secret',
+    adminUser: 'admin',
+    adminPassword: 'long-password',
+    tlsCertPath: '/tmp/cert.pem',
+    tlsKeyPath: '/tmp/key.pem',
+    tlsMaterialReadable: true,
+  });
+  assert.equal(certified.ok, true);
+  assert.equal(certified.tls, 'node');
+});
+
+test('API 密钥：占位串不当成可用', async () => {
+  const { isPlaceholderApiKey } = await import('../src/server/ai');
+  assert.equal(isPlaceholderApiKey(''), true);
+  assert.equal(isPlaceholderApiKey('sk-test-placeholder'), true);
+  assert.equal(isPlaceholderApiKey('sk-short'), true);
+  assert.equal(isPlaceholderApiKey('sk-abcdefghijklmnopqrstuvwxyz012345'), false);
+});
+
+test('预设管理员：须由环境变量显式配置，无写死凭据', async () => {
+  const presetSrc = fs.readFileSync(path.join(process.cwd(), 'src/server/presetAdmin.ts'), 'utf8');
+  assert.equal(presetSrc.includes('18611010281'), false);
+  assert.equal(presetSrc.includes('123456'), false);
+  assert.match(presetSrc, /resolvePresetAdmin/);
+  assert.match(presetSrc, /JIANWEI_ADMIN_USER/);
+  assert.match(presetSrc, /JIANWEI_ADMIN_PASSWORD/);
+
+  const previousUser = process.env.JIANWEI_ADMIN_USER;
+  const previousPassword = process.env.JIANWEI_ADMIN_PASSWORD;
+  try {
+    delete process.env.JIANWEI_ADMIN_USER;
+    delete process.env.JIANWEI_ADMIN_PASSWORD;
+    const { resolvePresetAdmin } = await import('../src/server/presetAdmin');
+    assert.equal(resolvePresetAdmin().ok, false);
+
+    process.env.JIANWEI_ADMIN_USER = 'bootstrap-admin@example.com';
+    process.env.JIANWEI_ADMIN_PASSWORD = 'ab';
+    assert.equal(resolvePresetAdmin().ok, false);
+
+    process.env.JIANWEI_ADMIN_PASSWORD = 'BootstrapAdmin-789';
+    const ready = resolvePresetAdmin();
+    assert.equal(ready.ok, true);
+    if (!ready.ok) throw new Error('expected preset admin');
+    assert.equal(ready.username, 'bootstrap-admin@example.com');
+  } finally {
+    if (previousUser == null) delete process.env.JIANWEI_ADMIN_USER;
+    else process.env.JIANWEI_ADMIN_USER = previousUser;
+    if (previousPassword == null) delete process.env.JIANWEI_ADMIN_PASSWORD;
+    else process.env.JIANWEI_ADMIN_PASSWORD = previousPassword;
+  }
+
+  const envExample = fs.readFileSync(path.join(process.cwd(), '.env.example'), 'utf8');
+  assert.match(envExample, /JIANWEI_ADMIN_USER=/);
+  assert.match(envExample, /JIANWEI_ADMIN_PASSWORD=/);
+  assert.equal(envExample.includes('18611010281'), false);
+  assert.equal(envExample.includes('123456'), false);
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
+  assert.match(serverSrc, /import "dotenv\/config"/);
+  assert.match(serverSrc, /resolvePresetAdmin/);
+  assert.match(serverSrc, /ensureBootstrapUser\(preset\.username/);
+  assert.match(serverSrc, /未同时设置 JIANWEI_ADMIN_USER/);
+
+  const scheduler = fs.readFileSync(path.join(process.cwd(), 'src/server/scheduler.ts'), 'utf8');
+  assert.match(scheduler, /boot ingest|runScheduledIngest\(\)/);
+
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  assert.match(detail, /用户投递 · 读懂新闻/);
+  assert.match(detail, /methodId="model_interpretation"/);
+  assert.match(detail, /去复核原文/);
+  assert.match(detail, /RelatedNewsGraph/);
+  assert.match(detail, /ArticleCompareView/);
+  assert.match(detail, /offlineStorage/);
+
+  const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
+  assert.match(header, /isAdmin/);
+  assert.match(header, /管理端/);
+
+  const feed = fs.readFileSync(path.join(process.cwd(), 'src/components/home/StandardModeFeed.tsx'), 'utf8');
+  assert.equal(feed.includes('乐观 60%'), false);
+  assert.equal(feed.includes('观望 25%'), false);
+  assert.equal(feed.includes('承压 15%'), false);
+});
+
 
