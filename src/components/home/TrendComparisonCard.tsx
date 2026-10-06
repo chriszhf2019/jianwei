@@ -168,7 +168,7 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
 
                       <div className="text-right shrink-0">
                         <div className="text-xs font-mono font-bold text-stone-900">
-                          热度指数 {item.heatIndex}
+                          词频相对分 {item.heatIndex}
                         </div>
                       </div>
                     </div>
@@ -203,7 +203,7 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
           )}
 
           <div className="text-right text-[10px] text-stone-400 font-mono">
-            说明：按时间窗统计站内词频变动；热度指数是启发式相对分，不是市场热度真值。可点击关键词筛选语料。
+            说明：按时间窗统计站内词频变动；词频相对分是启发式对照值，不是市场热度真值。可点击关键词筛选语料。
           </div>
         </div>
       )}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NewsArticle } from '../../types';
+import { EditorialNotice } from '../common/EditorialNotice';
+import { MethodBadge } from '../common/MethodBadge';
 import { 
   ArrowRight, 
   Settings2, 
@@ -132,7 +134,7 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
             input: '【见微研判·物理死壁】FinFET 物理极限带来的阈值漏电，是推动全制程架构向 GAAFET 代际迁移的唯一刚性诱因。',
             process: '【见微研判·技术管线】GAA 纳米片 4 面合围技术在高雄高雄 P1 的稳定，成功终结了高端工艺在 2nm 的难产悬念。',
             variable: '【见微研判·临界博弈】2nm 单片预估超 3 万美元的极高门槛将淘汰中游玩家，使得 ASML 顶级设备交付直接锚定少数巨头。',
-            outcome: '【见微研判·终局效应】台积电绝对代工定价权被彻底锁死，端侧 AI 的漏电极壁解除，高端硬件利润集中度达到 92%。'
+            outcome: '【见微研判·终局效应】编辑情景：台积电代工定价权进一步集中，端侧 AI 漏电瓶颈缓解；具体集中度须以公开财报与订单披露为准，本页不给出伪精确百分比。'
           },
           nodes: [
             { id: 'in-1', title: '物理极限倒逼', detail: '传统 FinFET 结构在 3nm 以下面临极其严重的量子隧穿漏电和阈值失效', type: 'input', badge: 'Physical Trigger' },
@@ -142,7 +144,7 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
             { id: 'va-1', title: '晶圆生产成本', detail: '2nm 单片晶圆预估加工售价突破 3 万美元，考验下游终端利润空间', type: 'variable', badge: 'Price Bottleneck', metric: '单片售售价' },
             { id: 'va-2', title: '化学品纯度与设备交付', detail: '高纯度前驱体气体与 ASML 尖端设备到货节奏决定实际产能爬坡斜率', type: 'variable', badge: 'Supply Chain Factor', metric: '供给弹性' },
             { id: 'ou-1', title: '端侧 AI 续航爆发', detail: '同等性能下芯片功耗巨降 30%，彻底终结智能手机与端侧 AI 的电池焦虑', type: 'outcome', badge: 'Technical Outcome' },
-            { id: 'ou-2', title: '代工定价权完全锁定', detail: '苹果、英伟达抢跑预付数十亿独家包厂定金，头部集中度达到前所未有的 92%', type: 'outcome', badge: 'Market Hegemony' }
+            { id: 'ou-2', title: '代工定价权完全锁定', detail: '编辑情景：大客户预付包厂订单加剧头部集中；集中度数字须对照公开披露，本节点不套用固定百分比', type: 'outcome', badge: 'Market Hegemony' }
           ],
           connections: [
             { from: 'in-1', to: 'pr-1', label: '倒逼结构重塑' },
@@ -298,7 +300,7 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
             { id: 'va-1', title: '局域网二次微调效率', detail: '私有化部署后，企业对自身特有数据库及语料库的敏捷微调与维护难度', type: 'variable', badge: 'Maintenance Barrier', metric: '运维敏捷度' },
             { id: 'va-2', title: '国产异构算力适配度', detail: '量化模型对非一线大牌芯片的本地算力吞吐与调度适配良率', type: 'variable', badge: 'Hardware Adaption', metric: '适配覆盖率' },
             { id: 'ou-1', title: '算力成本压降 85%', detail: '相比云端云端整体拥有成本大幅削减，使得白菜价大模型部署落地成为现实', type: 'outcome', badge: 'Economic Result' },
-            { id: 'ou-2', title: '数据零出房安全闭环', detail: '所有高价值、敏感业务和隐私档案实现 100% 物理留置，杜绝数据泄密事件', type: 'outcome', badge: 'Security Outcome' }
+            { id: 'ou-2', title: '数据零出房安全闭环', detail: '高价值与敏感业务尽量物理留置本地；零泄密是目标表述，不是已实现的统计保证', type: 'outcome', badge: 'Security Outcome' }
           ],
           connections: [
             { from: 'in-1', to: 'pr-1', label: '逼迫架构收缩' },
@@ -501,7 +503,7 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
       labelA = "商业银行风险厌恶偏好";
       labelB = "离岸人民币外部汇率压力";
       worstBrief = "若银行信贷审核极度保守且外部汇率承压，中长期耐心资本向专精特新实体的传导阻尼将被动放大。";
-      bestBrief = "银行风险溢价平稳且汇率对冲合理，定向低成本专项贴息将以 92% 的成功率精准直达科技核心。";
+      bestBrief = "银行风险溢价平稳且汇率对冲合理时，定向贴息更可能顺畅进入科技主体；具体到达率须以披露与跟踪指标为准，本沙盘不给出伪精确成功率。";
     } else if (article.id === 'news-catl-solid-state-pilot') {
       labelA = "超高纯硫化锂原材料成本";
       labelB = "干法极片连续卷对卷厚度一致性";
@@ -523,10 +525,14 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
           <div className="flex items-center space-x-2 text-[#E3120B]">
             <Layers className="w-5 h-5 animate-pulse" />
             <span className="text-xs font-black tracking-wider uppercase">AI 视觉架构与因果传导模型</span>
+            <MethodBadge methodId="editorial_template" compact />
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-stone-950 leading-tight">
             {data.title}
           </h2>
+          <EditorialNotice title="产品配置 · 编辑情景沙盘">
+            节点文案与滑块输出是编辑情景下的本地启发式相对分，不是经校准的落地概率或市场真值。
+          </EditorialNotice>
         </div>
 
         <div className="flex p-1 bg-stone-100 rounded-xl self-start md:self-center border border-stone-200">
@@ -786,11 +792,11 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
                   <span className="text-[10px] font-sans px-1.5 py-0.2 rounded bg-[#E3120B] text-white animate-pulse">互动功能</span>
                 </h3>
               </div>
-              <span className="text-[11px] text-stone-500 font-mono">见微量化模型引擎 v2.5</span>
+              <span className="text-[11px] text-stone-500 font-mono">本地滑块启发式 · 非校准概率</span>
             </div>
 
             <p className="text-xs text-stone-600 leading-relaxed">
-              因果传导路径并非一成不变。拖动滑块来调节本事件的核心博弈摩擦力与硬件良率。见微引擎将实时模拟整个架构的损耗率、落地概率和商业化时间。
+              拖动滑块调节情景假设中的阻力与推进度。下方数字是按滑块即时重算的相对分，用于对照「恶化 / 顺畅」叙事，不是真实落地概率或产业预测。
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
@@ -846,21 +852,21 @@ export const ArchitectureDiagramTab: React.FC<ArchitectureDiagramTabProps> = ({ 
               <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-4">
                 <div className="grid grid-cols-3 gap-3 text-center border-b border-stone-200 pb-3">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] text-stone-500 font-sans">1. 传导信号衰减</span>
+                    <span className="text-[10px] text-stone-500 font-sans">1. 信号衰减相对分</span>
                     <div className="text-base sm:text-lg font-mono font-bold text-red-600">
-                      {simResult.attenuation}%
+                      {simResult.attenuation}
                     </div>
                   </div>
                   <div className="space-y-0.5 border-l border-r border-stone-200">
-                    <span className="text-[10px] text-stone-500 font-sans">2. 产业突破时长</span>
+                    <span className="text-[10px] text-stone-500 font-sans">2. 情景突破月数</span>
                     <div className="text-base sm:text-lg font-mono font-bold text-stone-900">
                       {simResult.speedInMonths} 个月
                     </div>
                   </div>
                   <div className="space-y-0.5">
-                    <span className="text-[10px] text-stone-500 font-sans">3. 最终落地概率</span>
+                    <span className="text-[10px] text-stone-500 font-sans">3. 情景顺畅相对分</span>
                     <div className="text-base sm:text-lg font-mono font-bold text-emerald-600">
-                      {simResult.successRate}%
+                      {simResult.successRate}
                     </div>
                   </div>
                 </div>

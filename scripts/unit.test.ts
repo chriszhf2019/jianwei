@@ -1183,6 +1183,19 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   const audio = fs.readFileSync(path.join(process.cwd(), 'src/components/AudioBriefingModal.tsx'), 'utf8');
   assert.match(audio, /浏览器朗读/);
   assert.equal(audio.includes('AI 语音 × 实时研讨'), false);
+
+  const arch = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/ArchitectureDiagramTab.tsx'), 'utf8');
+  assert.equal(arch.includes('集中度达到 92%'), false);
+  assert.equal(arch.includes('前所未有的 92%'), false);
+  assert.equal(arch.includes('92% 的成功率'), false);
+  assert.equal(arch.includes('最终落地概率'), false);
+  assert.equal(arch.includes('见微量化模型引擎'), false);
+  assert.match(arch, /情景顺畅相对分/);
+  assert.match(arch, /EditorialNotice/);
+
+  const trend = fs.readFileSync(path.join(process.cwd(), 'src/components/home/TrendComparisonCard.tsx'), 'utf8');
+  assert.match(trend, /词频相对分/);
+  assert.equal(trend.includes('热度指数 {item.heatIndex}'), false);
 });
 
 
