@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="/usr/local/bin:$PATH"
 
-PORT="${PORT:-3001}"
+PORT="${PORT:-3000}"
 LABEL="${JIANWEI_LAUNCHD_LABEL:-com.user.news-jianwei}"
 HEALTH="http://127.0.0.1:${PORT}/api/health"
 

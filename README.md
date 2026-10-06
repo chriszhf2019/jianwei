@@ -15,7 +15,7 @@
 pnpm install          # 首次（需与 lockfile 匹配的 pnpm 版本）
 cp .env.example .env  # 填入 GEMINI_API_KEY（可选；不填时 AI 功能明确显示未生成）
                         #   另可配 NEWS_FEED_URLS（RSS，逗号分隔）开启真实信源接入
-pnpm dev              # http://127.0.0.1:3001
+pnpm dev              # http://127.0.0.1:3000（可用 PORT / BIND_HOST 覆盖）
 pnpm build            # 产物到 dist/（客户端 + server.cjs）
 pnpm start            # 运行 dist/server.cjs（需先 build）
 pnpm lint             # tsc --noEmit
@@ -48,7 +48,7 @@ pnpm test:func        # 功能级端到端测试（含设置热更新/真实 RSS
 ## 目录速览
 
 ```
-server.ts                     Express + Vite 中间件 + Gemini 代理端点（3001）
+server.ts                     Express + Vite 中间件 + Gemini 代理端点（默认 PORT=3000 / BIND_HOST=0.0.0.0）
 src/
   App.tsx                     全局状态/导航/模态编排（含 useLocalState 持久化）
   types.ts                    全量数据契约

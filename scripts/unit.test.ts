@@ -635,7 +635,7 @@ test('predictionLedger: 创建后不可覆盖，结果只能锁定一次并校�
   const previousDb = process.env.JIANWEI_DB_FILE;
   process.env.JIANWEI_DB_FILE = path.join(dir, 'ledger.db');
   try {
-    const database = await import('../src/server/database.ts');
+    const database = await import('../src/server/database');
     const user = database.createUser({
       username: 'editor-test',
       password: 'Strong-Password-123',
@@ -977,6 +977,16 @@ test('diagnoseFeedContract: 结构化契约探针与修复建议输出', async (
   assert.equal(privateDiag.overallHealth, 'fail');
   assert.equal(privateDiag.issues[0].code, 'security_blocked');
   assert.ok(privateDiag.issues[0].suggestion.includes('SSRF'));
+});
+
+test('isDemoDataEnabled: 仅显式 =1 开启，默认零演示', async () => {
+  const { isDemoDataEnabled } = await import('../src/server/demoData');
+  assert.equal(isDemoDataEnabled('1'), true);
+  assert.equal(isDemoDataEnabled(undefined), false);
+  assert.equal(isDemoDataEnabled(''), false);
+  assert.equal(isDemoDataEnabled('0'), false);
+  assert.equal(isDemoDataEnabled('true'), false);
+  assert.equal(isDemoDataEnabled('yes'), false);
 });
 
 

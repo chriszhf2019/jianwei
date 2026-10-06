@@ -14,13 +14,17 @@ import {
   loadArticlesFromDatabase,
   persistArticlesToDatabase,
 } from "./database";
+import { isDemoDataEnabled } from "./demoData";
 
 const CORPUS_FILE = path.join(process.cwd(), "data", "corpus.json");
 
 const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
 const BACKUP_KEEP = 10;
-const ALLOW_DEMO_DATA = process.env.JIANWEI_ENABLE_DEMO_DATA !== "0";
-const LEGACY_DEMO_IDS = new Set((CURATED_ARTICLES as any[]).map((article) => String(article?.id || "")));
+/** 仅显式 JIANWEI_ENABLE_DEMO_DATA=1 才注入历史演示语料；默认零演示。 */
+export const ALLOW_DEMO_DATA = isDemoDataEnabled();
+export const LEGACY_DEMO_IDS = new Set(
+  (CURATED_ARTICLES as any[]).map((article) => String(article?.id || "")).filter(Boolean)
+);
 
 function getFreshCuratedArticles(): any[] {
   const todayZh = zhFullDate(new Date());
