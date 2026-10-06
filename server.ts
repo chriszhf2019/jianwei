@@ -6,10 +6,6 @@ import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { createServer as createViteServer } from "vite";
 
-import {
-  serverSectorList,
-  serverDetectSectors,
-} from "./src/server/sectors";
 import { registerAnnotationRoutes } from "./src/server/annotations";
 import { startFeedScheduler } from "./src/server/scheduler";
 import {
@@ -23,19 +19,18 @@ import { registerPredictionRoutes } from "./src/server/routes/predictionRoutes";
 import { registerAiChatRoutes } from "./src/server/routes/aiChatRoutes";
 import { registerAdminRoutes } from "./src/server/routes/adminRoutes";
 import { registerCorpusRoutes } from "./src/server/routes/corpusRoutes";
+import { registerSourceRoutes } from "./src/server/routes/sourceRoutes";
+import { registerArticleTimelineRoutes } from "./src/server/routes/articleTimelineRoutes";
+import { registerConflictsRoutes } from "./src/server/routes/conflictsRoutes";
+import { repairEvidenceQuoteChecks } from "./src/server/repairEvidenceQuoteChecks";
 import {
   NO_PERSIST,
 } from "./src/server/settings";
 import {
-  serverCorpus,
-  persistCorpus,
-  findCorpusArticle,
   ALLOW_DEMO_DATA,
 } from "./src/server/corpus";
 import {
   activeProvider,
-  callAI,
-  providerModel,
   geminiKeyOk,
   deepseekKeyOk,
 } from "./src/server/ai";
@@ -43,30 +38,11 @@ import {
   applyRateLimit,
 } from "./src/server/cache";
 import {
-  PROMPT_VERSIONS,
-  attachFieldMeta,
-  createFieldMeta,
-  sanitizeEnrichPayload,
-} from "./src/server/aiValidation";
-import {
-  evaluateQuoteMatch,
-  inspectSourceDeduplicated,
-  findQuoteContext,
-  revalidateCachedQuote,
-  sourceCheckKey,
-} from "./src/server/sourceVerification";
-import {
   consumeGuestDeepRead,
   ensureBootstrapUser,
   cleanupExpiredUserSessions,
-  loadSourceCheck,
-  loadSourcePageText,
-  persistSourceCheck,
   resolveUserSession,
 } from "./src/server/database";
-import {
-  buildSyndicationGraph,
-} from "./src/utils/syndication";
 
 const app = express();
 const PORT = 3000;
@@ -75,7 +51,6 @@ const AUTH_TOKEN = process.env.JIANWEI_AUTH_TOKEN || "";
 const AUTH_ENABLED = !!AUTH_TOKEN;
 const BIND_HOST = "0.0.0.0";
 const DEMO_DATA_ENABLED = ALLOW_DEMO_DATA;
-const SOURCE_CHECK_TTL_MS = Number(process.env.SOURCE_CHECK_TTL_MS || 24 * 60 * 60 * 1000);
 const BOOTSTRAP_ADMIN_USER = process.env.JIANWEI_ADMIN_USER || "";
 const BOOTSTRAP_ADMIN_PASSWORD = process.env.JIANWEI_ADMIN_PASSWORD || "";
 
@@ -85,38 +60,6 @@ if (AUTH_ENABLED && BOOTSTRAP_ADMIN_USER && BOOTSTRAP_ADMIN_PASSWORD) {
   } catch (error) {
     console.error("failed to bootstrap admin user:", error);
   }
-}
-
-/**
- * 旧版逐引句缓存可能早于正文快照修复，保留着不可复核的 quote_not_found。
- * 启动时仅使用已经保存的正文快照做确定性重算，不联网、不调用模型。
- */
-function repairEvidenceQuoteChecks(): void {
-  if (NO_PERSIST) return;
-  let repaired = 0;
-  for (const article of serverCorpus) {
-    if (!article?.sourceUrl || !Array.isArray(article.evidenceChain)) continue;
-    const pageText = loadSourcePageText(sourceCheckKey(article.sourceUrl, ""));
-    if (!pageText) continue;
-    for (const item of article.evidenceChain) {
-      const quote = String(item?.quote || "").trim();
-      if (!quote) continue;
-      const match = evaluateQuoteMatch(pageText, quote);
-      const context = match.quoteFound ? findQuoteContext(pageText, quote) : null;
-      persistSourceCheck(sourceCheckKey(article.sourceUrl, quote), {
-        status: match.status,
-        requestedUrl: article.sourceUrl,
-        quoteFound: match.quoteFound,
-        matchedContext: context?.context,
-        matchedOffset: context?.offset,
-        cached: false,
-        fetchedAt: new Date().toISOString(),
-        pageText,
-      });
-      repaired += 1;
-    }
-  }
-  if (repaired > 0) console.log(`Repaired ${repaired} evidence quote cache entries from stored page snapshots.`);
 }
 
 repairEvidenceQuoteChecks();
@@ -391,382 +334,9 @@ registerAdminRoutes(app, applyRateLimit, {
   demoDataEnabled: DEMO_DATA_ENABLED,
 });
 
-// —— 通讯社/转载传播图 ——
-app.get("/api/syndication/graph", (_req, res) => {
-  const graph = buildSyndicationGraph(serverCorpus as any[], 50);
-  res.json(graph);
-});
-
-// —— 来源页面核验：SSRF 防护、页面指纹、引句匹配 ——
-app.post("/api/source/inspect", applyRateLimit, async (req, res) => {
-  const url = String(req.body?.url || "").trim();
-  const quote = String(req.body?.quote || "").trim();
-  const force = req.body?.force === true;
-  if (!url) return res.status(400).json({ error: "url is required" });
-  const checkKey = sourceCheckKey(url, quote);
-  if (!force && !NO_PERSIST) {
-    const cached = loadSourceCheck(checkKey, SOURCE_CHECK_TTL_MS);
-    if (cached) {
-      if (!quote) {
-        res.setHeader("Cache-Control", "no-store");
-        return res.json({ ...cached, cached: true });
-      }
-      const ownSnapshot = loadSourcePageText(checkKey);
-      const baseSnapshot = ownSnapshot || loadSourcePageText(sourceCheckKey(url, ""));
-      const revalidated = revalidateCachedQuote(cached, baseSnapshot, quote);
-      if (revalidated) {
-        if (baseSnapshot) persistSourceCheck(checkKey, { ...revalidated, pageText: baseSnapshot });
-        const { pageText: _pageText, ...publicResult } = revalidated;
-        res.setHeader("Cache-Control", "no-store");
-        return res.json({ ...publicResult, cached: true });
-      }
-      // 旧版引句缓存没有正文快照，不能把不可复核的旧结论继续当作缓存命中。
-    }
-  }
-  const result = await inspectSourceDeduplicated(url, quote);
-  if (result.status === "blocked") return res.status(403).json(result);
-  if (result.status === "unsupported" && result.reason?.includes("protocol")) {
-    return res.status(400).json(result);
-  }
-  const stableStatuses = new Set([
-    "verified_quote",
-    "quote_not_found",
-    "quote_too_short",
-    "reachable_unverified",
-    "http_error",
-    "unsupported",
-  ]);
-  if (!NO_PERSIST && stableStatuses.has(result.status)) persistSourceCheck(checkKey, result);
-  const { pageText: _pageText, ...publicResult } = result;
-  res.setHeader("Cache-Control", "no-store");
-  res.json(publicResult);
-});
-
-app.post("/api/source/reextract-evidence", applyRateLimit, async (req, res) => {
-  const articleId = String(req.body?.articleId || "").trim();
-  if (!articleId) return res.status(400).json({ error: "articleId is required" });
-  const article = findCorpusArticle(articleId);
-  if (!article?.sourceUrl) return res.status(404).json({ error: "article or sourceUrl not found" });
-  const provider = activeProvider();
-  if (!provider) return res.status(503).json({ error: "no_ai_provider" });
-
-  const baseKey = sourceCheckKey(article.sourceUrl, "");
-  let pageText = loadSourcePageText(baseKey);
-  let baseInspection = loadSourceCheck(baseKey, Number.MAX_SAFE_INTEGER);
-  if (!pageText) {
-    const inspected = await inspectSourceDeduplicated(article.sourceUrl, "");
-    pageText = inspected.pageText || null;
-    baseInspection = inspected;
-    if (pageText) persistSourceCheck(baseKey, inspected);
-  }
-  if (!pageText) return res.status(422).json({ error: "source_page_text_unavailable" });
-
-  const claims = Array.isArray(article.evidenceChain)
-    ? article.evidenceChain.map((item: any) => ({
-        id: item.id,
-        claim: item.claim,
-        sourceFact: item.sourceFact,
-      }))
-    : [];
-  if (claims.length === 0) return res.status(400).json({ error: "evidence_chain_empty" });
-
-  const prompt = `你是证据摘录核对员。请仅根据【来源页面正文】为每个 claim 找到能够支持、反驳或提供背景的原文短引句。
-严格只输出 JSON 数组：
-[{"id":"原 id","claim":"原 claim","sourceFact":"正文中的可核验事实摘要","quote":"必须是正文中逐字连续出现的短引句","sourceType":"primary_document|official_statement|reported_media|unknown","relation":"supports|contradicts|context","reliability":"可靠性依据","confidenceScore":0}]
-规则：
-1. quote 必须逐字取自正文，不得改写、补字或拼接不连续内容。
-2. 找不到精确引句时 quote 返回空字符串。
-3. 每条 claim 只返回一条最相关证据。
-4. sourceFact 和 reliability 不得加入正文没有的数据。
-
-来源：${article.sourceName || "外部信源"}
-来源链接：${article.sourceUrl}
-claims：
-${JSON.stringify(claims)}
-
-来源页面正文：
-${String(pageText).slice(0, 60000)}`;
-
-  try {
-    const text = await callAI(prompt, { json: true, temperature: 0.1 });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
-    }
-    const rawList = Array.isArray(parsed) ? parsed : parsed?.evidenceChain;
-    const cleaned = sanitizeEnrichPayload({ evidenceChain: rawList }).evidenceChain || [];
-    const verified = cleaned.map((item: any) => {
-      const context = item.quote ? findQuoteContext(pageText!, item.quote) : null;
-      return {
-        ...item,
-        sourceUrl: article.sourceUrl,
-        sourceName: article.sourceName,
-        publishedAt: article.publishedAt || null,
-        verificationStatus: context ? "linked" : "unlinked",
-        verificationNote: context
-          ? "引句已在来源页面正文中精确匹配。"
-          : "模型未提供可在正文中精确匹配的引句。",
-        matchedOffset: context?.offset,
-        quote: context ? item.quote : "",
-      };
-    });
-    article.evidenceChain = verified;
-    if (!NO_PERSIST) {
-      for (const item of verified) {
-        if (!item.quote) continue;
-        const match = evaluateQuoteMatch(pageText, item.quote);
-        const context = match.quoteFound ? findQuoteContext(pageText, item.quote) : null;
-        persistSourceCheck(sourceCheckKey(article.sourceUrl, item.quote), {
-          ...(baseInspection || {}),
-          status: match.status,
-          requestedUrl: article.sourceUrl,
-          quoteFound: match.quoteFound,
-          matchedContext: context?.context,
-          matchedOffset: context?.offset,
-          cached: false,
-          fetchedAt: baseInspection?.fetchedAt || new Date().toISOString(),
-          pageText,
-        });
-      }
-    }
-    attachFieldMeta(
-      article,
-      ["evidenceChain"],
-      createFieldMeta(provider, providerModel(provider), PROMPT_VERSIONS.evidence_reextract)
-    );
-    persistCorpus();
-    res.json({ ok: true, overrides: { evidenceChain: verified }, matched: verified.filter((x: any) => x.verificationStatus === "linked").length });
-  } catch (error: any) {
-    res.json({ ok: false, error: String(error?.message || error) });
-  }
-});
-
-app.post("/api/article-timeline", applyRateLimit, async (req, res) => {
-  const article = req.body?.article;
-  if (!article || !article.title) {
-    return res.status(400).json({ error: "article object with title is required" });
-  }
-
-  const provider = activeProvider();
-  if (!provider) {
-    // Deterministic fallback if AI provider is not available
-    const isTech = String(article.category || "").includes("科技") || String(article.title).includes("AI") || String(article.title).includes("电池");
-    const isGov = String(article.category || "").includes("政策") || String(article.title).includes("关税") || String(article.title).includes("监管");
-    
-    return res.json({
-      summary: `围绕《${article.title}》的产业链演变脉络：从前期技术/政策酝酿到当前实质突破，再到后续连锁溢出。`,
-      timeline: [
-        {
-          phase: "antecedent",
-          phaseLabel: "📜 前因与溯源",
-          timeLabel: "T-180D ~ T-30D 酝酿期",
-          title: isGov ? "地缘贸易规则重审与前期反补贴立案调查" : isTech ? "上一代架构瓶颈凸显与研发中试线持续投入" : "供需失衡与行业集中度提升",
-          detail: `在此次事件爆发前，相关主体已在行业标准制定、供应链原材料备货及专利布局上进行了多轮博弈与测试。`,
-          impact: "推升了行业准入门槛与单点技术迁移成本。",
-          keySignals: ["专利公开激增", "前期政策吹风会", "供应链散件排期延长"]
-        },
-        {
-          phase: "current",
-          phaseLabel: "⚡ 当前关键节点",
-          timeLabel: "当前 (T0) 突破发生",
-          title: article.title,
-          detail: article.summary || article.tongsuSummary || "核心指标落地或关键协议签署，正式确立新的事实标准。",
-          impact: article.oneSentenceVerdict || "重塑产业链利润分配格局，倒逼同业竞品调整应对策略。",
-          keySignals: ["核心性能突破", "正式通告下发", "同业股价与现货价格波动"]
-        },
-        {
-          phase: "future",
-          phaseLabel: "🔮 潜在未来触发点",
-          timeLabel: "T+30D ~ T+180D 演变窗口",
-          title: isGov ? "属地化合规审查落地与关税正式执行节点" : isTech ? "规模化量产良品率爬坡与二代商业化竞品入场" : "上下游议价权重排与新订单周期释放",
-          detail: "未来 90 天内需重点关注下游应用端客户采纳率、监管司法审查终裁及供应链二次扩产节奏。",
-          impact: "决定该技术或政策是否能成为跨周期主导范式。",
-          keySignals: ["客户留存与复购率", "海关通关抽检率", "第三方基准评测报告"]
-        }
-      ]
-    });
-  }
-
-  const prompt = `你是全球宏观与产业情报资深分析师。请对以下新闻事件进行深度时序因果穿透，严格梳理出该事件的【前因溯源】、【当前关键节点】和【潜在未来触发点】三阶段演变脉络。
-
-新闻标题：${article.title}
-新闻摘要：${article.summary || article.tongsuSummary || ""}
-核心判断：${article.oneSentenceVerdict || ""}
-所在赛道：${article.category || ""}
-发布时间：${article.publishedAt || "近期"}
-
-严格输出 JSON 格式（不要输出 markdown 标记外的其它文字）：
-{
-  "summary": "一句话概括事件从起因到未来的演变本质",
-  "timeline": [
-    {
-      "phase": "antecedent",
-      "phaseLabel": "📜 前因与溯源",
-      "timeLabel": "起因阶段 / 过去 1-6 个月",
-      "title": "简明节点标题",
-      "detail": "深度解析驱动该事件发生的前提、历史铺垫与直接导火索",
-      "impact": "对当时格局的影响",
-      "keySignals": ["关键催化信号1", "信号2"]
-    },
-    {
-      "phase": "current",
-      "phaseLabel": "⚡ 当前关键节点",
-      "timeLabel": "当前正在发生",
-      "title": "当前突破或核心转折标题",
-      "detail": "当前发生的实质性动作、关键数据变动或政策签署",
-      "impact": "对当下的直接冲击与行业重塑",
-      "keySignals": ["关键突破1", "关键数据2"]
-    },
-    {
-      "phase": "future",
-      "phaseLabel": "🔮 潜在未来触发点",
-      "timeLabel": "未来 1-6 个月预警",
-      "title": "潜在未来演变分支或触发条件",
-      "detail": "未来可能发生的次生连锁反应、政策落地窗口或反制动作",
-      "impact": "决策者需留意的中长期格局变化",
-      "keySignals": ["未来观察指标1", "触发阈值2"]
-    }
-  ]
-}`;
-
-  try {
-    const aiText = await callAI(prompt, { json: true, temperature: 0.2 });
-    let parsed: any;
-    try {
-      parsed = JSON.parse(aiText);
-    } catch {
-      const match = aiText.match(/\{[\s\S]*\}/);
-      if (match) parsed = JSON.parse(match[0]);
-    }
-
-    if (parsed && Array.isArray(parsed.timeline) && parsed.timeline.length > 0) {
-      return res.json(parsed);
-    }
-    throw new Error("Invalid timeline structure from AI");
-  } catch (err: any) {
-    console.error("article-timeline AI error:", err);
-    // Fallback response
-    return res.json({
-      summary: `围绕《${article.title}》的产业链演变脉络：从前期技术/政策酝酿到当前实质突破，再到后续连锁溢出。`,
-      timeline: [
-        {
-          phase: "antecedent",
-          phaseLabel: "📜 前因与溯源",
-          timeLabel: "前序发酵期 (T-180D ~ T-30D)",
-          title: "行业前置技术研发与政策立项准备",
-          detail: "前期积累的研发投入、实验数据沉淀与地缘政策酝酿构成事件爆发的底层土壤。",
-          impact: "催化上下游供应链提前进行产能与技术选型预备。",
-          keySignals: ["早期论文与专利申报", "属地政策意见征求稿"]
-        },
-        {
-          phase: "current",
-          phaseLabel: "⚡ 当前关键节点",
-          timeLabel: "当前正在发生 (T0)",
-          title: article.title,
-          detail: article.summary || article.tongsuSummary || "实质性技术点火或官方通告出台，确立全新市场预期。",
-          impact: article.oneSentenceVerdict || "重塑行业竞争格局与利润分配机制。",
-          keySignals: ["正式发布会 / 官方公报", "行业现货价格与订单异动"]
-        },
-        {
-          phase: "future",
-          phaseLabel: "🔮 潜在未来触发点",
-          timeLabel: "未来演变窗口 (T+30D ~ T+180D)",
-          title: "商业化规模量产验收与次生政策监管终裁",
-          detail: "未来需密切跟进良品率爬坡数据、关键客户装车/部署反馈及海外监管跟进举措。",
-          impact: "验证商业闭环成立并决定中长期市场占有率。",
-          keySignals: ["首批大宗交付验收", "合规审查与反制通报"]
-        }
-      ]
-    });
-  }
-});
-
-
-// —— 多源立场冲突仲裁（真实同话题分组 + 在线模型立场判定；无 Key/失败时如实返回） ——
-app.post("/api/conflicts", applyRateLimit, async (_req, res) => {
-  try {
-    const ext: any[] = serverCorpus.filter(
-      (a: any) => a.isExternal === true && ((a.title || "") + (a.summary || "")).trim().length > 2
-    );
-    if (ext.length < 2) {
-      return res.json({ ok: true, candidates: [], note: "语料中外部条目不足 2 篇，无法进行跨源比对。" });
-    }
-
-    // 1) 按赛道分组（关键词词典，见 src/utils/sectorTaxonomy.ts）
-    const groups = new Map<string, any[]>();
-    for (const a of ext) {
-      for (const id of serverDetectSectors(a)) {
-        const arr = groups.get(id) || [];
-        arr.push(a);
-        groups.set(id, arr);
-      }
-    }
-
-    const candidates: Array<{ sectorId: string; sectorName: string; items: any[] }> = [];
-    for (const sector of serverSectorList()) {
-      const items = groups.get(sector.id) || [];
-      const sources = new Set(items.map((i) => i.sourceName));
-      if (sources.size >= 2 && items.length >= 2) {
-        candidates.push({ sectorId: sector.id, sectorName: sector.name, items });
-      }
-    }
-    candidates.sort((a, b) => new Set(b.items.map((i) => i.sourceName)).size - new Set(a.items.map((i) => i.sourceName)).size);
-    const top = candidates.slice(0, 3);
-
-    const provider = activeProvider();
-    if (!provider) {
-      return res.json({ ok: false, reason: "no_api_key", candidateSectors: top.map((c) => c.sectorName) });
-    }
-
-    const results = [];
-    for (const cand of top) {
-      // 每个候选取两个不同来源的“最新”条目
-      const picked: any[] = [];
-      const usedSrc = new Set<string>();
-      for (let i = cand.items.length - 1; i >= 0 && picked.length < 2; i -= 1) {
-        const it = cand.items[i];
-        if (usedSrc.has(it.sourceName)) continue;
-        usedSrc.add(it.sourceName);
-        picked.push(it);
-      }
-      if (picked.length < 2) continue;
-
-      const A = picked[0];
-      const B = picked[1];
-      const prompt = `你是「见微 Genway」的多源立场仲裁员。请对同一话题（${cand.sectorName}）来自两家不同来源的报道做立场判定，仅输出 JSON：
-{"sources":[{"source":"来源A名称","stance":"正面|中性|负面","quote":"该源核心论断原句（≤60字）"},{"source":"来源B名称","stance":"正面|中性|负面","quote":"该源核心论断原句（≤60字）"}],"divergence":"一致|分歧|部分分歧","summary":"≤120字的克制仲裁小结"}
-来源A（${A.sourceName}）：${String(A.title)}。${String(A.summary || "")}
-来源B（${B.sourceName}）：${String(B.title)}。${String(B.summary || "")}`;
-      const text = await callAI(prompt, { json: true, temperature: 0.2 });
-      let parsed: any;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
-      }
-      if (parsed && Array.isArray(parsed.sources)) {
-        results.push({
-          topic: cand.sectorName,
-          sources: parsed.sources.map((s: any) => ({
-            source: String(s?.source || "").slice(0, 80),
-            stance: s?.stance === "正面" ? "正面" : s?.stance === "负面" ? "负面" : "中性",
-            quote: String(s?.quote || "").slice(0, 120),
-          })),
-          divergence: String(parsed.divergence || "未知").slice(0, 20),
-          summary: String(parsed.summary || "").slice(0, 300),
-        });
-      }
-    }
-
-    res.json({ ok: true, provider, candidates: results, candidateSectors: top.map((c) => c.sectorName) });
-  } catch (e: any) {
-    console.error("Conflicts error:", e);
-    res.json({ ok: false, reason: "error" });
-  }
-});
-
+registerSourceRoutes(app, applyRateLimit);
+registerArticleTimelineRoutes(app, applyRateLimit);
+registerConflictsRoutes(app, applyRateLimit);
 
 async function startServer() {
   if (!NO_PERSIST) cleanupExpiredUserSessions();
