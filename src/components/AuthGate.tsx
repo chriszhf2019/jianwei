@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../state/AuthContext';
+import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '../shared/passwordPolicy';
 
 /** 游客横幅 + 登录/注册/改密模态。 */
 export const AuthGate: React.FC = () => {
@@ -64,14 +65,13 @@ export const AuthGate: React.FC = () => {
               <div className="space-y-3">
                 <input
                   type="password"
+                  name="password"
                   value={auth.newPassword}
                   onChange={(e) => auth.setNewPassword(e.target.value)}
-                  placeholder="新密码，至少 12 位"
+                  placeholder={`新密码，至少 ${PASSWORD_MIN_LENGTH} 位`}
                   className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm focus:outline-hidden focus:border-stone-900"
                 />
-                <p className="text-[10px] text-stone-400">
-                  至少 12 位，并包含大小写字母、数字、符号或中文字符中的至少三类。
-                </p>
+                <p className="text-[10px] text-stone-400">{PASSWORD_POLICY_HINT}</p>
               </div>
             ) : auth.authMode === 'register' ? (
               auth.registrationSubmitted ? (
@@ -92,6 +92,7 @@ export const AuthGate: React.FC = () => {
                 <div className="space-y-3">
                   <input
                     type="text"
+                    name="username"
                     value={auth.registerUsername}
                     onChange={(e) => auth.setRegisterUsername(e.target.value)}
                     placeholder="用户名"
@@ -100,29 +101,30 @@ export const AuthGate: React.FC = () => {
                   />
                   <input
                     type="password"
+                    name="password"
                     value={auth.registerPassword}
                     onChange={(e) => auth.setRegisterPassword(e.target.value)}
-                    placeholder="密码，至少 12 位"
+                    placeholder={`密码，至少 ${PASSWORD_MIN_LENGTH} 位`}
                     autoComplete="new-password"
                     className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm focus:outline-hidden focus:border-stone-900"
                   />
                   <input
                     type="password"
+                    name="passwordConfirm"
                     value={auth.registerConfirm}
                     onChange={(e) => auth.setRegisterConfirm(e.target.value)}
                     placeholder="再次输入密码"
                     autoComplete="new-password"
                     className="w-full px-3 py-2 bg-white border border-stone-300 rounded-lg text-sm focus:outline-hidden focus:border-stone-900"
                   />
-                  <p className="text-[10px] text-stone-400">
-                    密码至少 12 位，并包含大小写字母、数字、符号或中文字符中的至少三类。
-                  </p>
+                  <p className="text-[10px] text-stone-400">{PASSWORD_POLICY_HINT}</p>
                 </div>
               )
             ) : (
               <div className="space-y-3">
                 <input
                   type="text"
+                  name="username"
                   value={auth.authUsername}
                   onChange={(e) => auth.setAuthUsername(e.target.value)}
                   placeholder="用户名"
@@ -132,6 +134,7 @@ export const AuthGate: React.FC = () => {
                 />
                 <input
                   type="password"
+                  name="password"
                   value={auth.authPassword}
                   onChange={(e) => auth.setAuthPassword(e.target.value)}
                   placeholder="密码"
@@ -165,16 +168,16 @@ export const AuthGate: React.FC = () => {
               type="submit"
               disabled={
                 auth.mustChangePassword
-                  ? auth.newPassword.length < 12
+                  ? auth.newPassword.length < PASSWORD_MIN_LENGTH
                   : auth.authMode === 'register'
                     ? auth.registrationSubmitted ||
                       auth.registerUsername.trim().length < 2 ||
-                      auth.registerPassword.length < 12 ||
+                      auth.registerPassword.length < PASSWORD_MIN_LENGTH ||
                       auth.registerPassword !== auth.registerConfirm
                     : !auth.authTokenInput.trim() &&
-                      (!auth.authUsername.trim() || auth.authPassword.length < 12)
+                      (!auth.authUsername.trim() || auth.authPassword.length < 1)
               }
-              className="w-full px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-serif font-bold hover:bg-red-700 transition-colors"
+              className="w-full px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-serif font-bold hover:bg-red-700 transition-colors disabled:opacity-40"
             >
               {auth.mustChangePassword
                 ? '修改密码'

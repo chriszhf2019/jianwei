@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import { NO_PERSIST } from "../settings";
 import { DB_FILE, openDatabase } from "./connection";
+import {
+  passwordPolicyError as sharedPasswordPolicyError,
+  type PasswordPolicyErrorCode,
+} from "../../shared/passwordPolicy";
 
 export type UserRole = "admin" | "analyst" | "editor" | "viewer";
 export type UserApprovalStatus = "pending" | "approved" | "rejected";
@@ -23,10 +27,9 @@ function sessionTokenHash(token: string): string {
   return crypto.createHash("sha256").update(String(token)).digest("hex");
 }
 
-function passwordPolicyError(password: string): string | null {
-  const value = String(password || "");
-  if (value.length < 6) return "password_too_short";
-  return null;
+/** 服务端密码校验：复用前后端共用规则。 */
+export function passwordPolicyError(password: string): PasswordPolicyErrorCode | null {
+  return sharedPasswordPolicyError(password);
 }
 
 export function createUser(input: {
@@ -395,16 +398,23 @@ export function cleanupExpiredUserSessions(): number {
   }
 }
 
-export function ensureBootstrapUser(username: string, password: string): void {
-  if (!username || !password || !fs.existsSync(DB_FILE)) return;
+export function ensureBootstrapUser(
+  username: string,
+  password: string
+): { created: boolean; username: string } | null {
+  const name = String(username || "").trim();
+  const pass = String(password || "");
+  if (!name || !pass || NO_PERSIST) return null;
+  // openDatabase 会建库建表；勿仅用 existsSync，否则冷启动种子会空跑。
   const db = openDatabase();
   try {
-    const exists = db.prepare("SELECT 1 FROM users WHERE username = ?").get(username);
-    if (exists) return;
+    const exists = db.prepare("SELECT 1 FROM users WHERE username = ?").get(name);
+    if (exists) return { created: false, username: name };
   } finally {
     db.close();
   }
-  createUser({ username, password, role: "admin", mustChangePassword: true });
+  createUser({ username: name, password: pass, role: "admin", mustChangePassword: true });
+  return { created: true, username: name };
 }
 
 export function getUserPreferences(userId: string): { payload: Record<string, any> | null; version: number; updatedAt: string | null } {

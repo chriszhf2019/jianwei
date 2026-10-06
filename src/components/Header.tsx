@@ -35,6 +35,8 @@ interface HeaderProps {
   optimistic?: number | null;
   negative?: number | null;
   sentimentScope?: 'today' | '30d';
+  /** 仅管理员可见「管理端」导航 */
+  isAdmin?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -46,6 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAnalyzeModal,
   onOpenSettings,
   onOpenAudioBriefing,
+  isAdmin = false,
 }) => {
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
 
@@ -89,14 +92,17 @@ export const Header: React.FC<HeaderProps> = ({
         <Radio className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-emerald-600'}`} />
       ),
     },
-    {
+  ];
+
+  if (isAdmin) {
+    navItems.push({
       id: 'admin',
       label: '管理端',
       renderIcon: (isActive) => (
         <ShieldCheck className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-purple-600'}`} />
       ),
-    },
-  ];
+    });
+  }
 
   return (
     <header className="sticky top-0 z-40 bg-[#FAF8F5]/98 backdrop-blur-md transition-all font-sans">
