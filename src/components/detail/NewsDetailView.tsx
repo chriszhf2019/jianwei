@@ -30,6 +30,7 @@ import { FeatureSummary } from '../common/FeatureSummary';
 import { EditorialNotice } from '../common/EditorialNotice';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 import { EvidenceBadge } from '../common/EvidenceBadge';
+import { MethodBadge } from '../common/MethodBadge';
 import { formatArticleTime } from '../../utils/articleTime';
 import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
@@ -787,7 +788,15 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           <span className="font-serif font-bold text-[#E3120B] bg-red-50 px-2.5 py-0.5 rounded border border-red-200">
             {article.category}
           </span>
-          {article.isExternal && article.sourceUrl && (
+          {article.isCustom && (
+            <span
+              className="font-mono text-[11px] px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-900"
+              title="由用户贴链接或贴正文投递，解读为模型推断"
+            >
+              用户投递 · 读懂新闻
+            </span>
+          )}
+          {article.sourceUrl && (
             <a
               href={article.sourceUrl}
               target="_blank"
@@ -796,6 +805,16 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             >
               阅读原文 ↗
             </a>
+          )}
+          {article.sourceUrl && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('deep_spectrum')}
+              className="font-mono text-[11px] px-2 py-0.5 rounded border border-stone-300 text-stone-700 hover:bg-stone-100 transition-colors"
+              title="在通读附录中核验来源页面与引句"
+            >
+              去复核原文
+            </button>
           )}
           <span className="text-stone-300">·</span>
           <span className="font-mono text-stone-700">{formatArticleTime(article)}</span>
@@ -817,16 +836,28 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
         {/* High Contrast Verdict Box */}
         <div className="bg-[#FAF8F5] border-l-4 border-[#E3120B] p-5 sm:p-6 rounded-r-2xl shadow-xs">
-          <div className="text-xs font-serif font-bold text-[#E3120B] uppercase tracking-wider mb-1.5 flex items-center space-x-1.5">
-            <Sparkles className="w-4 h-4" />
-            <span>
-              {String(article.oneSentenceVerdict || '').trim()
-                ? article.isExternal
-                  ? 'AI 解读 · 一句话提炼 (So What)'
-                  : '见微解读 · 一句话提炼 (So What)'
-                : '原文摘要 · 尚未生成 AI 解读'}
+          <div className="text-xs font-serif font-bold text-[#E3120B] uppercase tracking-wider mb-1.5 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center space-x-1.5">
+              <Sparkles className="w-4 h-4" />
+              <span>
+                {String(article.oneSentenceVerdict || '').trim()
+                  ? article.isCustom
+                    ? '读懂新闻 · 一句话提炼 (So What)'
+                    : article.isExternal
+                      ? 'AI 解读 · 一句话提炼 (So What)'
+                      : '见微解读 · 一句话提炼 (So What)'
+                  : '原文摘要 · 尚未生成 AI 解读'}
+              </span>
             </span>
+            {String(article.oneSentenceVerdict || '').trim() ? (
+              <MethodBadge methodId="model_interpretation" compact />
+            ) : null}
           </div>
+          {String(article.oneSentenceVerdict || '').trim() ? (
+            <p className="text-[11px] text-stone-500 font-sans mb-2 leading-relaxed">
+              口径：模型推断，未校准、未核验。关键结论请回到原文或独立来源核对。
+            </p>
+          ) : null}
           <div className={`text-base sm:text-xl font-serif font-black text-stone-950 leading-snug break-words ${
             !summaryExpanded ? 'line-clamp-4' : ''
           }`}>

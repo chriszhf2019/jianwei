@@ -1569,3 +1569,16 @@ test('读懂新闻：入口文案与访客深读路由包含 fetch-article', asy
   assert.match(modal, /model_interpretation/);
   assert.equal(modal.includes('全球顶尖芯片代工厂将先进封装'), false);
 });
+
+test('主循环：空首页 CTA、解读后落七要素、详情标用户投递', () => {
+  const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
+  assert.match(home, /开始读懂新闻/);
+  assert.match(home, /onOpenAnalyze/);
+  assert.match(home, /articles\.length === 0/);
+  const app = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.match(app, /handleAnalysisComplete[\s\S]*setDetailInitialTab\('seven_elements'\)/);
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  assert.match(detail, /用户投递 · 读懂新闻/);
+  assert.match(detail, /methodId="model_interpretation"/);
+  assert.match(detail, /去复核原文/);
+});

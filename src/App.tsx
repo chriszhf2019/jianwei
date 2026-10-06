@@ -797,7 +797,9 @@ export const App: React.FC = () => {
       return next;
     });
     setSelectedArticle(newArticle);
+    setDetailInitialTab('seven_elements');
     setActiveTab('detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // 统一技能调用：sevenw/trend/risk 等 → /api/skill/:name → 合并 → 更新列表
@@ -1183,6 +1185,7 @@ export const App: React.FC = () => {
             onOpenTermExplain={(term) => setActiveTermExplain(term)}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenShareCard={(art) => setShareCardArticle(art)}
+            onOpenAnalyze={() => setIsAnalyzeOpen(true)}
             readingDensity={readingDensity}
           />
         )}

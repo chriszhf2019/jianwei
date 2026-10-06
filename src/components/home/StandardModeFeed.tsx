@@ -101,6 +101,7 @@ interface StandardModeFeedProps {
   onOpenShareCard?: (article: NewsArticle) => void;
   onOpenAudioBriefing?: () => void;
   onOpenTermExplain?: (term: string) => void;
+  onOpenAnalyze?: () => void;
   readingDensity?: ReadingDensity;
 }
 
@@ -132,6 +133,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
   onOpenShareCard,
   onOpenAudioBriefing,
   onOpenTermExplain,
+  onOpenAnalyze,
   readingDensity = 'comfortable',
 }) => {
   const compact = readingDensity === 'compact';
@@ -175,8 +177,20 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
 
   if (articles.length === 0) {
     return (
-      <div className="bg-white border border-stone-300 rounded-xl p-12 text-center text-stone-500 font-sans">
-        当前筛选维度下暂无情报：请尝试其他分类或清除雷达关键词；也可以点击顶部「读懂新闻」贴链接或贴正文解读。
+      <div className="bg-white border border-stone-300 rounded-xl p-10 text-center font-sans space-y-4">
+        <p className="text-stone-600 text-sm leading-relaxed max-w-md mx-auto">
+          当前筛选下暂无情报。可换分类、清雷达词，或直接贴链接 / 贴正文开始解读。
+        </p>
+        {onOpenAnalyze && (
+          <button
+            type="button"
+            onClick={onOpenAnalyze}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#E3120B] hover:bg-red-700 text-white text-xs font-serif font-bold rounded-xl transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            读懂新闻
+          </button>
+        )}
       </div>
     );
   }
