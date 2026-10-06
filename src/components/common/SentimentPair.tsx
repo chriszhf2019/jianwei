@@ -74,7 +74,7 @@ export const SentimentPair: React.FC<SentimentPairProps> = ({ title, summary, co
           : active.status === 'error'
             ? '这次没有生成'
             : active.status === 'ready' && active.result
-              ? `${sentimentLabelText(active.result.label)} · 未校准`
+              ? `${sentimentLabelText(active.result.label)} · 模型推断 · 未核验`
               : '未生成';
 
   const evidenceNote = active.result?.evidenceStatus === 'quoted' && active.result.evidence
@@ -93,14 +93,14 @@ export const SentimentPair: React.FC<SentimentPairProps> = ({ title, summary, co
       <span
         className="font-mono text-[11px] text-stone-700"
         title={hits.length
-          ? `词典倾向：命中 ${hits.join('、')}。正负都命中记为交织。不是模型，也不是情绪真值。`
-          : '词典倾向：标题和摘要没有命中正负词，记为中性。不是模型。'}
+          ? `词典倾向（启发式）：命中 ${hits.join('、')}。正负都命中记为交织。不是模型，也不是市场情绪真值。`
+          : '词典倾向（启发式）：标题和摘要没有命中正负词，记为中性。不是模型，也不是市场真值。'}
       >
         词典 {sentimentLabelText(lexicon.label)}
       </span>
       <span
         className="font-mono text-[11px] text-stone-500"
-        title="模型情感只在点击后请求。没有密钥不生成，不输出概率，结果未校准，也不写入人工评测。"
+        title="模型情感只在点击后请求。有密钥时仍是模型推断，不是已核验事实；不输出概率，结果未校准，也不写入人工评测。"
       >
         模型 {modelText}
         {evidenceNote ? ` · ${evidenceNote}` : ''}

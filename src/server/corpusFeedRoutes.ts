@@ -37,7 +37,7 @@ export function registerCorpusFeedRoutes(app: express.Express, deps: CorpusFeedR
         return;
       }
       const categoryCounts: Record<string, number> = {};
-      // credibilityStars / changeVelocity 已下线，不再计入派生统计；保留空对象以兼容旧客户端字段。
+      // credibilityStars / changeVelocity：历史字段兼容保留；运行逻辑已不读，派生统计恒为空对象。
       const starDistribution: Record<number, number> = {};
       const velocityCounts: Record<string, number> = {};
       const tagFreq: Record<string, number> = {};

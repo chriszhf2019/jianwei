@@ -320,7 +320,7 @@ export const CardInsightBox: React.FC<CardInsightBoxProps> = ({
   if (mode === 'interpret') {
     title = 'AI 综合解读';
     methodId = interpretation ? 'model_interpretation' : null;
-    note = 'AI 综合推断，关键事实仍以原文或独立来源为准。';
+    note = '有密钥时仍是模型推断，不是已核验事实；关键依据以原文或独立来源为准。';
     body = busy ? (
       <p className="flex items-center gap-1.5 text-xs text-stone-500">
         <Loader2 className="w-3 h-3 animate-spin" /> 正在生成 AI 解读…
@@ -353,7 +353,7 @@ export const CardInsightBox: React.FC<CardInsightBoxProps> = ({
   } else if (mode === 'sevenw') {
     title = '事件模型 · 7W';
     methodId = sevenw ? 'model_extraction' : null;
-    note = 'AI 结构化摘要，不替代原文核验。';
+    note = '有密钥时仍是模型结构化摘要，不是已核验事实，不替代原文核验。';
     body = busy ? (
       <p className="flex items-center gap-1.5 text-xs text-stone-500">
         <Loader2 className="w-3 h-3 animate-spin" /> 正在生成 7W 摘要…
@@ -384,7 +384,7 @@ export const CardInsightBox: React.FC<CardInsightBoxProps> = ({
   } else if (mode === 'trend') {
     title = '趋势模型';
     methodId = trend || legacyTrend ? 'model_scenario' : null;
-    note = 'AI 情景推演，不是概率预测。';
+    note = '有密钥时仍是模型情景推演，不是概率预测，也不是已核验事实。';
     body = busy ? (
       <p className="flex items-center gap-1.5 text-xs text-stone-500">
         <Loader2 className="w-3 h-3 animate-spin" /> 正在生成趋势模型…
@@ -427,7 +427,7 @@ export const CardInsightBox: React.FC<CardInsightBoxProps> = ({
   } else if (mode === 'risk') {
     title = '风险模型';
     methodId = risk || legacyRisk ? 'adversarial_review' : null;
-    note = 'AI 对抗审稿，不是事实裁决。';
+    note = '有密钥时仍是模型对抗审稿，提出风险假设，不是事实裁决。';
     body = busy ? (
       <p className="flex items-center gap-1.5 text-xs text-stone-500">
         <Loader2 className="w-3 h-3 animate-spin" /> 正在生成风险模型…

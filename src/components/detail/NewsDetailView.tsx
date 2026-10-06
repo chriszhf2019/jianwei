@@ -966,13 +966,16 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
         {latestAiMeta && (
           <details className="text-[10px] text-stone-400">
-            <summary className="cursor-pointer hover:text-stone-700">分析版本</summary>
+            <summary className="cursor-pointer hover:text-stone-700">分析版本 · 模型推断（非已核验事实）</summary>
             <p className="mt-1 font-mono">
               {latestAiMeta[1].method === 'legacy_unknown'
-                ? '旧版 AI 字段 · 生成元数据缺失'
+                ? '旧版 AI 字段 · 生成元数据缺失 · 仍视为未核验模型推断'
                 : `${latestAiMeta[1].provider}/${latestAiMeta[1].model} · ${latestAiMeta[1].promptVersion} · ${
                     CERTIFICATION_STANDARDS[latestAiMeta[1].certificationStandard]?.label || '未认证'
                   }`}
+            </p>
+            <p className="mt-1 text-stone-500">
+              有密钥时仍是模型推断，不是已核验事实；关键结论请回到原文或独立来源核对。
             </p>
           </details>
         )}
@@ -986,7 +989,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           <div>
             <div className="text-sm font-serif font-bold text-stone-900">深度分析</div>
             <p className="text-[11px] text-stone-500 mt-0.5">
-              当前为原文摘要，深层字段尚未生成。
+              当前为原文摘要，深层字段尚未生成。生成后仍是模型推断，不是已核验事实。
             </p>
           </div>
           <button

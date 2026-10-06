@@ -448,7 +448,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
               见微 · 深度专题脉络与结构性博弈
             </h1>
             <p className="text-xs sm:text-sm text-stone-300 font-sans max-w-2xl">
-              专题里的博弈、利益方、阶段和证伪条件是编辑种子；下方文章列表才来自当前语料的关键词匹配。
+              专题里的博弈、利益方、阶段和证伪条件是产品配置的编辑种子，不是实时情报；下方文章列表才来自当前语料的关键词匹配。
             </p>
           </div>
 

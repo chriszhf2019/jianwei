@@ -110,7 +110,7 @@ export const InvalidationAlertBanner: React.FC<InvalidationAlertBannerProps> = (
 
             <div className="flex items-center justify-between pt-2 border-t border-stone-800">
               <span className="text-[11px] text-stone-400">
-                这些观察条件和阶段来自编辑种子，不是已经触发的警报。
+                这些观察条件和阶段来自产品配置的编辑种子，不是实时情报，也不是已经触发的警报。
               </span>
               <button
                 onClick={() => {

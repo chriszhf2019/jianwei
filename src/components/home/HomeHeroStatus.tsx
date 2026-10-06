@@ -109,7 +109,7 @@ export const HomeHeroStatus: React.FC<HomeHeroStatusProps> = ({
   const meterLeft = net === null ? 50 : Math.max(0, Math.min(100, ((net + 100) / 200) * 100));
   const isTodayScope = scope === 'today';
   const gaugeTip =
-    '情绪值：词典统计 (正面-负面)/(正面+负面)×100，仅对“今日发布”条目（今日样本不足20条时自动放宽近30天）；热词/赛道/突发同为可复核的关键词计数，非 AI 判断。词表见 utils/corpusMetrics.ts 与 utils/sectorTaxonomy.ts。';
+    '情绪值：词典启发式 (正面-负面)/(正面+负面)×100，仅对“今日发布”条目（今日样本不足20条时自动放宽近30天）；热词/赛道/突发同为可复核的关键词计数。可复核，但不是市场真值，也非 AI 判断。词表见 utils/corpusMetrics.ts 与 utils/sectorTaxonomy.ts。';
 
   return (
     <div className="bg-white border-2 border-stone-900 rounded-2xl p-3.5 sm:p-4 shadow-sm font-sans mb-4">

@@ -876,6 +876,12 @@ test('methodRegistry: 认证标准与方法类型分离', () => {
   assert.equal(certificationSpec('model_extraction').id, 'ai_single');
   assert.equal(certificationSpec('model_forecast').id, 'prediction_uncalibrated');
   assert.equal(certificationSpec('calibrated_forecast').id, 'prediction_calibrated');
+  // 诚实口径：有密钥仍是模型推断；词典/加权是启发式；编辑种子是产品配置
+  assert.match(certificationSpec('model_sentiment').description, /不是已核验事实/);
+  assert.match(certificationSpec('lexicon_sentiment').description, /不是市场真值/);
+  assert.match(certificationSpec('editorial_template').description, /不是实时情报/);
+  assert.match(methodSpec('editorial_template').basis, /产品配置/);
+  assert.match(methodSpec('local_sensitivity').basis, /不是市场真值/);
 });
 
 test('aiCache: 缓存键包含内容和版本，并发请求只执行一次', async () => {

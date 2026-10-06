@@ -73,7 +73,7 @@ export const AdminConsoleView: React.FC = () => {
             系统管理与全局数据基础设施中台
           </h1>
           <p className="text-xs sm:text-sm text-stone-300 max-w-2xl leading-relaxed">
-            统一配置企业级大模型密钥、多信源 RSS 摄取调度、9大行业赛道关键词规则、用户组织权限与行为审计台账。
+            统一配置企业级大模型密钥、多信源 RSS 摄取调度、9大行业赛道关键词（产品配置编辑种子）、用户组织权限与行为审计台账。
           </p>
           {status?.exposure?.note && (
             <p className="text-[11px] font-mono text-stone-400 max-w-2xl leading-relaxed">{status.exposure.note}</p>

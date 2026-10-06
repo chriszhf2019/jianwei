@@ -297,9 +297,9 @@ export interface NewsArticle {
   sourceName: string;
   sourceDate: string;
   sourceCount: number;
-  credibilityStars?: number; // 已下线；运行逻辑不再读取，仅兼容历史语料
+  credibilityStars?: number; // 历史字段：兼容保留；运行逻辑已不读
   impactScope: '全球' | '区域' | '特定行业' | '本地' | string;
-  changeVelocity?: '↑↑ 极快' | '↑ 快速' | '→ 稳定' | '↓ 放缓' | string; // 已下线；运行逻辑不再读取
+  changeVelocity?: '↑↑ 极快' | '↑ 快速' | '→ 稳定' | '↓ 放缓' | string; // 历史字段：兼容保留；运行逻辑已不读
   coverImage?: string;
   
   // Accessible / Tongsu mode content
@@ -767,7 +767,9 @@ export interface SnapshotMeta {
 
 export interface SnapshotDerived {
   categoryCounts: Record<string, number>;
+  /** 历史兼容字段：恒为空对象。运行逻辑已不读 credibilityStars，不再派生星级分布。 */
   starDistribution: Record<number, number>;
+  /** 历史兼容字段：恒为空对象。运行逻辑已不读 changeVelocity，不再派生速度分布。 */
   velocityCounts: Record<string, number>;
   tagFrequency: Array<{ tag: string; count: number }>;
   sourceStats: { total: number; avgPerArticle: number };

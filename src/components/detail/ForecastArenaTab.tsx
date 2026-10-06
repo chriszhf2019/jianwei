@@ -373,7 +373,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
               methodId={aiPrediction.probabilityKind === 'direction_strength' ? 'local_sensitivity' : 'model_forecast'}
             />
             <p className="text-xs text-stone-400 max-w-3xl">
-              拒绝事后诸葛亮。在这里提出量化预测并锁定检验时间，见微本地加权引擎（透明公式，与『与我何干』主线模型同源）将输出可复核的对照研判，帮您识别过度自信并习得专业的预测方法论。
+              拒绝事后诸葛亮。在这里提出量化预测并锁定检验时间，见微本地加权启发式（透明公式，与『与我何干』主线模型同源；可复核但不是市场真值）将输出可对照的研判，帮您识别过度自信并习得专业的预测方法论。
             </p>
             <p className="text-[10px] text-stone-500 leading-relaxed border-l-2 border-stone-700 pl-2">
               与其它预测入口的分工：⑦「正反方博弈」= 事件多空论据的<b>定性梳理</b>；「与我何干 · 双向预测」= 把主线翻译成<b>对你（身份）的两条路径</b>；首页卡片「趋势」= 一段式 AI 文本观点；<b>本页是唯一支持“立约 + 到期回测”的事件概率页</b>（本地/在线双引擎 + 契约档案）。
