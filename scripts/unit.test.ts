@@ -1196,6 +1196,17 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   const trend = fs.readFileSync(path.join(process.cwd(), 'src/components/home/TrendComparisonCard.tsx'), 'utf8');
   assert.match(trend, /词频相对分/);
   assert.equal(trend.includes('热度指数 {item.heatIndex}'), false);
+
+  const heatChart = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/DynamicHeatTrendChart.tsx'), 'utf8');
+  assert.match(heatChart, /篇数相对分/);
+  assert.equal(heatChart.includes('全球热度演变与多维态势曲线'), false);
+  assert.equal(heatChart.includes('>热度指数<'), false);
+
+  const deepTrend = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  assert.equal(deepTrend.includes('heatIndex: Math.max(30, 85 - idx * 8)'), false);
+  assert.equal(deepTrend.includes("growthRate: idx === 0 ? '+150%'"), false);
+  assert.equal(deepTrend.includes('核心战略产业'), false);
+  assert.match(deepTrend, /不编造涨跌或宏观叙事/);
 });
 
 
