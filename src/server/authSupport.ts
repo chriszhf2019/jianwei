@@ -64,6 +64,7 @@ export function isGuestDeepRoute(pathname: string): boolean {
     pathname === "/enrich" ||
     pathname.startsWith("/skill/") ||
     pathname === "/analyze" ||
+    pathname === "/fetch-article" ||
     pathname === "/ask-nuance" ||
     pathname === "/strategic-advisor" ||
     pathname === "/predict" ||

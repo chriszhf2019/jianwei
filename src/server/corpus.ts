@@ -574,3 +574,30 @@ export function corpusSortTime(a: any): number {
 export function findCorpusArticle(articleId: string): any | undefined {
   return articlesById.get(String(articleId));
 }
+
+/**
+ * 将用户贴链接 / 贴正文解读得到的文章写入运行时语料。
+ * 同 id 则覆盖合并；新文插到队首。返回落盘后的文章对象。
+ */
+export function appendUserArticle(article: any): any {
+  const id = String(article?.id || `user-${Date.now()}`);
+  const next = {
+    ...article,
+    id,
+    isCustom: true,
+    tags: Array.isArray(article?.tags)
+      ? Array.from(new Set([...article.tags.map(String), "用户投递"]))
+      : ["用户投递"],
+  };
+  const existing = articlesById.get(id);
+  if (existing) {
+    Object.assign(existing, next);
+    markCorpusArticlesDirty([existing]);
+    persistCorpus();
+    return existing;
+  }
+  serverCorpus.unshift(next);
+  markCorpusArticlesDirty([next]);
+  persistCorpus();
+  return next;
+}

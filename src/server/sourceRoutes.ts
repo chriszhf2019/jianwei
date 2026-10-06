@@ -59,6 +59,109 @@ export function registerSourceRoutes(app: express.Express): void {
     }
   });
 
+  /** 用户贴链接读懂新闻：抓取标题与正文（返回有上限的 pageText，供解读）。 */
+  const FETCH_ARTICLE_TEXT_CAP = Number(process.env.FETCH_ARTICLE_TEXT_CAP || 40_000);
+  app.post("/api/fetch-article", applyRateLimit, async (req, res) => {
+    const url = String(req.body?.url || "").trim();
+    const force = req.body?.force === true;
+    if (!url) return res.status(400).json({ error: "url is required" });
+
+    const checkKey = sourceCheckKey(url, "");
+    if (!force && !NO_PERSIST) {
+      const cached = loadSourceCheck(checkKey, SOURCE_CHECK_TTL_MS);
+      const pageText = loadSourcePageText(checkKey);
+      if (cached && pageText) {
+        let sourceName = "";
+        try {
+          sourceName = new URL(cached.finalUrl || cached.requestedUrl || url).hostname.replace(/^www\./, "");
+        } catch {
+          /* keep empty */
+        }
+        res.setHeader("Cache-Control", "no-store");
+        return res.json({
+          ok: true,
+          cached: true,
+          status: cached.status,
+          requestedUrl: url,
+          finalUrl: cached.finalUrl || url,
+          httpStatus: cached.httpStatus,
+          title: cached.title || "",
+          excerpt: cached.excerpt || pageText.slice(0, 500),
+          pageText: String(pageText).slice(0, FETCH_ARTICLE_TEXT_CAP),
+          sourceName,
+          contentHash: cached.contentHash,
+          fetchedAt: cached.fetchedAt,
+          truncated: String(pageText).length > FETCH_ARTICLE_TEXT_CAP,
+          note: "已抓取页面正文（缓存）。内容来自目标站点，不是平台核验过的事实摘要。",
+        });
+      }
+    }
+
+    const result = await inspectSourceDeduplicated(url, "");
+    if (result.status === "blocked") return res.status(403).json({ ok: false, ...result });
+    if (result.status === "unsupported" && result.reason?.includes("protocol")) {
+      return res.status(400).json({ ok: false, ...result });
+    }
+
+    const stableStatuses = new Set([
+      "verified_quote",
+      "quote_not_found",
+      "quote_too_short",
+      "reachable_unverified",
+      "http_error",
+      "unsupported",
+    ]);
+    if (!NO_PERSIST && stableStatuses.has(result.status)) persistSourceCheck(checkKey, result);
+
+    const pageText = String(result.pageText || "");
+    const fetchFailedStatuses = new Set([
+      "http_error",
+      "timeout",
+      "network_error",
+      "too_large",
+      "unsupported",
+    ]);
+    const fetchOk = Boolean(pageText) && !fetchFailedStatuses.has(result.status);
+
+    let sourceName = "";
+    try {
+      sourceName = new URL(result.finalUrl || result.requestedUrl || url).hostname.replace(/^www\./, "");
+    } catch {
+      /* keep empty */
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    if (!fetchOk) {
+      return res.status(422).json({
+        ok: false,
+        status: result.status,
+        requestedUrl: url,
+        finalUrl: result.finalUrl,
+        httpStatus: result.httpStatus,
+        reason: result.reason,
+        fetchedAt: result.fetchedAt,
+        note: "未能抓取可用正文。常见原因：站点拦截、超时、非 HTML，或链接不可达。请改贴正文，或换可公开访问的链接。",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      cached: false,
+      status: result.status,
+      requestedUrl: url,
+      finalUrl: result.finalUrl || url,
+      httpStatus: result.httpStatus,
+      title: result.title || "",
+      excerpt: result.excerpt || pageText.slice(0, 500),
+      pageText: pageText.slice(0, FETCH_ARTICLE_TEXT_CAP),
+      sourceName,
+      contentHash: result.contentHash,
+      fetchedAt: result.fetchedAt,
+      truncated: pageText.length > FETCH_ARTICLE_TEXT_CAP,
+      note: "已抓取页面正文。内容来自目标站点，不是平台核验过的事实摘要。",
+    });
+  });
+
   app.post("/api/source/inspect", applyRateLimit, async (req, res) => {
     const url = String(req.body?.url || "").trim();
     const quote = String(req.body?.quote || "").trim();

@@ -92,6 +92,7 @@ export function registerAuthMiddleware(app: express.Express): void {
       { method: "POST", path: "/admin/backups/restore" },
       { method: "POST", path: "/feeds/ingest" },
       { method: "POST", path: "/source/inspect" },
+      { method: "POST", path: "/fetch-article" },
       { method: "POST", path: "/source/reextract-evidence" },
       { method: "POST", path: "/evaluation/import" },
       { method: "POST", path: "/evaluation/freeze" },

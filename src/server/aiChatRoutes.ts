@@ -4,14 +4,69 @@ import { getOrCreatePredict, predictKey, applyRateLimit } from "./cache";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
 import { PROMPT_VERSIONS, attachFieldMeta, createFieldMeta, sanitizeEnrichPayload } from "./aiValidation";
 import { generateAnalysisKey, getAnalysisFromDatabase, saveAnalysisToDatabase } from "./database";
+import { appendUserArticle, findCorpusArticle } from "./corpus";
+import { NO_PERSIST } from "./settings";
 
 const FALLBACK_NOTE = "未配置可用模型或上游请求失败，本次未生成内容。";
+
+function buildPersistedUserArticle(input: {
+  articleId?: string;
+  title?: string;
+  content?: string;
+  source?: string;
+  sourceUrl?: string;
+  category?: string;
+  parsed: any;
+}): any {
+  const parsed = input.parsed || {};
+  const id =
+    String(input.articleId || "").trim() ||
+    String(parsed.id || "").trim() ||
+    `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const title = String(parsed.title || input.title || "").trim() || "用户投递";
+  const sourceName = String(parsed.sourceName || input.source || "").trim() || "见微·用户投递";
+  const sourceUrl = String(input.sourceUrl || parsed.sourceUrl || "").trim() || undefined;
+  return {
+    ...parsed,
+    id,
+    title,
+    subtitle: parsed.subtitle || "",
+    oneSentenceVerdict: parsed.oneSentenceVerdict || parsed.summary || "",
+    category: parsed.category || input.category || "用户投递",
+    tags: Array.isArray(parsed.tags) ? parsed.tags : ["用户投递"],
+    date: parsed.date || zhFullDate(new Date()),
+    timeAgo: "刚刚",
+    sourceName,
+    sourceUrl,
+    publishedAt: new Date().toISOString(),
+    sourceDate: parsed.sourceDate || `${isoToday(new Date())} ${nowHHmm(new Date())}`,
+    sourceCount: typeof parsed.sourceCount === "number" ? parsed.sourceCount : (sourceUrl || input.source ? 1 : 0),
+    impactScope: parsed.impactScope || "未标注",
+    summary: parsed.summary || String(input.content || "").slice(0, 120),
+    isCustom: true,
+    isExternal: Boolean(sourceUrl),
+  };
+}
+
+function persistAnalyzeArticle(input: {
+  articleId?: string;
+  title?: string;
+  content?: string;
+  source?: string;
+  sourceUrl?: string;
+  category?: string;
+  parsed: any;
+}): { articleId: string; persisted: boolean } {
+  const article = buildPersistedUserArticle(input);
+  appendUserArticle(article);
+  return { articleId: article.id, persisted: !NO_PERSIST };
+}
 
 export function registerAiChatRoutes(app: express.Express): void {
   // AI News Interpretation & Cognitive Analysis endpoint
   app.post("/api/analyze", applyRateLimit, async (req, res) => {
     try {
-      const { title, content, source, sourceUrl, category, articleId, forceRefresh } = req.body;
+      const { title, content, source, sourceUrl, category, articleId, forceRefresh, persist = true } = req.body;
       if (!title && !content) {
         return res.status(400).json({ error: "Title or content is required" });
       }
@@ -22,11 +77,32 @@ export function registerAiChatRoutes(app: express.Express): void {
       if (!forceRefresh) {
         const cached = getAnalysisFromDatabase(analysisKey);
         if (cached && cached.payload) {
+          let persistMeta = { articleId: String(articleId || cached.articleId || ""), persisted: false };
+          if (persist !== false) {
+            const existingId = String(articleId || cached.articleId || "").trim();
+            const alreadyInCorpus = existingId ? Boolean(findCorpusArticle(existingId)) : false;
+            if (!alreadyInCorpus) {
+              persistMeta = persistAnalyzeArticle({
+                articleId: existingId || undefined,
+                title,
+                content,
+                source,
+                sourceUrl,
+                category,
+                parsed: cached.payload,
+              });
+            } else {
+              persistMeta = { articleId: existingId, persisted: !NO_PERSIST };
+            }
+          }
           return res.json({
             fallback: false,
             cached: true,
             hitCount: cached.hitCount,
             data: cached.payload,
+            articleId: persistMeta.articleId || undefined,
+            persisted: persistMeta.persisted,
+            note: "结果为模型推断（可缓存命中），不是已核验事实；请对照原文核验关键结论。",
           });
         }
       }
@@ -223,9 +299,22 @@ export function registerAiChatRoutes(app: express.Express): void {
       attachFieldMeta(parsed, ["evidenceChain", "sevenElements", "rippleEffect"], createFieldMeta(provider, model, PROMPT_VERSIONS.analyze));
 
       // 存储分析结果到后台 SQLite 语料数据库
+      let persistMeta = { articleId: String(articleId || ""), persisted: false };
+      if (persist !== false) {
+        persistMeta = persistAnalyzeArticle({
+          articleId,
+          title,
+          content,
+          source,
+          sourceUrl,
+          category,
+          parsed,
+        });
+      }
+
       saveAnalysisToDatabase({
         key: analysisKey,
-        articleId: articleId || (parsed as any).id,
+        articleId: persistMeta.articleId || articleId || (parsed as any).id,
         title: title || parsed.title || "未命名语料",
         source: source || parsed.sourceName || "用户/Feed投递",
         category: category || parsed.category || "科技前沿",
@@ -234,7 +323,14 @@ export function registerAiChatRoutes(app: express.Express): void {
         payload: parsed,
       });
 
-      res.json({ fallback: false, cached: false, data: parsed });
+      res.json({
+        fallback: false,
+        cached: false,
+        data: parsed,
+        articleId: persistMeta.articleId || undefined,
+        persisted: persistMeta.persisted,
+        note: "结果为模型推断，不是已核验事实；请对照原文核验关键结论。",
+      });
     } catch (err: any) {
       console.error("AI Analysis error:", err);
       res.json({

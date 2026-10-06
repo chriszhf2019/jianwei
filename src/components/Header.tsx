@@ -200,14 +200,14 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* AI 分析按钮 */}
+            {/* 读懂新闻：贴链接 / 贴正文 */}
             <button
               onClick={onOpenAnalyzeModal}
               title={FEATURE_SUMMARIES['ai-submit'].purpose}
               className="px-3.5 py-1.5 bg-[#E3120B] hover:bg-red-700 text-white text-xs sm:text-sm font-serif font-bold rounded-xl shadow-2xs flex items-center space-x-1.5 transition-all hover:shadow-xs active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
             >
               <Sparkles className="w-4 h-4 shrink-0" />
-              <span className="whitespace-nowrap">AI 分析</span>
+              <span className="whitespace-nowrap">读懂新闻</span>
             </button>
           </div>
         </div>

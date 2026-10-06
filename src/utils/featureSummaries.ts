@@ -109,11 +109,11 @@ export const FEATURE_SUMMARIES: Record<FeatureSummaryId, FeatureSummarySpec> = {
     boundary: '搜索范围是当前订阅语料，不是全网搜索。',
   },
   'ai-submit': {
-    title: 'AI提交分析',
-    purpose: '把外部链接或文本交给系统，生成事实结构和初步解读。',
-    when: '看到站外新闻，希望用同一套认知流程分析时。',
-    output: '七要素、逻辑、影响和证据线索。',
-    boundary: '输入材料质量决定输出质量，AI推断仍需核验。',
+    title: '读懂新闻',
+    purpose: '贴新闻链接抓取正文，或直接粘贴内容，生成结构化解读。',
+    when: '看到站外新闻，或手头有一段原文，希望用同一套认知流程读懂时。',
+    output: '七要素、逻辑、影响和证据线索（模型推断）。',
+    boundary: '输入材料质量决定输出质量；抓取正文不等于事实核验；AI 推断仍需对照原文核对。',
   },
   'audio-brief': {
     title: '今日音频简报',

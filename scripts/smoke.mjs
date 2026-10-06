@@ -45,6 +45,24 @@ async function main() {
     JSON.stringify(analyze).slice(0, 200)
   );
 
+  // 3b) /api/fetch-article：空 URL 400；本机地址不得抓取
+  const fetchEmpty = await fetch(`${BASE}/api/fetch-article`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  check('POST /api/fetch-article 空请求 -> 400', fetchEmpty.status === 400);
+  const fetchLocal = await fetch(`${BASE}/api/fetch-article`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: 'http://127.0.0.1:3001/' }),
+  }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  check(
+    'POST /api/fetch-article 本机地址 -> 拒绝',
+    fetchLocal.status === 403 || fetchLocal.body?.ok === false || fetchLocal.body?.status === 'blocked',
+    JSON.stringify(fetchLocal).slice(0, 200)
+  );
+
   // 4) /api/snapshot 派生骨架
   const snap = await fetch(`${BASE}/api/snapshot`).then((r) => r.json());
   check('GET /api/snapshot -> 语料派生统计', !!snap.derived?.categoryCounts && Array.isArray(snap.derived.tagFrequency), JSON.stringify(snap.meta));
