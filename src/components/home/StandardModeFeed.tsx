@@ -176,7 +176,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
   if (articles.length === 0) {
     return (
       <div className="bg-white border border-stone-300 rounded-xl p-12 text-center text-stone-500 font-sans">
-        当前筛选维度下暂无情报：请尝试其他分类或清除雷达关键词；也可以点击顶部「AI 提交分析」投递一篇新情报。
+        当前筛选维度下暂无情报：请尝试其他分类或清除雷达关键词；也可以点击顶部「读懂新闻」贴链接或贴正文解读。
       </div>
     );
   }
