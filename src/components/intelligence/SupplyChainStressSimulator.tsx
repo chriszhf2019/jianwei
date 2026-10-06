@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { MethodBadge } from '../common/MethodBadge';
+import { EditorialNotice } from '../common/EditorialNotice';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -234,6 +235,9 @@ export const SupplyChainStressSimulator: React.FC<SupplyChainStressSimulatorProp
           <p className="text-xs text-stone-500">
             份额、风险分和替代方案来自编辑情景表。下方曲线只按这些假设做本地推演，不是实时供应链数据。
           </p>
+          <EditorialNotice title="产品配置 · 编辑情景">
+            全球份额等整数（含 92）是情景假设输入，不是实时供应链监测结果。
+          </EditorialNotice>
         </div>
 
         <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono font-bold">

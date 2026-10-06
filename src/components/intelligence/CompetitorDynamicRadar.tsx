@@ -18,6 +18,7 @@ import {
   Target,
 } from 'lucide-react';
 import { MethodBadge } from '../common/MethodBadge';
+import { EditorialNotice } from '../common/EditorialNotice';
 import {
   ResponsiveContainer,
   RadarChart,
@@ -220,6 +221,9 @@ export const CompetitorDynamicRadar: React.FC<CompetitorDynamicRadarProps> = ({
           <p className="text-xs text-stone-500">
             雷达分数、专利、人才和并购条目来自编辑档案。语料只用于跳到相关标题，不会每日同步工商或专利库。
           </p>
+          <EditorialNotice title="产品配置 · 编辑档案">
+            雷达上的分数（含 92 一类整数）是情景对照，不是实时情报或模型置信度。
+          </EditorialNotice>
         </div>
 
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-xs font-mono font-bold">
