@@ -4,6 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 export const DB_FILE = process.env.JIANWEI_DB_FILE || path.join(process.cwd(), "data", "corpus.db");
 
+let articleSearchFtsEnabled = false;
+
 function ensureDirectory(): void {
   fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
 }
@@ -15,6 +17,31 @@ function articleSearchBodyForMigration(article: any): string {
     article?.summary || "",
     ...(Array.isArray(article?.tags) ? article.tags : []),
   ].join(" ");
+}
+
+/** 探测并创建 FTS5 检索表；当前 Node 未编入 fts5 时降级，全文检索改走 LIKE。 */
+function ensureArticleSearchFts(db: DatabaseSync): boolean {
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
+        article_id UNINDEXED,
+        body,
+        tokenize='trigram'
+      );
+    `);
+    return true;
+  } catch (error: any) {
+    const reason = String(error?.message || error);
+    if (/no such module:\s*fts5/i.test(reason)) {
+      console.warn("SQLite FTS5 unavailable; article search falls back to LIKE.");
+      return false;
+    }
+    throw error;
+  }
+}
+
+export function articleSearchEnabled(): boolean {
+  return articleSearchFtsEnabled;
 }
 
 export function openDatabase(): DatabaseSync {
@@ -46,12 +73,6 @@ export function openDatabase(): DatabaseSync {
       PRIMARY KEY (article_id, region)
     );
     CREATE INDEX IF NOT EXISTS idx_article_regions_region ON article_regions(region, article_id);
-
-    CREATE VIRTUAL TABLE IF NOT EXISTS article_search USING fts5(
-      article_id UNINDEXED,
-      body,
-      tokenize='trigram'
-    );
 
     CREATE TABLE IF NOT EXISTS source_checks (
       check_key TEXT PRIMARY KEY,
@@ -257,12 +278,19 @@ export function openDatabase(): DatabaseSync {
   }
   const articleCount = Number((db.prepare("SELECT COUNT(*) AS count FROM articles").get() as any)?.count || 0);
   const regionCount = Number((db.prepare("SELECT COUNT(*) AS count FROM article_regions").get() as any)?.count || 0);
-  const searchCount = Number((db.prepare("SELECT COUNT(*) AS count FROM article_search").get() as any)?.count || 0);
-  if (articleCount > 0 && (regionCount === 0 || searchCount === 0)) {
+  articleSearchFtsEnabled = ensureArticleSearchFts(db);
+  const searchCount = articleSearchFtsEnabled
+    ? Number((db.prepare("SELECT COUNT(*) AS count FROM article_search").get() as any)?.count || 0)
+    : 0;
+  if (articleCount > 0 && (regionCount === 0 || (articleSearchFtsEnabled && searchCount === 0))) {
     const rows = db.prepare("SELECT id, payload FROM articles").all() as Array<{ id: string; payload: string }>;
     const insertRegion = db.prepare("INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)");
-    const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
-    const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
+    const deleteSearch = articleSearchFtsEnabled
+      ? db.prepare("DELETE FROM article_search WHERE article_id = ?")
+      : null;
+    const insertSearch = articleSearchFtsEnabled
+      ? db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)")
+      : null;
     db.exec("BEGIN IMMEDIATE");
     try {
       for (const row of rows) {
@@ -274,8 +302,10 @@ export function openDatabase(): DatabaseSync {
               .filter(Boolean)
           );
           for (const region of regions) insertRegion.run(row.id, region);
-          deleteSearch.run(row.id);
-          insertSearch.run(row.id, articleSearchBodyForMigration(article));
+          if (deleteSearch && insertSearch) {
+            deleteSearch.run(row.id);
+            insertSearch.run(row.id, articleSearchBodyForMigration(article));
+          }
         } catch {
           /* 单条损坏数据不阻断索引迁移。 */
         }

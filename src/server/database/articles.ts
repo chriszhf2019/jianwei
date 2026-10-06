@@ -2,7 +2,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { parseArticleDate } from "../../utils/articleTime";
 import { NO_PERSIST } from "../settings";
-import { DB_FILE, openDatabase } from "./connection";
+import { DB_FILE, openDatabase, articleSearchEnabled } from "./connection";
 
 function articleSearchBody(article: any): string {
   return [
@@ -62,7 +62,7 @@ export function queryArticlesPage(input: {
       params.push(region);
     }
     if (q) {
-      if (q.length >= 3 && !/\s/.test(q)) {
+      if (articleSearchEnabled() && q.length >= 3 && !/\s/.test(q)) {
         conditions.push("articles.id IN (SELECT article_id FROM article_search WHERE article_search MATCH ?)");
         params.push(`"${q.replace(/"/g, '""')}"`);
       } else {
@@ -133,8 +133,11 @@ export function persistArticlesToDatabase(articles: any[]): void {
       const insertRegion = db.prepare(
         "INSERT OR IGNORE INTO article_regions (article_id, region) VALUES (?, ?)"
       );
-      const deleteSearch = db.prepare("DELETE FROM article_search WHERE article_id = ?");
-      const insertSearch = db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)");
+      const ftsEnabled = articleSearchEnabled();
+      const deleteSearch = ftsEnabled ? db.prepare("DELETE FROM article_search WHERE article_id = ?") : null;
+      const insertSearch = ftsEnabled
+        ? db.prepare("INSERT INTO article_search (article_id, body) VALUES (?, ?)")
+        : null;
       const now = new Date().toISOString();
       for (const article of articles) {
         const id = String(article?.id || "");
@@ -159,12 +162,16 @@ export function persistArticlesToDatabase(articles: any[]): void {
             .filter(Boolean)
         );
         for (const region of regions) insertRegion.run(id, region);
-        deleteSearch.run(id);
-        insertSearch.run(id, articleSearchBody(article));
+        if (deleteSearch && insertSearch) {
+          deleteSearch.run(id);
+          insertSearch.run(id, articleSearchBody(article));
+        }
       }
       db.exec("DELETE FROM articles WHERE id NOT IN (SELECT id FROM current_article_ids)");
       db.exec("DELETE FROM article_regions WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
-      db.exec("DELETE FROM article_search WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
+      if (ftsEnabled) {
+        db.exec("DELETE FROM article_search WHERE article_id NOT IN (SELECT id FROM current_article_ids)");
+      }
       db.exec("COMMIT");
     } catch (error) {
       db.exec("ROLLBACK");

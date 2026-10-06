@@ -1,4 +1,4 @@
-export { DB_FILE, openDatabase, databaseFile } from "./connection";
+export { DB_FILE, openDatabase, databaseFile, articleSearchEnabled } from "./connection";
 export * from "./articles";
 export * from "./sourceChecks";
 export * from "./predictions";
