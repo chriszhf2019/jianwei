@@ -1456,13 +1456,13 @@ export const App: React.FC = () => {
               type="submit"
               disabled={
                 mustChangePassword
-                  ? newPassword.length < 12
+                  ? newPassword.length < 6
                   : authMode === 'register'
                     ? registrationSubmitted ||
                       registerUsername.trim().length < 2 ||
-                      registerPassword.length < 12 ||
+                      registerPassword.length < 6 ||
                       registerPassword !== registerConfirm
-                    : !authTokenInput.trim() && (!authUsername.trim() || authPassword.length < 12)
+                    : !authTokenInput.trim() && (!authUsername.trim() || authPassword.length < 6)
               }
               className="w-full px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-serif font-bold hover:bg-red-700 transition-colors"
             >
