@@ -1162,6 +1162,9 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   assert.match(home, /今日词典摘要与词频（可展开）/);
   assert.match(home, /浏览器朗读/);
 
+  const app = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.match(app, /onOpenAnalyze=\{modals\.openAnalyze\}/);
+
   const modal = fs.readFileSync(path.join(process.cwd(), 'src/components/AnalyzeModal.tsx'), 'utf8');
   assert.match(modal, /classifyAiClientError/);
   assert.match(modal, /已等待/);

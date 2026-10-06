@@ -249,6 +249,7 @@ export const App: React.FC = () => {
               onToggleFollowTag={handleToggleFollowTag}
               onRunSkill={runNewsSkill}
               onOpenAudioBriefing={modals.openAudioBriefing}
+              onOpenAnalyze={modals.openAnalyze}
               onOpenAddRadar={modals.openAddRadar}
               onRemoveRadar={handleRemoveRadar}
               onOpenTermExplain={(term) => modals.setActiveTermExplain(term)}
