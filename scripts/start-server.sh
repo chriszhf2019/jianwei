@@ -3,10 +3,10 @@
 # Usage:
 #   ./scripts/start-server.sh            # start (idempotent; self-heals stale instances)
 #   ./scripts/start-server.sh stop       # stop
-# Port overridable via env PORT (default 3001).
+# Port overridable via env PORT (default 3000, matches server.ts).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-PORT="${PORT:-3001}"
+PORT="${PORT:-3000}"
 LOG="scripts/server.log"
 PID_FILE="scripts/server.pid"
 HEALTH_URL="http://127.0.0.1:${PORT}/api/health"

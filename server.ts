@@ -25,11 +25,11 @@ import { ALLOW_DEMO_DATA } from "./src/server/corpus";
 import { applyRateLimit } from "./src/server/cache";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 const serverStartTime = Date.now();
 const AUTH_TOKEN = process.env.JIANWEI_AUTH_TOKEN || "";
 const AUTH_ENABLED = !!AUTH_TOKEN;
-const BIND_HOST = "0.0.0.0";
+const BIND_HOST = String(process.env.BIND_HOST || "0.0.0.0").trim() || "0.0.0.0";
 const DEMO_DATA_ENABLED = ALLOW_DEMO_DATA;
 const BOOTSTRAP_ADMIN_USER = process.env.JIANWEI_ADMIN_USER || "";
 const BOOTSTRAP_ADMIN_PASSWORD = process.env.JIANWEI_ADMIN_PASSWORD || "";
