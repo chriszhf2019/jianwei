@@ -412,7 +412,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <span>发展趋势</span>
                     </div>
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {trendText || '尚未生成趋势摘要（不使用模板补全）'}
+                      {trendText || '尚未生成趋势摘要。配置有效 API Key 后可生成（不使用模板补全）。'}
                     </p>
                   </div>
 
@@ -422,7 +422,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <span>潜在风险</span>
                     </div>
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {riskText || '尚未生成风险摘要（不使用模板补全）'}
+                      {riskText || '尚未生成风险摘要。配置有效 API Key 后可生成（不使用模板补全）。'}
                     </p>
                   </div>
                 </div>

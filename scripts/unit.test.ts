@@ -1586,6 +1586,16 @@ test('主循环：空首页 CTA、解读后落七要素、详情标用户投递'
   assert.match(detail, /去复核原文/);
 });
 
+test('API 密钥：占位串不当成可用', async () => {
+  const { isPlaceholderApiKey } = await import('../src/server/ai');
+  assert.equal(isPlaceholderApiKey(''), true);
+  assert.equal(isPlaceholderApiKey('sk-test-placeholder'), true);
+  assert.equal(isPlaceholderApiKey('sk-short'), true);
+  assert.equal(isPlaceholderApiKey('sk-abcdefghijklmnopqrstuvwxyz012345'), false);
+  const feed = fs.readFileSync(path.join(process.cwd(), 'src/components/home/StandardModeFeed.tsx'), 'utf8');
+  assert.match(feed, /配置有效 API Key/);
+});
+
 test('时间分工：首页当日看板，情报中心近窗最近', async () => {
   const { filterTodayArticles, filterRecentArticles, filterTodayBoardArticles } = await import('../src/utils/articleTime');
   const now = new Date(2026, 9, 6, 15, 0, 0).getTime(); // Oct 6 local

@@ -21,7 +21,7 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                 全局大模型引擎与 API 密钥管理
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                密钥由服务端安全加密存储（AES-256-GCM），为全平台分析师提供高精度认知推演能力。
+                密钥由服务端加密存储。首页卡片右侧「趋势 / 风险」需有效 Gemini 或 DeepSeek Key 才能生成；占位符（如 sk-test-placeholder）会被拒绝。
               </p>
             </div>
 
