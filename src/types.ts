@@ -366,6 +366,8 @@ export interface NewsArticle {
   entityMentions?: EntityMention[];
   /** 各 AI 字段的生成来源与版本；用于审计模型切换、提示词更新和缓存命中。 */
   aiFieldMeta?: Record<string, AiFieldMeta>;
+  /** 离线下载至本地 IndexedDB 的持久化时间戳 */
+  offlineSavedAt?: string;
 }
 
 export interface AiFieldMeta {

@@ -16,6 +16,50 @@ const STOP_TOKENS = new Set([
   '相关', '最新', '消息', '报道', '今日', '表示', '进行', '一个', '以及',
 ]);
 
+/** 核心科技/财经双语实体同义映射库（用于混合召回，增强中英/别名同义覆盖） */
+const ENTITY_SYNONYMS: Record<string, string[]> = {
+  nvidia: ['英伟达'],
+  英伟达: ['nvidia'],
+  tsmc: ['台积电'],
+  台积电: ['tsmc'],
+  apple: ['苹果'],
+  苹果: ['apple'],
+  tesla: ['特斯拉'],
+  特斯拉: ['tesla'],
+  microsoft: ['微软'],
+  微软: ['microsoft'],
+  google: ['谷歌'],
+  谷歌: ['google'],
+  byd: ['比亚迪'],
+  比亚迪: ['byd'],
+  catl: ['宁德时代'],
+  宁德时代: ['catl'],
+  fed: ['美联储', '联储'],
+  美联储: ['fed'],
+  pboc: ['央行', '人行'],
+  央行: ['pboc'],
+  agent: ['智能体'],
+  智能体: ['agent'],
+  semiconductor: ['半导体', '芯片'],
+  芯片: ['半导体', 'chip'],
+};
+
+/** 查询词同义扩展，增强跨语种与别名召回 */
+export function expandQuerySynonyms(tokens: string[]): string[] {
+  const expanded = new Set(tokens);
+  for (const token of tokens) {
+    const synonyms = ENTITY_SYNONYMS[token.toLowerCase()];
+    if (synonyms) {
+      for (const syn of synonyms) {
+        for (const synToken of tokenizeForRetrieval(syn)) {
+          expanded.add(synToken);
+        }
+      }
+    }
+  }
+  return Array.from(expanded);
+}
+
 /** 英文按词切分，中文按 2/3 字符 n-gram 切分；无需外部分词依赖。 */
 export function tokenizeForRetrieval(text: string): string[] {
   const normalized = String(text || '').toLowerCase();
@@ -78,7 +122,7 @@ export function rankDocumentsBM25<T extends RankDocument>(
   topN = 10,
   minScore = 0
 ): Array<RankedDocument<T>> {
-  const queryTerms = tokenizeForRetrieval(query);
+  const queryTerms = expandQuerySynonyms(tokenizeForRetrieval(query));
   if (queryTerms.length === 0 || documents.length === 0) return [];
 
   const titleTokens = documents.map((document) => tokenizeForRetrieval(document.title));

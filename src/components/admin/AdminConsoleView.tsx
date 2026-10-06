@@ -49,6 +49,12 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { SECTOR_TAXONOMY_DEFAULT, SectorDef } from '../../utils/sectorTaxonomy';
+import { FeedHealthPanel } from './FeedHealthPanel';
+import { AdminKeysPanel } from './AdminKeysPanel';
+import { AdminUsersPanel } from './AdminUsersPanel';
+import { AdminTaxonomyPanel } from './AdminTaxonomyPanel';
+import { AdminDatabasePanel } from './AdminDatabasePanel';
+import { AdminAuditPanel } from './AdminAuditPanel';
 
 interface UserSummary {
   username: string;
@@ -244,7 +250,7 @@ export const AdminConsoleView: React.FC = () => {
   const [selectedUserDetail, setSelectedUserDetail] = useState<UserSummary | null>(null);
   const [selectedLogModal, setSelectedLogModal] = useState<AuditEvent | null>(null);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   // 语料健康度模块状态与计算
   const [corpusArticles, setCorpusArticles] = useState<NewsArticle[]>([]);
@@ -506,7 +512,7 @@ export const AdminConsoleView: React.FC = () => {
     }
   };
 
-  const showToast = (type: 'success' | 'error', text: string) => {
+  const showToast = (type: 'success' | 'error' | 'info', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
   };
@@ -622,6 +628,14 @@ export const AdminConsoleView: React.FC = () => {
   // Remove Feed
   const handleRemoveFeed = (url: string) => {
     const updated = feedList.filter((f) => f !== url);
+    setFeedList(updated);
+    handleSaveSettings(updated);
+  };
+
+  // Remove Multiple Feeds (e.g. 1-click clean abnormal feeds)
+  const handleRemoveMultipleFeeds = (urls: string[]) => {
+    const urlSet = new Set(urls);
+    const updated = feedList.filter((f) => !urlSet.has(f));
     setFeedList(updated);
     handleSaveSettings(updated);
   };
@@ -996,10 +1010,18 @@ export const AdminConsoleView: React.FC = () => {
           className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl border-2 shadow-2xl flex items-center space-x-2 text-xs font-serif font-bold animate-in fade-in slide-in-from-bottom-3 ${
             message.type === 'success'
               ? 'bg-emerald-900 border-emerald-500 text-white'
+              : message.type === 'info'
+              ? 'bg-blue-900 border-blue-500 text-white'
               : 'bg-rose-900 border-rose-500 text-white'
           }`}
         >
-          {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          {message.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          ) : message.type === 'info' ? (
+            <Activity className="w-4 h-4 text-blue-400" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-400" />
+          )}
           <span>{message.text}</span>
         </div>
       )}
@@ -1117,7 +1139,7 @@ export const AdminConsoleView: React.FC = () => {
           { id: 'database', label: '数据库与分析语料', icon: <Database className="w-4 h-4 text-emerald-600" />, badge: '持久化复用' },
           { id: 'behavior_logs', label: '系统行为日志', icon: <Activity className="w-4 h-4 text-[#E3120B]" />, badge: '审计核心' },
           { id: 'keys', label: '全局 AI 引擎与模型中枢', icon: <Key className="w-4 h-4 text-amber-600" /> },
-          { id: 'feeds', label: '全局信源管道与数据源', icon: <Rss className="w-4 h-4 text-purple-600" /> },
+          { id: 'feeds', label: '全局信源管道与健康检测', icon: <Rss className="w-4 h-4 text-purple-600" />, badge: '信源健康' },
           { id: 'taxonomy', label: '行业板块与关键词规则', icon: <Layers className="w-4 h-4 text-blue-600" /> },
           { id: 'users', label: '用户账号与权限分配', icon: <Users className="w-4 h-4 text-emerald-600" /> },
           { id: 'activity', label: '使用情况与活跃画像', icon: <BarChart3 className="w-4 h-4 text-stone-700" /> },
@@ -2132,9 +2154,17 @@ export const AdminConsoleView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: 全局信源管道与数据源调度 (Data Sources & RSS) */}
+      {/* Tab 3: 全局信源管道与信源健康检测 (Data Sources, RSS & Health) */}
       {activeTab === 'feeds' && (
         <div className="space-y-6">
+          {/* 信源健康与连通性主动巡检面板 (Ping/404/解析检测/异常红色标记/一键移除与重试) */}
+          <FeedHealthPanel
+            feedList={feedList}
+            onRemoveFeed={handleRemoveFeed}
+            onRemoveMultipleFeeds={handleRemoveMultipleFeeds}
+            onShowToast={showToast}
+          />
+
           {/* 语料健康度模块 */}
           {renderCorpusHealthModule()}
 

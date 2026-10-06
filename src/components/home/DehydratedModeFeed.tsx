@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NewsArticle } from '../../types';
 import { Zap, ChevronDown, ChevronUp, ArrowRight, Layers, CheckCircle2, TrendingUp, Sparkles, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useOfflineArticles } from '../../utils/offlineStorage';
 import type { NewsSkill } from './HomeView';
 
 interface DehydratedModeFeedProps {
@@ -16,6 +17,7 @@ export const DehydratedModeFeed: React.FC<DehydratedModeFeedProps> = ({
   onSelectArticle,
   onRunSkill,
 }) => {
+  const { isOffline } = useOfflineArticles();
   const [expandedId, setExpandedId] = useState<string | null>(articles[0]?.id || null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -102,7 +104,16 @@ export const DehydratedModeFeed: React.FC<DehydratedModeFeedProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3 shrink-0">
+                <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+                  {isOffline(article.id) && (
+                    <span
+                      className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-emerald-50 text-emerald-800 rounded border border-emerald-300 inline-flex items-center gap-0.5"
+                      title="已离线保存至本地 IndexedDB"
+                    >
+                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>已离线</span>
+                    </span>
+                  )}
                   <span className="text-xs font-mono px-2 py-0.5 bg-stone-100 text-stone-600 rounded border border-stone-200">
                     相关 {relatedCount} 条
                   </span>

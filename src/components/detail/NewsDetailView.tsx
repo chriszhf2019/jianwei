@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem } from '../../types';
 import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
 import { SevenElementsTab } from './SevenElementsTab';
@@ -12,6 +12,8 @@ const ArchitectureDiagramTab = React.lazy(() => import('./ArchitectureDiagramTab
 import { EventEvolutionTimeline } from './EventEvolutionTimeline';
 import { SidebarEvolutionNav } from './SidebarEvolutionNav';
 import { ArticleBodyParserSection } from './ArticleBodyParserSection';
+import { RelatedNewsGraph } from './RelatedNewsGraph';
+import { ArticleCompareView } from './ArticleCompareView';
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -34,6 +36,7 @@ import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
 import { downloadMarkdownBriefing, exportBriefingAsPdf } from '../../utils/briefingReportExport';
 import { CERTIFICATION_STANDARDS } from '../../utils/methodRegistry';
+import { saveArticleOffline, removeArticleOffline, isArticleOffline } from '../../utils/offlineStorage';
 
 import { 
   ArrowLeft, 
@@ -61,7 +64,10 @@ import {
   GitMerge,
   Crosshair,
   ChevronDown,
-  Activity
+  Activity,
+  Columns,
+  Scale,
+  ArrowUp
 } from 'lucide-react';
 
 
@@ -177,6 +183,41 @@ const getArticleLogicWeights = (id: string, title: string): LogicWeightItem[] =>
   }
 };
 
+/** 计算长文总字数与预计阅读时长（基于中文严肃深度研报与图表思维模型，按380字/分钟测算） */
+function calculateArticleStats(article: NewsArticle): { totalChars: number; totalMinutes: number } {
+  let text = `${article.title || ''} ${article.subtitle || ''} ${article.summary || ''} ${article.oneSentenceVerdict || ''}`;
+  
+  if ((article as any).fullContent) text += ` ${(article as any).fullContent}`;
+  if ((article as any).articleBody) text += ` ${(article as any).articleBody}`;
+  if ((article as any).content) text += ` ${(article as any).content}`;
+  
+  if (article.tongsuSummary) {
+    text += ` ${article.tongsuSummary.simpleSay || ''} ${article.tongsuSummary.whyExplanation || ''} ${article.tongsuSummary.whatItMeans || ''}`;
+  }
+  if (article.dehydratedItems) {
+    text += ` ${(article.dehydratedItems.coreShifts || []).join(' ')} ${(article.dehydratedItems.impactHighlights || []).join(' ')}`;
+  }
+  if (article.coreLogic) {
+    text += ` ${article.coreLogic.essence || ''} ${(article.coreLogic.points || []).join(' ')} ${article.coreLogic.counterIntuitive || ''}`;
+  }
+  if (article.bullBearDebate) {
+    text += ` ${article.bullBearDebate.coreDispute || ''} ${(article.bullBearDebate.bull || []).map((b) => b.point).join(' ')} ${(article.bullBearDebate.bear || []).map((b) => b.point).join(' ')}`;
+  }
+  if (article.sevenElements) {
+    text += ` ${article.sevenElements.what || ''} ${article.sevenElements.why || ''} ${article.sevenElements.how || ''} ${article.sevenElements.soWhat || ''}`;
+  }
+  if (article.spectrumLayers) {
+    for (const layer of article.spectrumLayers) {
+      text += ` ${layer.content || ''}`;
+    }
+  }
+
+  const cleanedText = text.replace(/\s+/g, '');
+  const count = Math.max(350, cleanedText.length);
+  const minutes = Math.max(1, Math.round(count / 380));
+  return { totalChars: count, totalMinutes: minutes };
+}
+
 interface NewsDetailViewProps {
   article: NewsArticle;
   initialTab?: CognitiveDetailTab;
@@ -237,6 +278,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const [showPrintCard, setShowPrintCard] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProbe, setShowProbe] = useState(false);
+  const [isCompareMode, setIsCompareMode] = useState(false);
   const [deposited, setDeposited] = useState(isDepositedInKnowledge);
 
   const handleDeposit = () => {
@@ -268,10 +310,40 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     setDeposited(true);
   };
 
+  // 离线持久化状态（存储至 IndexedDB）
+  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
+  const [savingOffline, setSavingOffline] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    isArticleOffline(article.id).then((saved) => {
+      if (alive) setIsOfflineSaved(saved);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [article.id]);
+
+  const handleToggleOffline = async () => {
+    setSavingOffline(true);
+    try {
+      if (isOfflineSaved) {
+        await removeArticleOffline(article.id);
+        setIsOfflineSaved(false);
+      } else {
+        await saveArticleOffline(article);
+        setIsOfflineSaved(true);
+      }
+    } finally {
+      setSavingOffline(false);
+    }
+  };
+
 
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [showLogicHeatmap, setShowLogicHeatmap] = useState(false);
+  const [verdictViewMode, setVerdictViewMode] = useState<'pro' | 'tongsu'>('pro');
   const [readingProgress, setReadingProgress] = useState(0);
 
   useEffect(() => {
@@ -289,6 +361,14 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       window.removeEventListener('resize', updateProgress);
     };
   }, [article.id]);
+
+  // 计算全文预估阅读时长与动态剩余阅读时长
+  const articleStats = useMemo(() => calculateArticleStats(article), [article]);
+  const remainingMinutes = useMemo(() => {
+    if (readingProgress >= 96) return 0;
+    const rem = Math.ceil((articleStats.totalMinutes * (100 - readingProgress)) / 100);
+    return Math.max(1, rem);
+  }, [articleStats.totalMinutes, readingProgress]);
 
   // 简报卡“下载 / 打印 PDF”：临时给 body 挂 printing 类，打印样式只保留 #briefing-sheet
   const handlePrintBriefing = () => {
@@ -419,25 +499,70 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
+      {/* 顶部与滚动同步的高精度渐变色阅读进度条 (Top Synchronous Gradient Progress Bar) */}
+      <div className="fixed top-0 left-0 right-0 h-1 sm:h-1.5 bg-stone-200/60 backdrop-blur-xs z-[70] pointer-events-none">
+        <div
+          className="h-full bg-gradient-to-r from-[#E3120B] via-red-500 to-amber-500 shadow-[0_0_12px_rgba(227,18,11,0.8)] transition-[width] duration-150 ease-out"
+          style={{ width: `${Math.min(100, Math.max(0, readingProgress))}%` }}
+          aria-hidden="true"
+        />
+      </div>
+
+      {/* 悬浮长文掌控条 (Sticky Reading HUD - 滚动时展现阅读进度与基于字数的预计剩余时间) */}
       <div
-        className="fixed top-0 left-0 h-0.5 bg-[#E3120B] z-[60] transition-[width] duration-150"
-        style={{ width: `${readingProgress}%` }}
-        aria-hidden="true"
-      />
+        className={`fixed top-3.5 right-3 sm:right-6 z-[65] transition-all duration-300 pointer-events-auto ${
+          readingProgress > 2 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
+        }`}
+      >
+        <div className="bg-stone-900/95 text-stone-100 backdrop-blur-md border border-stone-800 rounded-full px-3.5 py-1.5 shadow-xl flex items-center space-x-2.5 text-xs font-mono">
+          <span className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#E3120B] animate-pulse" />
+            <span className="font-bold text-white font-serif">阅读进度</span>
+            <span className="font-bold text-red-400">{Math.round(readingProgress)}%</span>
+          </span>
+          <span className="text-stone-600">|</span>
+          <span className="flex items-center space-x-1 text-stone-300">
+            <Clock className="w-3.5 h-3.5 text-amber-400" />
+            <span>
+              {readingProgress >= 96 ? '已读完' : `预计 ${articleStats.totalMinutes} 分钟 · 余 ${remainingMinutes} 分钟`}
+            </span>
+          </span>
+          <span className="text-stone-600 hidden sm:inline">|</span>
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="text-stone-400 hover:text-white transition-colors flex items-center space-x-0.5 cursor-pointer hidden sm:flex"
+            title="返回文章顶部"
+          >
+            <span>顶部</span>
+            <ArrowUp className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
 
       <div className="flex flex-col xl:flex-row gap-8 items-start">
         {/* Main Article Reading & Deep Cognitive Content Area */}
         <div className="flex-1 min-w-0 space-y-8 max-w-5xl">
           {/* Top Action Bar */}
-          <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+          <div className="flex items-center justify-between border-b border-stone-200 pb-4 flex-wrap gap-3">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={onBack}
+                className="flex items-center space-x-2 text-xs font-serif font-bold text-stone-700 hover:text-stone-950 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>返回全景情报列表</span>
+              </button>
 
-        <button
-          onClick={onBack}
-          className="flex items-center space-x-2 text-xs font-serif font-bold text-stone-700 hover:text-stone-950 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>返回全景情报列表</span>
-        </button>
+              {/* 基于字数的预计阅读时长预期徽章 */}
+              <div 
+                className="inline-flex items-center space-x-1.5 text-xs font-mono bg-stone-100/90 text-stone-800 px-2.5 py-1 rounded-lg border border-stone-200 shadow-2xs"
+                title={`全文结构化内容与正文共计约 ${articleStats.totalChars.toLocaleString()} 字，按 380字/分钟 标准测算`}
+              >
+                <Clock className="w-3.5 h-3.5 text-[#E3120B]" />
+                <span className="font-serif font-bold text-stone-900">预计阅读 {articleStats.totalMinutes} 分钟</span>
+                <span className="text-stone-400 text-[11px] hidden sm:inline">(约 {articleStats.totalChars.toLocaleString()} 字)</span>
+              </div>
+            </div>
 
         <div className="flex items-center space-x-3">
           <button
@@ -450,6 +575,31 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             title={isBookmarked ? '取消收藏' : '收藏本篇'}
           >
             <Bookmark className={`w-4 h-4 ${isBookmarked ? 'fill-amber-500' : ''}`} />
+          </button>
+
+          {/* 下载离线阅读按钮 (IndexedDB 持久化存储全文、AI 解读与七要素模型) */}
+          <button
+            onClick={handleToggleOffline}
+            disabled={savingOffline}
+            className={`px-3 py-2 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-all shadow-2xs border cursor-pointer ${
+              isOfflineSaved
+                ? 'bg-emerald-50 border-emerald-400 text-emerald-800 ring-1 ring-emerald-200'
+                : 'bg-white hover:bg-emerald-50/50 border-stone-300 hover:border-emerald-500 text-stone-800'
+            }`}
+            title={
+              isOfflineSaved
+                ? '已将全文内容、AI 解读及七要素模型保存至 IndexedDB（离线可用），点击可移出离线存储'
+                : '下载当前文章全文正文、AI深度解读及七要素模型至本地 IndexedDB，离线环境下亦可完整查阅'
+            }
+          >
+            {savingOffline ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            ) : isOfflineSaved ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-emerald-600" />
+            )}
+            <span>{isOfflineSaved ? '已离线 (IndexedDB)' : '下载离线阅读'}</span>
           </button>
 
           {/* 沉淀到知识库按钮 */}
@@ -479,6 +629,20 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               <span>生成洞察金句卡</span>
             </button>
           )}
+
+          {/* 双文并排对比模式开关 */}
+          <button
+            onClick={() => setIsCompareMode((prev) => !prev)}
+            className={`px-3 py-2 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-all shadow-2xs border cursor-pointer ${
+              isCompareMode
+                ? 'bg-[#0284C7] text-white border-[#0284C7] shadow-xs ring-2 ring-blue-200'
+                : 'bg-white hover:bg-blue-50 border-stone-300 hover:border-[#0284C7] text-stone-800'
+            }`}
+            title="开启双文并排对比模式，剖析逻辑异同与视角偏差"
+          >
+            <Columns className={`w-3.5 h-3.5 ${isCompareMode ? 'text-white' : 'text-[#0284C7]'}`} />
+            <span>{isCompareMode ? '退出对比' : '开启对比模式'}</span>
+          </button>
 
           {/* 导出情报简报按钮 (PDF / Markdown / 长图) */}
           <button
@@ -783,6 +947,23 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           <span className="font-mono text-stone-700">{formatArticleTime(article)}</span>
           <span className="text-stone-300">·</span>
           <EvidenceBadge article={article} corpus={contextArticles} />
+          <span className="text-stone-300">·</span>
+          <span
+            className="inline-flex items-center gap-1 font-mono text-stone-700 bg-stone-100 px-2 py-0.5 rounded border border-stone-200"
+            title={`全文预估约 ${articleStats.totalChars.toLocaleString()} 字，按 380字/分钟 深度精读模型测算`}
+          >
+            <Clock className="w-3 h-3 text-stone-500" />
+            <span>约 {articleStats.totalChars.toLocaleString()} 字 · 需 {articleStats.totalMinutes} 分钟</span>
+          </span>
+          {isOfflineSaved && (
+            <>
+              <span className="text-stone-300">·</span>
+              <span className="inline-flex items-center gap-1 font-mono text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded text-[11px] font-bold">
+                <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                <span>已离线收录 (IndexedDB)</span>
+              </span>
+            </>
+          )}
         </div>
 
         <h1 className="text-[26px] sm:text-4xl font-serif font-black text-stone-950 tracking-tight leading-tight break-words">
@@ -798,36 +979,133 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         </p>
 
         {/* High Contrast Verdict Box */}
-        <div className="bg-[#FAF8F5] border-l-4 border-[#E3120B] p-5 sm:p-6 rounded-r-2xl shadow-xs">
-          <div className="text-xs font-serif font-bold text-[#E3120B] uppercase tracking-wider mb-1.5 flex items-center space-x-1.5">
-            <Sparkles className="w-4 h-4" />
-            <span>
-              {String(article.oneSentenceVerdict || '').trim()
-                ? article.isExternal
-                  ? 'AI 解读 · 一句话提炼 (So What)'
-                  : '见微解读 · 一句话提炼 (So What)'
-                : '原文摘要 · 尚未生成 AI 解读'}
-            </span>
-          </div>
-          <div className={`text-base sm:text-xl font-serif font-black text-stone-950 leading-snug break-words ${
-            !summaryExpanded ? 'line-clamp-4' : ''
-          }`}>
-            “<KeyTermHighlight
-              text={article.oneSentenceVerdict || article.summary || ''}
-              entities={(article.entityMentions || []).map((e) => e.name)}
-              onOpenTermExplain={onOpenTermExplain}
-            />”
+        <div className="bg-[#FAF8F5] border-l-4 border-[#E3120B] p-5 sm:p-6 rounded-r-2xl shadow-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/80 pb-2.5">
+            <div className="text-xs font-serif font-bold text-[#E3120B] uppercase tracking-wider flex items-center space-x-1.5">
+              <Sparkles className="w-4 h-4" />
+              <span>
+                {verdictViewMode === 'tongsu'
+                  ? '通俗大白话速读 (30秒懂)'
+                  : String(article.oneSentenceVerdict || '').trim()
+                    ? article.isExternal
+                      ? 'AI 解读 · 一句话提炼 (So What)'
+                      : '见微解读 · 一句话提炼 (So What)'
+                    : '原文摘要 · 尚未生成 AI 解读'}
+              </span>
+            </div>
+
+            {/* 视角切换器：专业提炼 vs 大白话通俗 */}
+            <div className="flex items-center bg-stone-200/80 p-0.5 rounded-lg text-[11px] font-serif font-bold">
+              <button
+                type="button"
+                onClick={() => setVerdictViewMode('pro')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  verdictViewMode === 'pro'
+                    ? 'bg-white text-stone-900 shadow-2xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                🧠 专业提炼
+              </button>
+              <button
+                type="button"
+                onClick={() => setVerdictViewMode('tongsu')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  verdictViewMode === 'tongsu'
+                    ? 'bg-amber-500 text-stone-950 shadow-2xs font-black'
+                    : 'text-stone-600 hover:text-amber-900'
+                }`}
+              >
+                <span>💡 大白话说人话</span>
+              </button>
+            </div>
           </div>
 
+          {verdictViewMode === 'pro' ? (
+            <div>
+              <div className={`text-base sm:text-xl font-serif font-black text-stone-950 leading-snug break-words ${
+                !summaryExpanded ? 'line-clamp-4' : ''
+              }`}>
+                “<KeyTermHighlight
+                  text={article.oneSentenceVerdict || article.summary || ''}
+                  entities={(article.entityMentions || []).map((e) => e.name)}
+                  onOpenTermExplain={onOpenTermExplain}
+                />”
+              </div>
 
-          {!article.oneSentenceVerdict && String(article.summary || '').length > 180 && (
-            <button
-              type="button"
-              onClick={() => setSummaryExpanded((value) => !value)}
-              className="mt-2 text-[11px] font-serif font-bold text-stone-600 hover:text-stone-950 underline underline-offset-2 animate-pulse"
-            >
-              {summaryExpanded ? '收起摘要' : '展开全文摘要'}
-            </button>
+              {!article.oneSentenceVerdict && String(article.summary || '').length > 180 && (
+                <button
+                  type="button"
+                  onClick={() => setSummaryExpanded((value) => !value)}
+                  className="mt-2 text-[11px] font-serif font-bold text-stone-600 hover:text-stone-950 underline underline-offset-2 animate-pulse"
+                >
+                  {summaryExpanded ? '收起摘要' : '展开全文摘要'}
+                </button>
+              )}
+            </div>
+          ) : (
+            /* 通俗大白话模式内容 */
+            <div className="space-y-3 animate-fadeIn">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-white p-3 rounded-xl border border-amber-200/90 shadow-2xs space-y-1">
+                  <div className="text-[11px] font-serif font-black text-amber-900 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span>大白话说 (发生了什么)</span>
+                  </div>
+                  <p className="text-xs text-stone-800 leading-relaxed font-sans">
+                    <KeyTermHighlight
+                      text={
+                        article.tongsuSummary?.simpleSay ||
+                        article.oneSentenceVerdict ||
+                        article.summary ||
+                        '正在提炼生活化通俗比喻…'
+                      }
+                      entities={(article.entityMentions || []).map((e) => e.name)}
+                      onOpenTermExplain={onOpenTermExplain}
+                    />
+                  </p>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-amber-200/90 shadow-2xs space-y-1">
+                  <div className="text-[11px] font-serif font-black text-amber-900 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    <span>为什么发生 (根本动因)</span>
+                  </div>
+                  <p className="text-xs text-stone-800 leading-relaxed font-sans">
+                    <KeyTermHighlight
+                      text={
+                        article.tongsuSummary?.whyExplanation ||
+                        article.sevenElements?.why ||
+                        article.coreLogic?.essence ||
+                        '各方在产业周期与供需博弈下的自然选择。'
+                      }
+                      entities={(article.entityMentions || []).map((e) => e.name)}
+                      onOpenTermExplain={onOpenTermExplain}
+                    />
+                  </p>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-amber-200/90 shadow-2xs space-y-1">
+                  <div className="text-[11px] font-serif font-black text-amber-900 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                    <span>对我意味着什么 (切身影响)</span>
+                  </div>
+                  <p className="text-xs text-stone-800 leading-relaxed font-sans">
+                    <KeyTermHighlight
+                      text={
+                        article.tongsuSummary?.whatItMeans ||
+                        (Array.isArray(article.personaImpacts) && article.personaImpacts.length > 0
+                          ? article.personaImpacts[0]?.coreImpact || article.personaImpacts[0]?.recommendedAction
+                          : article.sevenElements?.soWhat) ||
+                        '影响下游应用成本与相关技能需求，建议保持关注。'
+                      }
+                      entities={(article.entityMentions || []).map((e) => e.name)}
+                      onOpenTermExplain={onOpenTermExplain}
+                    />
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Collapsible Recharts Content Weights Heatmap */}
@@ -956,6 +1234,19 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         )}
       </div>
 
+      {/* ⚖️ 左右分栏双文并排对比模式 */}
+      {isCompareMode && (
+        <ArticleCompareView
+          primaryArticle={article}
+          contextArticles={contextArticles || []}
+          onClose={() => setIsCompareMode(false)}
+          onSelectPrimaryArticle={(newPrimary) => {
+            if (onOpenArticle) onOpenArticle(newPrimary);
+          }}
+          onOpenTermExplain={onOpenTermExplain}
+        />
+      )}
+
       {/* AI 技能条：一句话解读 / 趋势预测 / 风险挑刺 / 大白话 / 脱水 / 关联背景 */}
       {/*（7W/趋势/风险入口已整合进首页卡片分析盒，见 StandardModeFeed/CardInsightBox）*/}
 
@@ -987,6 +1278,15 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
       {/* 事件全生命周期演变脉络 (垂直时序因果轴：前因 ➔ 当前 ➔ 未来) */}
       <EventEvolutionTimeline article={article} />
+
+      {/* 🔗 基于 relatedNews 与上下文语料库的关系可视化 (D3 星轨图 & CSS Grid 矩阵) */}
+      <RelatedNewsGraph
+        article={article}
+        contextArticles={contextArticles}
+        onOpenArticle={onOpenArticle}
+        onOpenTermExplain={onOpenTermExplain}
+        onRunSkill={onRunSkill ? (skill, art) => onRunSkill(skill, art) : undefined}
+      />
 
 
       {/* 4-Stage Cognitive Path Navigation Tabs */}

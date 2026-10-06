@@ -175,9 +175,10 @@ export function deriveFromList(list: NewsArticleLike[]): CorpusDerived {
  */
 export function corpusDerived(
   articles: NewsArticleLike[],
-  windowDays = 30
+  windowDays = 30,
+  nowMs?: number
 ): CorpusDerived {
-  const now = Date.now();
+  const now = typeof nowMs === 'number' ? nowMs : Date.now();
   const windowMs = windowDays * 24 * 3600 * 1000;
   const recent = articles.filter((a) => {
     if (!a.publishedAt) return true; // 站内/用户投递文章无真实发布时刻：保留

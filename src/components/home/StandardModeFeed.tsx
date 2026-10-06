@@ -36,6 +36,7 @@ import { mediaProfile, tierBadge } from '../../utils/mediaAuthority';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { EvidenceBadge } from '../common/EvidenceBadge';
 import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
+import { useOfflineArticles } from '../../utils/offlineStorage';
 import type { RadarKeyword } from '../../types';
 import type { NewsSkill } from './HomeView';
 
@@ -143,6 +144,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
   onOpenAudioBriefing,
   onOpenTermExplain,
 }) => {
+  const { isOffline } = useOfflineArticles();
   const [expandedSummaries, setExpandedSummaries] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [trackToastId, setTrackToastId] = useState<string | null>(null);
@@ -285,6 +287,16 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     </span>
 
                     <EvidenceBadge article={article} corpus={contextArticles} compact />
+
+                    {isOffline(article.id) && (
+                      <span
+                        className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded shadow-2xs"
+                        title="已离线保存至本地 IndexedDB（支持无网完整阅读）"
+                      >
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                        <span>已离线</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -604,6 +616,15 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       </span>
                       <span className="font-mono text-stone-500">{sentiment}</span>
                       <EvidenceBadge article={article} corpus={contextArticles} compact />
+                      {isOffline(article.id) && (
+                        <span
+                          className="inline-flex items-center gap-0.5 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.2 rounded"
+                          title="已离线保存至本地 IndexedDB（支持无网完整阅读）"
+                        >
+                          <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[2.5]" />
+                          <span>已离线</span>
+                        </span>
+                      )}
                     </div>
 
                     {/* 标题 */}

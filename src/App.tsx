@@ -1,10 +1,7 @@
-import React, { lazy, Suspense, useRef, useState, useEffect, useMemo } from 'react';
-import localforage from 'localforage';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { 
   PrimaryNavTab, 
-  HomeReadingMode, 
   UserPersona, 
-  UserPersonaId, 
   NewsArticle, 
   RadarKeyword,
   PredictionContract,
@@ -12,26 +9,15 @@ import {
   KnowledgeItem
 } from './types';
 
-import { 
-  USER_PERSONAS, 
-  INITIAL_RADAR_KEYWORDS, 
-  TOPIC_CLUSTERS,
-  INITIAL_PREDICTION_CONTRACTS,
-  INITIAL_KNOWLEDGE_ITEMS
-} from './data/intelligenceData';
-import { CURATED_ARTICLES } from './data/newsData';
-
+import { USER_PERSONAS, TOPIC_CLUSTERS } from './data/intelligenceData';
 import { Header } from './components/Header';
 import { HomeView, NewsSkill } from './components/home/HomeView';
-import { useLocalState } from './hooks/useLocalState';
+import { useAppStorage } from './hooks/useAppStorage';
 import { useSnapshot } from './hooks/useSnapshot';
-import { corpusDerived, deriveFromList } from './utils/corpusMetrics';
-import { parseArticleDate } from './utils/articleTime';
 import { logUserActivity } from './utils/activityTracker';
 import { Sparkles } from 'lucide-react';
 
 type AppViewTab = PrimaryNavTab | 'detail';
-
 
 const IntelligenceHubView = lazy(() =>
   import('./components/intelligence/IntelligenceHubView').then((module) => ({ default: module.IntelligenceHubView }))
@@ -87,8 +73,6 @@ const ViewLoading = () => (
 
 const VALID_VIEW_TABS: PrimaryNavTab[] = ['home', 'intelligence', 'topics', 'region', 'my_focus', 'admin'];
 
-const LEGACY_DEMO_PREDICTION_IDS = new Set(['contract-agent-2026', 'contract-semi-historical']);
-
 function parseLocationHash(): { tab: AppViewTab; articleId: string | null } {
   const raw = window.location.hash.replace(/^#\/?/, '');
   const [first, second] = raw.split('/');
@@ -117,49 +101,6 @@ function writeHash(hash: string): void {
   }
 }
 
-const INDEXED_DB_CORPUS_KEY = 'jianwei:indexeddb-corpus-v2';
-const SESSION_CORPUS_CACHE_KEY = 'jianwei:cached-corpus-v1';
-
-// 创建 localforage IndexedDB 存储实例，替代 sessionStorage 以支持大规模语料持久化存储并防止配额溢出
-const corpusDB = localforage.createInstance({
-  name: 'JianWeiIntelligenceDB',
-  storeName: 'articles_corpus',
-  description: '大规模新闻语料与 AI 认知拆解的 IndexedDB 持久化存储库',
-});
-
-// 从 IndexedDB 中异步加载缓存语料（自动兼容迁移旧 sessionStorage 缓存）
-async function loadCachedCorpus(): Promise<NewsArticle[] | null> {
-  try {
-    const cached = await corpusDB.getItem<NewsArticle[]>(INDEXED_DB_CORPUS_KEY);
-    if (Array.isArray(cached) && cached.length > 0) {
-      return cached;
-    }
-    // 兼容迁移：若旧版本数据保存在 sessionStorage 中，无缝平滑迁移至 IndexedDB
-    const rawLegacy = sessionStorage.getItem(SESSION_CORPUS_CACHE_KEY);
-    if (rawLegacy) {
-      const parsedLegacy = JSON.parse(rawLegacy);
-      if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
-        await corpusDB.setItem(INDEXED_DB_CORPUS_KEY, parsedLegacy);
-        sessionStorage.removeItem(SESSION_CORPUS_CACHE_KEY);
-        return parsedLegacy as NewsArticle[];
-      }
-    }
-  } catch (err) {
-    console.warn('Load IndexedDB corpus error:', err);
-  }
-  return null;
-}
-
-// 异步持久化保存全量语料至 IndexedDB（海量数据无 5MB 配额溢出风险）
-async function saveCachedCorpus(articlesList: NewsArticle[]): Promise<void> {
-  try {
-    if (!articlesList || articlesList.length === 0) return;
-    await corpusDB.setItem(INDEXED_DB_CORPUS_KEY, articlesList);
-  } catch (err) {
-    console.warn('Save IndexedDB corpus error:', err);
-  }
-}
-
 /** 屏幕顶部微细红色进度条指示器 (Top Loading Bar) */
 const TopLoadingBar: React.FC<{ loading: boolean }> = ({ loading }) => {
   if (!loading) return null;
@@ -170,60 +111,64 @@ const TopLoadingBar: React.FC<{ loading: boolean }> = ({ loading }) => {
   );
 };
 
-/** 技能型生成结果合并：把返回字段写回文章 */
-function mergeSkillArticle(article: NewsArticle, overrides: Record<string, unknown>): NewsArticle {
-  const next: NewsArticle = { ...article };
-  const keys = ['tongsuSummary', 'dehydratedItems', 'aiInterpretation', 'sevenWBrief', 'trendForecastText', 'riskReviewText', 'backstoryTimeline', 'stakeholderImpact', 'coreLogic', 'bullBearDebate', 'relatedNews', 'personaForecasts', 'aiFieldMeta'] as const;
-  for (const key of keys) {
-    const value = overrides[key];
-    if (value !== undefined && value !== null) {
-      (next as any)[key] = value;
-    }
-  }
-  return next;
-}
-
 export const App: React.FC = () => {
-  // Navigation State
+  // 1. App Storage Custom Hook (encapsulates IndexedDB, LocalStorage, Server Sync, Skill Actions & Data State)
+  const {
+    homeReadingMode,
+    setHomeReadingMode,
+    selectedPersonaId,
+    setSelectedPersonaId,
+    selectedPersona,
+    articles,
+    setArticles,
+    articlesRef,
+    radarKeywords,
+    setRadarKeywords,
+    bookmarkedIds,
+    setBookmarkedIds,
+    bookmarkedArticles,
+    followedTags,
+    setFollowedTags,
+    interestGroups,
+    setInterestGroups,
+    personalNotes,
+    setPersonalNotes,
+    predictionContracts,
+    setPredictionContracts,
+    knowledgeItems,
+    setKnowledgeItems,
+    nickname,
+    setNickname,
+    derived,
+    activeRequests,
+    preferencesHydrated,
+    handleAddKnowledge,
+    handleUpdateKnowledge,
+    handleRemoveKnowledge,
+    handleToggleBookmark,
+    handleToggleFollowTag,
+    handleAddRadar,
+    handleRemoveRadar,
+    handleSaveContract,
+    handleResolveContract,
+    handleRemoveContract,
+    handleReviewContract,
+    handleEnrichArticle: storageHandleEnrichArticle,
+    handleAnalysisComplete: storageHandleAnalysisComplete,
+    runNewsSkill,
+    runPersonaForecast,
+    trackLoading,
+  } = useAppStorage();
+
+  // 2. Navigation State
   const [activeTab, setActiveTab] = useState<AppViewTab>(() => parseLocationHash().tab);
   const [pendingArticleId, setPendingArticleId] = useState<string | null>(() =>
     parseLocationHash().tab === 'detail' ? parseLocationHash().articleId : null
   );
-  // 身份透镜与首页阅读模式为 UI 偏好，持久化保存
-  const [homeReadingMode, setHomeReadingMode] = useLocalState<HomeReadingMode>(
-    'home-reading-mode',
-    'standard',
-    { version: 1 }
-  );
-  const [selectedPersonaId, setSelectedPersonaId] = useLocalState<UserPersonaId>(
-    'user-persona',
-    'investor',
-    { version: 1 }
-  );
-
-  // Core Data State
-  const [articles, setArticles] = useState<NewsArticle[]>(CURATED_ARTICLES);
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [detailInitialTab, setDetailInitialTab] = useState<CognitiveDetailTab>('seven_elements');
-  const articlesRef = useRef<NewsArticle[]>(articles);
-  useEffect(() => {
-    articlesRef.current = articles;
-  }, [articles]);
 
-  // 组件挂载时异步读取 IndexedDB 中持久化的海量语料库
-  useEffect(() => {
-    let active = true;
-    loadCachedCorpus().then((cached) => {
-      if (active && cached && cached.length > 0) {
-        setArticles(cached);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // 浏览空闲期预加载延迟组件（Sub-10ms 极速页面切换与弹窗零延迟体验）
+  // 浏览空闲期预加载延迟组件
   useEffect(() => {
     const preloadLazyViews = () => {
       import('./components/detail/NewsDetailView');
@@ -239,161 +184,6 @@ export const App: React.FC = () => {
     } else {
       setTimeout(preloadLazyViews, 800);
     }
-  }, []);
-
-  // 持久化用户数据：以下状态自动写入 localStorage（useLocalState）
-  const [radarKeywords, setRadarKeywords] = useLocalState<RadarKeyword[]>(
-    'radar-keywords',
-    INITIAL_RADAR_KEYWORDS,
-    { version: 1 }
-  );
-  const [bookmarkedIds, setBookmarkedIds] = useLocalState<string[]>(
-    'bookmarked-article-ids',
-    [],
-    { version: 1 }
-  );
-  const [followedTags, setFollowedTags] = useLocalState<string[]>(
-    'followed-tags',
-    [],
-    { version: 1 }
-  );
-  const [interestGroups, setInterestGroups] = useLocalState<string[]>(
-    'news-interest-groups',
-    [],
-    { version: 1 }
-  );
-  const [personalNotes, setPersonalNotes] = useLocalState<string>('action-memo', '', {
-    version: 1,
-    legacyKey: 'jianwei-action-memo',
-  });
-  const [predictionContracts, setPredictionContracts] = useLocalState<PredictionContract[]>(
-    'prediction-contracts',
-    INITIAL_PREDICTION_CONTRACTS,
-    { version: 1 }
-  );
-  const [knowledgeItems, setKnowledgeItems] = useLocalState<KnowledgeItem[]>(
-    'jianwei-knowledge-ledger',
-    INITIAL_KNOWLEDGE_ITEMS,
-    { version: 1 }
-  );
-
-  const handleAddKnowledge = (item: KnowledgeItem) => {
-    setKnowledgeItems((prev) => [item, ...prev.filter((i) => i.id !== item.id && i.title !== item.title)]);
-    logUserActivity({
-      action: 'knowledge.deposit',
-      entityType: 'knowledge',
-      entityId: item.id,
-      metadata: { title: item.title, category: item.category },
-    });
-  };
-
-
-  const handleUpdateKnowledge = (id: string, updates: Partial<KnowledgeItem>) => {
-    setKnowledgeItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
-    );
-  };
-
-  const handleRemoveKnowledge = (id: string) => {
-    setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const preferencesHydratedRef = useRef(false);
-  const preferencesVersionRef = useRef(0);
-  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
-
-  // 全局加载状态指示器计数器
-  const [activeRequests, setActiveRequests] = useState(0);
-
-  useEffect(() => {
-    const handleStart = () => setActiveRequests((c) => c + 1);
-    const handleEnd = () => setActiveRequests((c) => Math.max(0, c - 1));
-
-    window.addEventListener('jianwei:loading-start', handleStart);
-    window.addEventListener('jianwei:loading-end', handleEnd);
-
-    return () => {
-      window.removeEventListener('jianwei:loading-start', handleStart);
-      window.removeEventListener('jianwei:loading-end', handleEnd);
-    };
-  }, []);
-
-  const trackLoading = async <T,>(fn: () => Promise<T>): Promise<T> => {
-    setActiveRequests((c) => c + 1);
-    try {
-      return await fn();
-    } finally {
-      setActiveRequests((c) => Math.max(0, c - 1));
-    }
-  };
-
-  // 旧版雷达对象带随机/静态示例数字；自本版起展示口径改为按语料实时派生，
-  // 这里一次性清掉残留字段，避免后续代码或导出仍读到旧数字。
-  useEffect(() => {
-    setRadarKeywords((prev) =>
-      prev.map((rk) => ({
-        ...rk,
-        count: 0,
-        countChange: '',
-        sentimentTrend: '',
-        marketAttention: '',
-        recentNewsTitle: '',
-      }))
-    );
-  }, []);
-
-  useEffect(() => {
-    setPredictionContracts((prev) =>
-      prev.filter((contract) => !LEGACY_DEMO_PREDICTION_IDS.has(contract.id))
-    );
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    const syncLedger = async () => {
-      try {
-        const response = await fetch('/api/predictions');
-        if (!response.ok) return;
-        const data = await response.json();
-        const serverContracts: PredictionContract[] = Array.isArray(data?.contracts) ? data.contracts : [];
-        const merged = new Map(serverContracts.map((contract) => [contract.id, contract]));
-
-        for (const local of predictionContracts) {
-          if (merged.has(local.id)) continue;
-          if (local.status === 'pending') {
-            try {
-              const registered = await fetch('/api/predictions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(local),
-              });
-              const registeredData = await registered.json();
-              if (registered.ok && registeredData?.contract) {
-                merged.set(registeredData.contract.id, registeredData.contract);
-                continue;
-              }
-            } catch {
-              /* 保留为未存证本地记录，不进入校准。 */
-            }
-          }
-          merged.set(local.id, { ...local, ledger: 'local', integrityValid: false });
-        }
-
-        if (alive) setPredictionContracts([...merged.values()]);
-      } catch {
-        /* 服务不可达时保留本地状态，但未存证记录不会进入校准。 */
-      }
-    };
-    void syncLedger();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    setRadarKeywords((prev) => prev.filter((item) => !/^rk-[1-6]$/.test(item.id)));
-    setBookmarkedIds((prev) => prev.filter((id) => id !== 'news-ai-agent-breakthrough'));
-    setFollowedTags((prev) => prev.filter((tag) => tag !== '先进封装' && tag !== 'AI Agent'));
   }, []);
 
   // Modals
@@ -420,9 +210,6 @@ export const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [shareCardArticle, setShareCardArticle] = useState<NewsArticle | null>(null);
   const [activeTermExplain, setActiveTermExplain] = useState<string | null>(null);
-
-  const selectedPersona: UserPersona =
-    USER_PERSONAS.find((p) => p.id === selectedPersonaId) || USER_PERSONAS[0];
 
   // 服务端若配置 JIANWEI_AUTH_TOKEN，健康检查会返回 authRequired，前端需先输入访问令牌。
   useEffect(() => {
@@ -626,7 +413,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Handlers
+  // View Navigation Handlers
   const handleSelectArticle = (art: NewsArticle) => {
     setSelectedArticle(art);
     setDetailInitialTab('seven_elements');
@@ -640,7 +427,6 @@ export const App: React.FC = () => {
     });
   };
 
-
   const handleSelectArticleWithTab = (art: NewsArticle, tab: CognitiveDetailTab = 'seven_elements') => {
     setSelectedArticle(art);
     setDetailInitialTab(tab);
@@ -648,376 +434,25 @@ export const App: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-
   const handleBackToList = () => {
     setActiveTab('home');
     setSelectedArticle(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleToggleBookmark = (artId: string) => {
-    setBookmarkedIds((prev) =>
-      prev.includes(artId) ? prev.filter((id) => id !== artId) : [...prev, artId]
-    );
-  };
-
-  const handleToggleFollowTag = (tag: string) => {
-    setFollowedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
-  };
-
-  const handleAddRadar = (newR: RadarKeyword) => {
-    setRadarKeywords((prev) => [newR, ...prev]);
-  };
-
-  const handleRemoveRadar = (id: string) => {
-    setRadarKeywords((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  const handleSaveContract = async (contract: PredictionContract): Promise<boolean> => {
-    try {
-      // 本地状态即刻写入与持久化锁定，保证无论网络/服务端状态如何均能成功建立契约
-      setPredictionContracts((prev) => [
-        contract,
-        ...prev.filter((c) => c.id !== contract.id),
-      ]);
-      // 后台异步同步至服务端存证池
-      fetch('/api/predictions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(contract),
-      }).then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.contract) {
-            setPredictionContracts((prev) => [
-              data.contract,
-              ...prev.filter((c) => c.id !== contract.id),
-            ]);
-          }
-        }
-      }).catch(() => {/* 忽略后台同步网络抖动，前端已安全存储 */});
-      return true;
-    } catch {
-      return true;
-    }
-  };
-
-  const handleResolveContract = async (
-    contractId: string,
-    actualOutcome: string,
-    status: PredictionContract['status'],
-    brierScore?: number,
-    outcomeSourceUrl?: string,
-    reviewer?: string
-  ): Promise<boolean> => {
-    try {
-      const response = await fetch(`/api/predictions/${encodeURIComponent(contractId)}/resolve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status,
-          actualOutcome,
-          outcomeEvidence: actualOutcome,
-          outcomeSourceUrl,
-          brierScore,
-          reviewer,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data?.contract) return false;
-      const ledgerResponse = await fetch('/api/predictions');
-      const ledgerData = await ledgerResponse.json();
-      if (ledgerResponse.ok && Array.isArray(ledgerData?.contracts)) {
-        setPredictionContracts(ledgerData.contracts);
-      } else {
-        setPredictionContracts((prev) =>
-          prev.map((c) => c.id === contractId ? data.contract : c)
-        );
-      }
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const handleRemoveContract = async (id: string): Promise<boolean> => {
-    try {
-      const response = await fetch(`/api/predictions/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) return false;
-      setPredictionContracts((prev) => prev.filter((c) => c.id !== id));
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const handleReviewContract = async (
-    contractId: string,
-    reviewer: string,
-    decision: 'confirm' | 'dispute',
-    notes?: string
-  ): Promise<boolean> => {
-    try {
-      const response = await fetch(`/api/predictions/${encodeURIComponent(contractId)}/reviews`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewer, decision, notes }),
-      });
-      if (!response.ok) return false;
-      const contractsResponse = await fetch('/api/predictions');
-      const data = await contractsResponse.json();
-      if (!contractsResponse.ok || !Array.isArray(data?.contracts)) return false;
-      setPredictionContracts(data.contracts);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  // 浅层文章经 /api/enrich 懒加载补全后：同步更新列表与当前选中文章
   const handleEnrichArticle = (updated: NewsArticle) => {
-    setArticles((prev) => {
-      const next = prev.map((a) => (a.id === updated.id ? updated : a));
-      saveCachedCorpus(next);
-      return next;
-    });
+    storageHandleEnrichArticle(updated);
     setSelectedArticle((prev) => (prev && prev.id === updated.id ? updated : prev));
   };
 
   const handleAnalysisComplete = (newArticle: NewsArticle) => {
-    setArticles((prev) => {
-      const next = [newArticle, ...prev];
-      saveCachedCorpus(next);
-      return next;
-    });
+    storageHandleAnalysisComplete(newArticle);
     setSelectedArticle(newArticle);
     setActiveTab('detail');
   };
 
-  // 统一技能调用：sevenw/trend/risk 等 → /api/skill/:name → 合并 → 更新列表
-  const runNewsSkill = async (skill: NewsSkill, article: NewsArticle): Promise<NewsArticle | null> => {
-    return trackLoading(async () => {
-      try {
-        const body: Record<string, string> = {
-          articleId: article.id,
-          title: article.title,
-          content: (article.summary || article.subtitle || article.title).slice(0, 600),
-          source: article.sourceName || '',
-          sourceUrl: article.sourceUrl || '',
-          publishedAt: article.publishedAt || '',
-          category: article.category,
-        };
-        const res = await fetch(`/api/skill/${skill}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const json = await res.json();
-        if (json?.ok && json.overrides) {
-          const updated = mergeSkillArticle(article, json.overrides);
-          handleEnrichArticle(updated);
-          return updated;
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    });
-  };
-
-  // 身份化「正反双向预测」：POST /api/skill/personaforecast → 按身份合并 → 更新列表
-  const runPersonaForecast = async (persona: UserPersona, article: NewsArticle): Promise<NewsArticle | null> => {
-    return trackLoading(async () => {
-      try {
-        // 组装已有深度字段作上下文（克制、只引已存在内容，避免 AI 空想）
-        const ctxParts: string[] = [];
-        const personaImpact = (article.personaImpacts || []).find((p) => p.personaId === persona.id);
-        if (personaImpact?.coreImpact) ctxParts.push(`身份已有影响快照：${personaImpact.coreImpact}`);
-        if (personaImpact?.opportunity) ctxParts.push(`- 机会：${personaImpact.opportunity}`);
-        if (personaImpact?.threatRisk) ctxParts.push(`- 风险：${personaImpact.threatRisk}`);
-        if (article.coreLogic?.essence) ctxParts.push(`底层逻辑本质：${article.coreLogic.essence}`);
-        if (article.bullBearDebate?.read) ctxParts.push(`正反方力量判断：${article.bullBearDebate.read}`);
-        if (article.logicTree?.variableWeights?.length) {
-          ctxParts.push(
-            '驱动变量权重：' +
-              article.logicTree.variableWeights
-                .map((w) => `${w.name}(${w.weight}%, ${w.impactDirection === 'up' ? '利好' : w.impactDirection === 'down' ? '利空' : '中性'})`)
-                .join('；')
-          );
-        }
-        if (article.sevenElements?.aiVerdict?.verdictSummary) ctxParts.push(`AI 定性：${article.sevenElements.aiVerdict.verdictSummary}`);
-        const body = {
-          articleId: article.id,
-          title: article.title,
-          content: (article.summary || article.subtitle || article.title).slice(0, 600),
-          source: article.sourceName || '',
-          sourceUrl: article.sourceUrl || '',
-          publishedAt: article.publishedAt || '',
-          category: article.category,
-          personaId: persona.id,
-          personaName: persona.name,
-          personaDesc: `${persona.tagline || ''}${persona.focusKeywords?.length ? `｜关注词：${persona.focusKeywords.join('、')}` : ''}`,
-          extraContext: ctxParts.join('\n'),
-        };
-        const res = await fetch('/api/skill/personaforecast', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const json = await res.json();
-        if (json?.ok && json.overrides) {
-          const updated = mergeSkillArticle(article, json.overrides);
-          handleEnrichArticle(updated);
-          return updated;
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    });
-  };
-
-  // 情报数据层：服务端派生快照；失败或空语料时由面板显示空态。
+  // 情报数据层：服务端派生快照
   const { snapshot, status: snapshotStatus, refresh: refreshSnapshot } = useSnapshot();
-
-  // 用户昵称（设置页与 Header 问候共享同一状态源）
-  const [nickname, setNickname] = useLocalState<string>('user-nickname', '');
-
-  useEffect(() => {
-    let alive = true;
-    const applyServerPreferences = (payload: any) => {
-      if (!payload || typeof payload !== 'object') return;
-      if (['standard', 'tongsu', 'dehydrated'].includes(payload.homeReadingMode)) {
-        setHomeReadingMode(payload.homeReadingMode);
-      }
-      if (USER_PERSONAS.some((persona) => persona.id === payload.selectedPersonaId)) {
-        setSelectedPersonaId(payload.selectedPersonaId);
-      }
-      if (Array.isArray(payload.radarKeywords)) setRadarKeywords(payload.radarKeywords);
-      if (Array.isArray(payload.bookmarkedIds)) setBookmarkedIds(payload.bookmarkedIds.map(String));
-      if (Array.isArray(payload.followedTags)) setFollowedTags(payload.followedTags.map(String));
-      if (Array.isArray(payload.interestGroups)) setInterestGroups(payload.interestGroups.map(String));
-      if (typeof payload.nickname === 'string') setNickname(payload.nickname.slice(0, 80));
-      if (typeof payload.personalNotes === 'string') setPersonalNotes(payload.personalNotes.slice(0, 20_000));
-    };
-    fetch('/api/preferences')
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => {
-        if (!alive || !data) return;
-        applyServerPreferences(data.payload);
-        preferencesVersionRef.current = Number(data.version || 0);
-        preferencesHydratedRef.current = true;
-        setPreferencesHydrated(true);
-      })
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!preferencesHydrated || !preferencesHydratedRef.current) return;
-    const timer = window.setTimeout(async () => {
-      const payload = {
-        homeReadingMode,
-        selectedPersonaId,
-        radarKeywords,
-        bookmarkedIds,
-        followedTags,
-        interestGroups,
-        nickname,
-        personalNotes,
-      };
-      try {
-        const response = await fetch('/api/preferences', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            version: preferencesVersionRef.current,
-            payload,
-          }),
-        });
-        const data = await response.json();
-        if (response.ok && typeof data?.version === 'number') {
-          preferencesVersionRef.current = data.version;
-        }
-      } catch {
-        /* 离线时继续使用本地偏好，下次状态变化再尝试同步。 */
-      }
-    }, 600);
-    return () => window.clearTimeout(timer);
-  }, [
-    preferencesHydrated,
-    homeReadingMode,
-    selectedPersonaId,
-    radarKeywords,
-    bookmarkedIds,
-    followedTags,
-    interestGroups,
-    nickname,
-    personalNotes,
-  ]);
-
-  // 顶栏情绪值口径：与首页 Hero 一致——“今日(本地日期)发布优先，样本不足回退近30天”
-  const derived = useMemo(() => {
-    const now = new Date();
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const todayList = articles.filter((a) => {
-      if (!a.publishedAt) return false;
-      const ts = parseArticleDate(a.publishedAt);
-      return ts !== null && ts >= dayStart;
-    });
-    const dToday = deriveFromList(todayList);
-    if (dToday.scanned >= 20) return { value: dToday, scope: 'today' as const };
-    return { value: corpusDerived(articles, 30), scope: '30d' as const };
-  }, [articles]);
-
-  // 服务端运行时语料合并：摄取 RSS 后首页信息流立即可见新条目（按 id 去重）
-  useEffect(() => {
-    const controller = new AbortController();
-    const pageSize = 200;
-    const maxLoaded = 10000;
-    let loadedCount = 0;
-    const loadPage = async (offset: number): Promise<void> => {
-      setActiveRequests((c) => c + 1);
-      try {
-        const res = await fetch(`/api/corpus?limit=${pageSize}&offset=${offset}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error(`corpus ${res.status}`);
-        const json = await res.json();
-        const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
-        if (page.length > 0) {
-          loadedCount += page.length;
-          setArticles((prev) => {
-            const seen = new Set(prev.map((a) => a.id));
-            const fresh = page.filter((a) => !seen.has(a.id));
-            const next = fresh.length > 0 ? [...prev, ...fresh] : prev;
-            saveCachedCorpus(next);
-            return next;
-          });
-        }
-        if (json?.meta?.hasMore && page.length > 0 && loadedCount < maxLoaded) {
-          await loadPage(offset + page.length);
-        }
-      } finally {
-        setActiveRequests((c) => Math.max(0, c - 1));
-      }
-    };
-    loadPage(0)
-      .catch(() => {
-        /* 服务不可达：保留当前已加载的数据，不注入示例语料 */
-      });
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-  const bookmarkedArticles = articles.filter((a) => bookmarkedIds.includes(a.id));
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans flex flex-col selection:bg-red-100 selection:text-red-950">

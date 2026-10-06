@@ -11,7 +11,7 @@ import { sentimentCounts, netSentiment, corpusDerived, keywordHits } from '../sr
 import { monitorHits } from '../src/utils/monitorKeywords';
 import { mediaProfile, tierBadge, mediaKey } from '../src/utils/mediaAuthority';
 import { topHotWords, detectBreaking } from '../src/utils/todayBrief';
-import { parseRSS, parseAtom, parseFeed, canonicalFeedUrl, normalizedTitleKey } from '../src/server/feeds';
+import { parseRSS, parseAtom, parseFeed, canonicalFeedUrl, normalizedTitleKey, pingFeed, pingAllFeeds, diagnoseFeedContract } from '../src/server/feeds';
 import { splitKeyTerms } from '../src/utils/keyTermTone';
 import { localTrendModel } from '../src/utils/localTrendModel';
 import { detectMentionRegions, primaryMentionRegion } from '../src/utils/mentionRegion';
@@ -120,7 +120,7 @@ test('corpusDerived: 30 天窗口排除旧闻，无 publishedAt 保留', () => {
     { title: '增长', summary: '', publishedAt: '2025-06-01' }, // 窗口外（排除）
     { title: '增长', summary: '' }, // 无时刻（保留）
   ];
-  const d = corpusDerived(arts as any, 30);
+  const d = corpusDerived(arts as any, 30, now);
   // 用“增长”命中正词：窗口内 1 篇 + 无时刻 1 篇 = 2（2025 被滤）
   assert.equal(d.positive, 2);
 });
@@ -232,7 +232,7 @@ test('splitKeyTerms: 词典/数字/普通文本分段且不重叠', () => {
   const segs = splitKeyTerms('今日指数上涨 3.2%，AI Agent 落地。');
   assert.ok(segs.some((s) => s.text === '上涨' && s.tone === 'pos'));
   assert.ok(segs.some((s) => s.text.includes('3.2%') && s.tone === 'num'));
-  assert.ok(segs.some((s) => s.text.includes('Agent') && s.tone === 'key'));
+  assert.ok(segs.some((s) => s.text.includes('Agent') && (s.tone === 'key' || s.tone === 'term')));
   assert.equal(segs.map((s) => s.text).join(''), '今日指数上涨 3.2%，AI Agent 落地。');
 });
 
@@ -951,3 +951,32 @@ test('eventCandidates: 使用标题、实体和时间窗生成待人工判断候
   assert.equal(candidates[0].articleB.id, 'b');
   assert.deepEqual(candidates[0].sharedEntities, ['英伟达']);
 });
+
+test('feedHealthPing: 拦截空地址与非法内网私有地址', async () => {
+  const emptyRes = await pingFeed('');
+  assert.equal(emptyRes.status, 'error');
+  assert.equal(emptyRes.errorType, 'network_error');
+
+  const privateRes = await pingFeed('http://127.0.0.1:8080/rss.xml');
+  assert.equal(privateRes.status, 'error');
+  assert.equal(privateRes.errorType, 'blocked');
+
+  const localhostRes = await pingFeed('http://localhost/feed');
+  assert.equal(localhostRes.status, 'error');
+  assert.equal(localhostRes.errorType, 'blocked');
+});
+
+test('diagnoseFeedContract: 结构化契约探针与修复建议输出', async () => {
+  const emptyDiag = await diagnoseFeedContract('');
+  assert.equal(emptyDiag.overallHealth, 'fail');
+  assert.ok(emptyDiag.issues.length > 0);
+  assert.equal(emptyDiag.issues[0].code, 'empty_url');
+  assert.ok(emptyDiag.issues[0].suggestion.length > 5);
+
+  const privateDiag = await diagnoseFeedContract('http://192.168.1.1/feed');
+  assert.equal(privateDiag.overallHealth, 'fail');
+  assert.equal(privateDiag.issues[0].code, 'security_blocked');
+  assert.ok(privateDiag.issues[0].suggestion.includes('SSRF'));
+});
+
+

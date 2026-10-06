@@ -8,6 +8,7 @@ import type { NewsSkill } from '../home/HomeView';
 import { findRelatedArticles } from '../../utils/relatedArticles';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { composeModel } from '../../utils/sevenElementsBrief';
+import { InteractiveLogicAnnotation } from './InteractiveLogicAnnotation';
 
 interface SevenElementsTabProps {
   article: NewsArticle;
@@ -271,6 +272,121 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
         </div>
       </div>
 
+      {/* 顶部通俗速懂卡 · 零认知门槛 30 秒大白话拆解 */}
+      <div className="bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 border-2 border-amber-400/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-200/80 pb-3 gap-2">
+          <div className="flex items-center space-x-2">
+            <span className="p-1.5 rounded-lg bg-amber-500 text-stone-950">
+              <Lightbulb className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-base font-serif font-black text-amber-950 flex items-center gap-1.5">
+                <span>通俗速懂 · 30秒大白话降维解析</span>
+                <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
+                  小白友好
+                </span>
+              </h3>
+              <p className="text-[11px] text-amber-800/90">
+                去除行业黑话与复杂公式，用日常生活比喻与清晰逻辑讲清前因后果
+              </p>
+            </div>
+          </div>
+          {onRunSkill && !article.tongsuSummary?.simpleSay && (
+            <button
+              onClick={() => onRunSkill('plain', article)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-serif font-bold shadow-2xs transition-all cursor-pointer shrink-0"
+              title="请求 AI 用通俗生活化语言重讲一遍"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>AI 生成大白话解读</span>
+            </button>
+          )}
+        </div>
+
+        {/* 3步大白话极简卡片 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* 1. 说人话 */}
+          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+            <div className="flex items-center space-x-1.5 text-xs font-serif font-black text-amber-900">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>1. 用大白话说 (发生了什么)</span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-stone-800 leading-relaxed font-sans">
+              <KeyTermHighlight
+                text={
+                  article.tongsuSummary?.simpleSay ||
+                  article.oneSentenceVerdict ||
+                  article.summary ||
+                  '正在提取生活化通俗比喻…'
+                }
+                entities={(article.entityMentions || []).map((e) => e.name)}
+                onOpenTermExplain={onOpenTermExplain}
+              />
+            </p>
+          </div>
+
+          {/* 2. 为什么 */}
+          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+            <div className="flex items-center space-x-1.5 text-xs font-serif font-black text-amber-900">
+              <span className="w-2 h-2 rounded-full bg-orange-500" />
+              <span>2. 为什么会这样 (根本原因)</span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-stone-800 leading-relaxed font-sans">
+              <KeyTermHighlight
+                text={
+                  article.tongsuSummary?.whyExplanation ||
+                  article.sevenElements?.why ||
+                  article.coreLogic?.essence ||
+                  '各方在产业周期与供需博弈下的必然演进。'
+                }
+                entities={(article.entityMentions || []).map((e) => e.name)}
+                onOpenTermExplain={onOpenTermExplain}
+              />
+            </p>
+          </div>
+
+          {/* 3. 对我意味着什么 */}
+          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
+            <div className="flex items-center space-x-1.5 text-xs font-serif font-black text-amber-900">
+              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+              <span>3. 对普通人意味着什么</span>
+            </div>
+            <p className="text-xs sm:text-[13px] text-stone-800 leading-relaxed font-sans">
+              <KeyTermHighlight
+                text={
+                  article.tongsuSummary?.whatItMeans ||
+                  (Array.isArray(article.personaImpacts) && article.personaImpacts.length > 0
+                    ? article.personaImpacts[0]?.coreImpact || article.personaImpacts[0]?.recommendedAction
+                    : article.sevenElements?.soWhat) ||
+                  '影响产业链下游定价与相关岗位技术需求，建议保持关注。'
+                }
+                entities={(article.entityMentions || []).map((e) => e.name)}
+                onOpenTermExplain={onOpenTermExplain}
+              />
+            </p>
+          </div>
+        </div>
+
+        {/* 核心行话速查 */}
+        {Array.isArray(article.tongsuSummary?.jargonTerms) && article.tongsuSummary.jargonTerms.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/60 text-xs">
+            <span className="font-serif font-bold text-amber-950 flex items-center gap-1 text-[11px]">
+              <BookOpen className="w-3.5 h-3.5 text-amber-700" />
+              <span>涉及专业名词（点击查释义）：</span>
+            </span>
+            {article.tongsuSummary.jargonTerms.map((term, i) => (
+              <button
+                key={i}
+                onClick={() => onOpenTermExplain && onOpenTermExplain(term)}
+                className="px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 font-mono text-[11px] transition-colors cursor-pointer"
+              >
+                {term} ↗
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 组一：核心结论（默认展开）—— 事件模型 + 底层逻辑 */}
       <GroupFold
         open={open.core}
@@ -346,6 +462,12 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
         )}
 
       </div>
+
+      {/* 交互式逻辑标注组件（事实与观点解构 + 专业术语悬停通俗释义） */}
+      <InteractiveLogicAnnotation
+        article={article}
+        onOpenTermExplain={onOpenTermExplain}
+      />
 
       {/* ② 多源验证：哪些媒体也报道了同一事件 */}
       <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 shadow-xs space-y-4">

@@ -1613,7 +1613,7 @@ export function saveUserPreferences(input: {
   expectedVersion: number;
 }): { ok: true; version: number; updatedAt: string } | { ok: false; reason: "version_conflict" | "payload_too_large" } {
   const serialized = JSON.stringify(input.payload || {});
-  if (serialized.length > 200_000) return { ok: false, reason: "payload_too_large" };
+  if (serialized.length > 2_000_000) return { ok: false, reason: "payload_too_large" };
   const db = openDatabase();
   try {
     const row = db.prepare(

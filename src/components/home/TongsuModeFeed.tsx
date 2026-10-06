@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { NewsArticle } from '../../types';
-import { Smile, Lightbulb, HelpCircle, ArrowRight, Sparkles, BookOpen, Loader2 } from 'lucide-react';
+import { Smile, Lightbulb, HelpCircle, ArrowRight, Sparkles, BookOpen, Loader2, Check } from 'lucide-react';
 import { motion } from 'motion/react';
 import { formatArticleTime } from '../../utils/articleTime';
+import { useOfflineArticles } from '../../utils/offlineStorage';
 import type { NewsSkill } from './HomeView';
 import { KeyTermHighlight, KeyTermNote } from '../common/KeyTermHighlight';
 
@@ -20,6 +21,7 @@ export const TongsuModeFeed: React.FC<TongsuModeFeedProps> = ({
   onOpenTermExplain,
   onRunSkill,
 }) => {
+  const { isOffline } = useOfflineArticles();
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const runPlain = async (article: NewsArticle) => {
@@ -79,6 +81,15 @@ export const TongsuModeFeed: React.FC<TongsuModeFeedProps> = ({
                   {article.category}
                 </span>
                 <span className="text-xs text-stone-400">{formatArticleTime(article)}</span>
+                {isOffline(article.id) && (
+                  <span
+                    className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full"
+                    title="已离线保存至本地 IndexedDB"
+                  >
+                    <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[2.5]" />
+                    <span>已离线</span>
+                  </span>
+                )}
               </div>
               <span className="text-xs text-stone-500 font-mono">
                 {hasPlain ? '30秒速通 · 大白话版 ✓' : isBusy ? 'AI 讲解生成中…' : '待生成大白话'}

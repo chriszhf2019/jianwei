@@ -5,13 +5,15 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
 import { createServer as createViteServer } from "vite";
-import { ingestAllFeeds, type RawFeedItem } from "./src/server/feeds";
+import { ingestAllFeeds, pingFeed, pingAllFeeds, diagnoseFeedContract, type RawFeedItem, type FeedPingResult, type FeedContractDiagnostic } from "./src/server/feeds";
 import { parseArticleDate } from "./src/utils/articleTime";
 import { serverSectorList, serverDetectSectors } from "./src/server/sectors";
 import { registerAnnotationRoutes } from "./src/server/annotations";
 import { startFeedScheduler } from "./src/server/scheduler";
 import { scheduledBackupStatus, startBackupScheduler } from "./src/server/backupScheduler";
 import { registerDeepEndpoints } from "./src/server/deepEndpoints";
+import { registerAnalysisRoutes } from "./src/server/routes/analysisRoutes";
+import { registerEvaluationRoutes } from "./src/server/routes/evaluationRoutes";
 import {
   settings,
   persistSettings,
@@ -195,10 +197,9 @@ function safeTokenEqual(received: string, expected: string): boolean {
 const FALLBACK_NOTE = "未配置可用模型或上游请求失败，本次未生成内容。";
 
 app.disable("x-powered-by");
-app.use(compression());
+app.use(compression() as unknown as express.RequestHandler);
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   next();
@@ -451,6 +452,8 @@ if (!AUTH_ENABLED) {
 
 registerAnnotationRoutes(app, applyRateLimit);
 registerDeepEndpoints(app, applyRateLimit);
+registerAnalysisRoutes(app, applyRateLimit);
+registerEvaluationRoutes(app, applyRateLimit);
 
 app.post("/api/auth/login", applyRateLimit, (req, res) => {
   const accessToken = String(req.body?.accessToken || "").trim();
@@ -1591,7 +1594,7 @@ app.get("/api/snapshot", (_req, res) => {
 });
 
 
-// —— 真实信源接入：状态与手动摄取 ——
+// —— 真实信源接入：状态、连通性探测 (Ping) 与手动摄取 ——
 app.get("/api/feeds/status", (_req, res) => {
   res.setHeader("Cache-Control", "private, no-cache");
   res.json({
@@ -1601,6 +1604,67 @@ app.get("/api/feeds/status", (_req, res) => {
     corpus: feedUrls().length > 0 ? "live" : serverCorpus.length > 0 ? "runtime" : "empty",
     corpusSize: serverCorpus.length,
   });
+});
+
+app.post("/api/feeds/ping", applyRateLimit, async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-cache");
+  const { url, urls } = (req.body || {}) as { url?: string; urls?: string[] };
+
+  try {
+    if (url && typeof url === "string") {
+      const single = await pingFeed(url.trim());
+      return res.json({ ok: true, result: single });
+    }
+
+    const targetUrls = Array.isArray(urls) && urls.length > 0
+      ? urls.map((u) => String(u).trim()).filter(Boolean)
+      : feedUrls();
+
+    if (targetUrls.length === 0) {
+      return res.json({
+        ok: true,
+        results: [],
+        summary: { total: 0, healthy: 0, warning: 0, error: 0 },
+      });
+    }
+
+    const results = await pingAllFeeds(targetUrls);
+    const healthyCount = results.filter((r) => r.status === "healthy").length;
+    const warningCount = results.filter((r) => r.status === "warning").length;
+    const errorCount = results.filter((r) => r.status === "error").length;
+
+    res.json({
+      ok: true,
+      results,
+      summary: {
+        total: results.length,
+        healthy: healthyCount,
+        warning: warningCount,
+        error: errorCount,
+        allHealthy: errorCount === 0 && warningCount === 0,
+      },
+    });
+  } catch (err: any) {
+    console.error("Feed ping error:", err);
+    res.status(500).json({ error: "feed ping probe failed: " + (err?.message || err) });
+  }
+});
+
+app.post("/api/feeds/diagnose-contract", applyRateLimit, async (req, res) => {
+  res.setHeader("Cache-Control", "private, no-cache");
+  const { url } = (req.body || {}) as { url?: string };
+
+  if (!url || typeof url !== "string" || !url.trim()) {
+    return res.status(400).json({ error: "请提供需检测的 RSS/Atom 订阅地址 (url)" });
+  }
+
+  try {
+    const diagnostic = await diagnoseFeedContract(url.trim());
+    res.json({ ok: true, diagnostic });
+  } catch (err: any) {
+    console.error("Feed diagnose-contract error:", err);
+    res.status(500).json({ error: "feed contract diagnosis failed: " + (err?.message || err) });
+  }
 });
 
 app.post("/api/feeds/ingest", applyRateLimit, async (_req, res) => {
