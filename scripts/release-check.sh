@@ -17,8 +17,13 @@ echo "== 3/5 esbuild server =="
 npx esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs > /tmp/release-esb.log 2>&1
 
 echo "== 4/5 启动纯净测试实例(:$PORT_TEST, 无Key/不写盘) =="
+# 清理可能残留的同端口进程，避免冒烟打到脏语料实例
+fuser -k "${PORT_TEST}/tcp" 2>/dev/null || true
+fuser -k 3211/tcp 2>/dev/null || true
+sleep 1
 # RSS 夹具用「今天」时间戳生成，避免 FEED_MAX_AGE_DAYS=30 把固定旧日期条目判为过期
 RSS_DIR=$(mktemp -d /tmp/jianwei-rss.XXXXXX)
+TEST_DB=$(mktemp /tmp/jianwei-release-XXXXXX.db)
 cp -R scripts/fixtures/. "$RSS_DIR/"
 node -e '
 const fs = require("fs");
@@ -39,9 +44,9 @@ fs.writeFileSync(dir + "/rss.xml", xml);
 ' "$RSS_DIR"
 python3 -m http.server 3211 --directory "$RSS_DIR" > /tmp/release-rss.log 2>&1 &
 RSS_PID=$!
-PORT=$PORT_TEST BIND_HOST=127.0.0.1 JIANWEI_AUTH_TOKEN="" JIANWEI_NO_SETTINGS=1 JIANWEI_ALLOW_PRIVATE_FEEDS=1 nohup npx tsx server.ts > /tmp/release-server.log 2>&1 &
+PORT=$PORT_TEST BIND_HOST=127.0.0.1 JIANWEI_DB_FILE="$TEST_DB" JIANWEI_AUTH_TOKEN="" JIANWEI_NO_SETTINGS=1 JIANWEI_ALLOW_PRIVATE_FEEDS=1 nohup npx tsx server.ts > /tmp/release-server.log 2>&1 &
 SRV_PID=$!
-trap 'kill $RSS_PID $SRV_PID 2>/dev/null || true; rm -rf "$RSS_DIR" 2>/dev/null || true' EXIT
+trap 'kill $RSS_PID $SRV_PID 2>/dev/null || true; rm -rf "$RSS_DIR" "$TEST_DB" 2>/dev/null || true' EXIT
 for i in $(seq 1 30); do
   curl -sf "http://127.0.0.1:$PORT_TEST/api/health" > /dev/null 2>&1 && break
   sleep 1
