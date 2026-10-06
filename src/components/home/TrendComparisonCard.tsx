@@ -77,14 +77,14 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-serif font-black text-sm tracking-wide text-stone-100 truncate">
-                跨语料趋势对比与关键词热度演变
+                今日词频速览
               </h3>
               <span className="hidden sm:inline-block px-2 py-0.5 bg-stone-800 text-stone-300 font-mono text-[10px] rounded-full border border-stone-700">
-                词频统计 · 启发式摘要
+                当日看板 · 词频启发式
               </span>
             </div>
             <p className="text-[11px] text-stone-400 truncate mt-0.5">
-              对比语料在今日 vs 近 3 日 vs 近 30 日的出现频次与动量变化
+              以今日为锚，对照近 3 日 / 近 30 日词频；更宽的「最近」态势请看情报中心
             </p>
           </div>
         </div>

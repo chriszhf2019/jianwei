@@ -10,8 +10,8 @@ import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
 import { UserCheck, ShieldCheck, Bookmark, Radio, Target, Sparkles, Link2, FileText } from 'lucide-react';
-import { corpusDerived, deriveFromList } from '../../utils/corpusMetrics';
-import { articleSortTime, parseArticleDate } from '../../utils/articleTime';
+import { deriveFromList } from '../../utils/corpusMetrics';
+import { articleSortTime, parseArticleDate, filterTodayArticles } from '../../utils/articleTime';
 import { detectBreaking } from '../../utils/todayBrief';
 import { NEWS_INTEREST_GROUPS, SECTOR_TAXONOMY, keywordMatches, matchesNewsInterestGroups } from '../../utils/sectorTaxonomy';
 import { monitorHits } from '../../utils/monitorKeywords';
@@ -112,19 +112,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
     });
   }, [interestSignature]);
 
-  // —— 今日简报数据：今日(本地日期)真实发布条目 → 情绪/热词/突发/赛道（见 utils/todayBrief.ts）——
-  const { todayList, dToday, d30, scope, breaking, sectorHeat, dayStartTs } = useMemo(() => {
+  // —— 当日看板：只统计本地自然日「今日」发布（含用户投递），不足也不回退近 30 天 ——
+  const { todayList, dToday, breaking, sectorHeat, dayStartTs } = useMemo(() => {
     const now = new Date();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const list = articles.filter((a) => {
-      if (!a.isExternal || !a.publishedAt) return false;
-      const ts = parseArticleDate(a.publishedAt);
-      return ts !== null && ts >= dayStart;
-    });
+    const list = filterTodayArticles(articles);
     const today = deriveFromList(list);
-    const useToday = today.scanned >= 20;
-    const fallback = useToday ? today : corpusDerived(articles, 30);
-    // 今日赛道热度（统一替代“热词+赛道”两行）：每个赛道 = 命中文章数 + 命中 top 词（真实派生）
+    // 今日赛道热度：每个赛道 = 命中文章数 + 命中 top 词（真实派生）
     const sectorAgg = new Map<string, { count: number; words: Map<string, number> }>();
     for (const a of list) {
       const text = `${a.title || ''} ${a.summary || ''}`.toLowerCase();
@@ -152,8 +146,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return {
       todayList: list,
       dToday: today,
-      d30: fallback,
-      scope: (useToday ? 'today' : '30d') as 'today' | '30d',
       breaking: detectBreaking(list),
       sectorHeat: heat,
       dayStartTs: dayStart,
@@ -217,25 +209,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
     });
   }, [articles, dayStartTs]);
 
-  // 时间窗口选择（今日 / 近 3 日 / 全部）
+  // 时间窗口选择（默认今日；近 3 日 / 全部需手动切换，不静默扩窗）
   const [timeHorizon, setTimeHorizon] = useState<'today' | '3d' | 'all'>('today');
 
   // 当日静默检测：今日确实无任何新情报
   const isQuietDay = todayFeed.length === 0;
 
-  // 基础底池：按时间窗口选取；若今日无条目，智能切换近 3 日或全部，避免空白
+  // 基础底池：严格按所选时间窗；今日空则空，不自动塞近 3 日/全部
   const basePool = useMemo(() => {
-    if (timeHorizon === 'today') {
-      if (isQuietDay) {
-        return threeDayFeed.length > 0 ? threeDayFeed : articles;
-      }
-      return todayFeed;
-    }
-    if (timeHorizon === '3d') {
-      return threeDayFeed.length > 0 ? threeDayFeed : articles;
-    }
+    if (timeHorizon === 'today') return todayFeed;
+    if (timeHorizon === '3d') return threeDayFeed;
     return articles;
-  }, [timeHorizon, isQuietDay, todayFeed, threeDayFeed, articles]);
+  }, [timeHorizon, todayFeed, threeDayFeed, articles]);
 
   // 当前底池命中监控词的条数（分类 pill 徽章）
   const monitorTodayCount = useMemo(
@@ -421,15 +406,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
             stats={{
               total: articles.length,
               todayCount: todayList.length,
-              scanned: (scope === 'today' ? dToday : d30).scanned,
-              positive: (scope === 'today' ? dToday : d30).positive,
-              negative: (scope === 'today' ? dToday : d30).negative,
-              neutral: (scope === 'today' ? dToday : d30).neutral,
-              mixed: (scope === 'today' ? dToday : d30).mixed,
-              net: (scope === 'today' ? dToday : d30).net,
-              ratio: (scope === 'today' ? dToday : d30).optimismRatio,
+              scanned: dToday.scanned,
+              positive: dToday.positive,
+              negative: dToday.negative,
+              neutral: dToday.neutral,
+              mixed: dToday.mixed,
+              net: dToday.net,
+              ratio: dToday.optimismRatio,
               hasLive: articles.length > 0,
-              scope,
+              scope: 'today',
             }}
             breaking={breaking}
             sectorHeat={sectorHeat}
@@ -512,10 +497,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </button>
               </div>
 
-              {/* 静默过渡说明 */}
+              {/* 今日空窗说明：不静默扩窗，可手动切近 3 日 / 全部，或去情报中心看最近 */}
               {isQuietDay && timeHorizon === 'today' && (
                 <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-serif text-[11px]">
-                  今日暂无新情报，已呈现近 3 日精选
+                  今日暂无新情报 · 可切「近 3 日」或去情报中心看最近
                 </span>
               )}
             </div>

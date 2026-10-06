@@ -136,6 +136,34 @@ export function isStaleArticle(a: ArticleTimeLike, maxDays = 30, now = Date.now(
   return now - ts > maxDays * DAY;
 }
 
+/**
+ * 最近 N 个日历日（含今天）的语料切片。
+ * 情报中心默认用此窗口看「最近」；首页看板应另用当日切片。
+ */
+export function filterRecentArticles<T extends ArticleTimeLike>(
+  articles: T[],
+  days = 7,
+  now = Date.now()
+): T[] {
+  const n = Math.max(1, Math.floor(days));
+  const local = new Date(now);
+  const dayStart = new Date(local.getFullYear(), local.getMonth(), local.getDate()).getTime();
+  const windowStart = dayStart - (n - 1) * DAY;
+  const windowEnd = dayStart + DAY;
+  return articles.filter((a) => {
+    const ts = articleSortTime(a);
+    return ts > 0 && ts >= windowStart && ts < windowEnd;
+  });
+}
+
+/** 本地自然日「今日」切片（含站内/用户投递，不只外部 RSS）。 */
+export function filterTodayArticles<T extends ArticleTimeLike>(
+  articles: T[],
+  now = Date.now()
+): T[] {
+  return filterRecentArticles(articles, 1, now);
+}
+
 /** 判断是否为站内深度示例文（区别于 RSS 外部条目） */
 export function isCuratedDemo(a: { isExternal?: boolean; id?: string }): boolean {
   return !a.isExternal && !!a.id && !String(a.id).startsWith('feed-');

@@ -1582,3 +1582,27 @@ test('主循环：空首页 CTA、解读后落七要素、详情标用户投递'
   assert.match(detail, /methodId="model_interpretation"/);
   assert.match(detail, /去复核原文/);
 });
+
+test('时间分工：首页当日看板，情报中心近窗最近', async () => {
+  const { filterTodayArticles, filterRecentArticles } = await import('../src/utils/articleTime');
+  const now = new Date(2026, 9, 6, 15, 0, 0).getTime(); // Oct 6 local
+  const articles = [
+    { id: 't', publishedAt: '2026-10-06T02:00:00.000Z' },
+    { id: 'y', publishedAt: '2026-10-05T02:00:00.000Z' },
+    { id: 'w', publishedAt: '2026-09-28T02:00:00.000Z' },
+  ] as any;
+  assert.deepEqual(filterTodayArticles(articles, now).map((a: any) => a.id), ['t']);
+  assert.deepEqual(filterRecentArticles(articles, 7, now).map((a: any) => a.id), ['t', 'y']);
+  assert.equal(filterRecentArticles(articles, 7, now).some((a: any) => a.id === 'w'), false);
+
+  const { FEATURE_SUMMARIES } = await import('../src/utils/featureSummaries');
+  assert.match(FEATURE_SUMMARIES.home.purpose, /今天|当日/);
+  assert.match(FEATURE_SUMMARIES['intelligence-overview'].purpose, /近窗|近 7/);
+  const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
+  assert.match(home, /不回退近 30 天|不静默扩窗|filterTodayArticles/);
+  assert.equal(home.includes('corpusDerived(articles, 30)'), false);
+  const hub = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/IntelligenceHubView.tsx'), 'utf8');
+  assert.match(hub, /HUB_RECENT_DAYS/);
+  assert.match(hub, /recentArticles/);
+  assert.match(hub, /最近态势/);
+});

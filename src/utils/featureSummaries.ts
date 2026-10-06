@@ -53,11 +53,11 @@ export interface FeatureSummarySpec {
 
 export const FEATURE_SUMMARIES: Record<FeatureSummaryId, FeatureSummarySpec> = {
   home: {
-    title: '首页情报流',
-    purpose: '把最新新闻按今日时间、兴趣领域和关注范围整理成可快速浏览的信息流。',
-    when: '每天第一次进入系统，或需要快速了解当前发生了什么时。',
-    output: '今日新闻、来源、时间、标签、情绪提示和单篇分析入口。',
-    boundary: '只代表当前订阅语料，不代表全网；首页排序不等于重要性排名。',
+    title: '当日看板与情报流',
+    purpose: '看清今天的大盘：当日情绪、赛道、突发，以及今日信息流；单条用「读懂新闻」拆解。',
+    when: '每天第一次进入，或需要回答「今天整体怎样」时。',
+    output: '当日看板指标、今日新闻列表、读懂新闻入口。',
+    boundary: '只代表当前订阅语料的今日切片，不回退近 30 天充数；不等于全网，排序不等于重要性。',
   },
   'home-reading': {
     title: '阅读模式',
@@ -130,16 +130,16 @@ export const FEATURE_SUMMARIES: Record<FeatureSummaryId, FeatureSummarySpec> = {
     boundary: '身份映射是分析框架，不是个性化投资建议。',
   },
   'intelligence-overview': {
-    title: '情报概览',
-    purpose: '汇总当前语料规模、来源覆盖、证据状态和主要赛道。',
-    when: '进入情报中心时先判断今天是否值得深入分析。',
-    output: '态势解读、行动指引和关键指标。',
-    boundary: '派生统计只描述当前语料，不代表总体世界。',
+    title: '最近态势概览',
+    purpose: '汇总近窗（默认近 7 日）语料规模、信号强度、来源覆盖和主要赛道。',
+    when: '需要看「最近一段时间」而不是仅看今天时。',
+    output: '近窗态势、行动指引和关键指标。',
+    boundary: '派生统计只描述近窗运行时语料，不代表总体世界；当日大盘请回首页。',
   },
   'intelligence-signals': {
-    title: '信号观察',
-    purpose: '发现跨事件共振、时间分布和内容密度异常。',
-    when: '需要寻找热点、突变或潜在关联时。',
+    title: '最近信号观察',
+    purpose: '在近窗语料上发现跨事件共振、时间分布和内容密度异常。',
+    when: '需要寻找近几日热点、突变或潜在关联时。',
     output: '共振候选、热力时间和密度曲线。',
     boundary: '文本共振和时间聚集是启发式信号，不等于因果关系。',
   },
