@@ -39,12 +39,12 @@ export const InvalidationAlertBanner: React.FC<InvalidationAlertBannerProps> = (
           <div>
             <div className="flex items-center space-x-2">
               <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-rose-300 bg-rose-900/80 px-1.5 py-0.2 rounded border border-rose-700">
-                🚨 核心专题假设证伪预警系统 (Invalidation Monitor)
+                编辑种子 · 阶段提醒
               </span>
-              <span className="text-[10px] font-mono text-stone-400">实时监听中</span>
+              <span className="text-[10px] font-mono text-stone-400">不是实时监测</span>
             </div>
             <p className="text-xs sm:text-sm font-serif font-bold text-white mt-0.5">
-              专题【{topAlert.title}】检测到关键博弈白热化，正接近预设假设证伪红线！
+              专题【{topAlert.title}】的阶段是编辑预设。它没有检测现实博弈，也不代表证伪条件已经被触及。
             </p>
           </div>
         </div>
@@ -110,7 +110,7 @@ export const InvalidationAlertBanner: React.FC<InvalidationAlertBannerProps> = (
 
             <div className="flex items-center justify-between pt-2 border-t border-stone-800">
               <span className="text-[11px] text-stone-400">
-                建议：若证伪红线被触及，请及时在个人预测台账中调整胜率与持仓敞口。
+                这些观察条件和阶段来自产品配置的编辑种子，不是实时情报，也不是已经触发的警报。
               </span>
               <button
                 onClick={() => {

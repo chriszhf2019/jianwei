@@ -3,149 +3,18 @@ import { NewsArticle } from '../../types';
 import { GitMerge, ShieldAlert, Sparkles, Layers, PlusCircle, Radio } from 'lucide-react';
 import { EvidenceBadge } from '../common/EvidenceBadge';
 import { MethodBadge } from '../common/MethodBadge';
+import { analyzePair, deriveCrossEventTop, type CrossEventSnapshot } from '../../utils/arrivalPanels';
 
 interface CrossEventNexusPanelProps {
   articles: NewsArticle[];
+  crossEvent?: CrossEventSnapshot;
   onSelectArticleTitle?: (title: string) => void;
   onOpenArticleById?: (articleId: string) => void;
 }
 
-interface PairAnalysis {
-  id: string;
-  title: string;
-  resonanceLevel: string;
-  resonanceScore: number;
-  articleIds: [string, string];
-  articleTitles: [string, string];
-  hiddenNexusTheme: string;
-  sharedBottleneck: string;
-  synergyChain: Array<{ step: string; sourceArticle: string; mechanism: string }>;
-  jointImpacts: { firstOrder: string; secondOrder: string; thirdOrder: string };
-  aiJointVerdict: string;
-  recommendedAction: string;
-  signal: {
-    sharedTags: string[];
-    contentSimilarity: number;
-    bothDeep: boolean;
-    sources: [string, string];
-  };
-}
-
-// —— 文本信号：字符二元组 Jaccard（无 NLP 依赖、对中文有效） ——
-function bigramMap(text: string): Map<string, number> {
-  const t = String(text || '')
-    .replace(/[\s\p{P}]/gu, '')
-    .toLowerCase();
-  const map = new Map<string, number>();
-  for (let i = 0; i < t.length - 1; i += 1) {
-    const g = t.slice(i, i + 2);
-    map.set(g, (map.get(g) || 0) + 1);
-  }
-  return map;
-}
-function jaccard(aText: string, bText: string): number {
-  const a = bigramMap(aText);
-  const b = bigramMap(bText);
-  if (a.size === 0 || b.size === 0) return 0;
-  let inter = 0;
-  let union = 0;
-  for (const [g, ca] of a) {
-    const cb = b.get(g) || 0;
-    inter += Math.min(ca, cb);
-    union += Math.max(ca, cb);
-  }
-  for (const [g, cb] of b) {
-    if (!a.has(g)) union += cb;
-  }
-  return union > 0 ? inter / union : 0;
-}
-
-const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
-const levelOf = (score: number) =>
-  score >= 76 ? '突变级共振' : score >= 46 ? '结构级交汇' : '周期级传导';
-
-function analyzePair(a: NewsArticle, b: NewsArticle): PairAnalysis {
-  const tagsA: string[] = a.tags || [];
-  const tagsB: string[] = b.tags || [];
-  const sharedTags = [...new Set(tagsA.filter((t) => tagsB.includes(t)))];
-
-  const textA = `${a.title} ${a.summary || a.oneSentenceVerdict || ''} ${(a.subtitle || '').slice(0, 40)}`;
-  const textB = `${b.title} ${b.summary || b.oneSentenceVerdict || ''} ${(b.subtitle || '').slice(0, 40)}`;
-  const contentSimilarity = Math.round(jaccard(textA, textB) * 100) / 100;
-
-  const bothDeep =
-    Boolean(a.spectrumLayers && a.spectrumLayers.length > 0) &&
-    Boolean(b.spectrumLayers && b.spectrumLayers.length > 0);
-  const minTags = Math.max(1, Math.min(tagsA.length, tagsB.length));
-  const sharedTagRatio = sharedTags.length / minTags;
-
-  // 信号共振分（透明加权，0-100）
-  const score = Math.round(
-    clamp(
-      30 * sharedTagRatio +
-        40 * contentSimilarity * (contentSimilarity > 0.05 ? 1 : 0.35) +
-        15 * (bothDeep ? 1 : 0) +
-        10 * (a.category === b.category ? 0.5 : 0),
-      0,
-      100
-    )
-  );
-
-  const sourceName = (x: NewsArticle) =>
-    String(x.sourceName || (x.isExternal ? '外部信源' : '见微')) || '未知来源';
-  const sources: [string, string] = [sourceName(a), sourceName(b)];
-  const topicA = (x: NewsArticle) => (x.tags && x.tags.length > 0 ? x.tags.slice(0, 3).join('、') : x.category);
-  const topicB = (x: NewsArticle) => (x.tags && x.tags.length > 0 ? x.tags.slice(0, 3).join('、') : x.category);
-
-  const theme =
-    sharedTags.length > 0
-      ? `「${topicA(a)}」与「${topicB(b)}」共享信号标签：${sharedTags.join('、')}`
-      : contentSimilarity >= 0.05
-        ? `两篇在标题/摘要文本上存在可观重叠（相似度 ${Math.round(contentSimilarity * 100)}%），指向相近话题。`
-        : `两篇分属「${topicA(a)}」与「${topicB(b)}」，当前语料信号重叠较弱（文本相似度 ${Math.round(contentSimilarity * 100)}%）。`;
-
-  const bottleneck = bothDeep
-    ? `两篇均含深层因果数据：A 根因「${(a.logicTree && a.logicTree.rootCause) || '—'}」；B 根因「${(b.logicTree && b.logicTree.rootCause) || '—'}」。`
-    : '至少一篇为外部浅层条目（暂无深层因果字段），瓶颈分析请先对该篇执行 AI 深度补全。';
-
-  const overlapDetail =
-    sharedTags.length > 0
-      ? `共享标签 ${sharedTags.join('、')}`
-      : contentSimilarity >= 0.05
-        ? `标题/摘要文本相似度 ${Math.round(contentSimilarity * 100)}%`
-        : `暂无高置信重叠信号（建议更换配对或先补全深层字段）`;
-
-  const summaryOf = (x: NewsArticle) => (x.summary || x.oneSentenceVerdict || x.title).slice(0, 90);
-
-  return {
-    id: `pair-${a.id}-${b.id}`,
-    title: `${a.title.slice(0, 20)}${a.title.length > 20 ? '…' : ''} ⨉ ${b.title.slice(0, 20)}${b.title.length > 20 ? '…' : ''}`,
-    resonanceLevel: levelOf(score),
-    resonanceScore: score,
-    articleIds: [a.id, b.id],
-    articleTitles: [a.title, b.title],
-    hiddenNexusTheme: theme,
-    sharedBottleneck: bottleneck,
-    synergyChain: [
-      { step: '01 · 事件 A', sourceArticle: a.title, mechanism: summaryOf(a) },
-      { step: '02 · 事件 B', sourceArticle: b.title, mechanism: summaryOf(b) },
-      { step: '03 · 交汇信号', sourceArticle: '文本信号比对（非模型推演）', mechanism: overlapDetail },
-    ],
-    jointImpacts: {
-      firstOrder: `共同信号：${overlapDetail}。`,
-      secondOrder: `涉及分类：A=${a.category}，B=${b.category}；来源：${sources[0]} × ${sources[1]}。`,
-      thirdOrder: '建议将上述重叠信号加入专题跟踪，观察其在语料中的后续演变，而非直接外推预测。',
-    },
-    aiJointVerdict: `自动信号比对（可复核）：共享标签 ${sharedTags.length} 个、文本相似度 ${Math.round(contentSimilarity * 100)}%、双方含深层字段：${
-      bothDeep ? '是' : '否'
-    }，加权共振分 ${score}/100。本结论为信号重叠统计，非因果断言。`,
-    recommendedAction: `人工复核「${overlapDetail}」是否构成实质关联；可在详情页执行 AI 深度补全后再比对。`,
-    signal: { sharedTags, contentSimilarity, bothDeep, sources },
-  };
-}
-
 export const CrossEventNexusPanel: React.FC<CrossEventNexusPanelProps> = ({
   articles,
+  crossEvent,
   onSelectArticleTitle,
   onOpenArticleById,
 }) => {
@@ -154,24 +23,10 @@ export const CrossEventNexusPanel: React.FC<CrossEventNexusPanelProps> = ({
   const [customArticleIdB, setCustomArticleIdB] = useState<string>('');
   const [selectedPairKey, setSelectedPairKey] = useState<string>('');
 
-  // 参与自动发现的代表性子集：已有深层字段的文章优先，外加近期条目
-  const pool = useMemo(() => {
-    const curated = articles.filter((a) => a.spectrumLayers && a.spectrumLayers.length > 0);
-    const externals = articles.filter((a) => !curated.includes(a)).slice(-36);
-    return [...curated, ...externals];
-  }, [articles]);
-
-  const topPairs = useMemo(() => {
-    const list: PairAnalysis[] = [];
-    const n = Math.min(pool.length, 40);
-    for (let i = 0; i < n; i += 1) {
-      for (let j = i + 1; j < n; j += 1) {
-        const p = analyzePair(pool[i], pool[j]);
-        if (p.resonanceScore > 0) list.push(p);
-      }
-    }
-    return list.sort((x, y) => y.resonanceScore - x.resonanceScore).slice(0, 5);
-  }, [pool]);
+  const topPairs = useMemo(
+    () => crossEvent?.pairs ?? deriveCrossEventTop(articles).pairs,
+    [articles, crossEvent],
+  );
 
   const customPair = useMemo(() => {
     const a = articles.find((x) => x.id === customArticleIdA);
@@ -211,7 +66,8 @@ export const CrossEventNexusPanel: React.FC<CrossEventNexusPanelProps> = ({
           </h3>
           <MethodBadge methodId="title_similarity" />
           <p className="text-xs text-stone-600">
-            基于<strong>当前运行时语料（{articles.length} 篇）</strong>自动计算两两信号的共享标签/文本重叠/深层字段覆盖，输出可复核的共振分——真实统计，非示例模板；浅层外部条目信号不足时会如实提示。
+            基于<strong>当前运行时语料（{crossEvent?.corpusSize ?? articles.length} 篇）</strong>计算共享标签、文本重叠和深层字段覆盖。共振分是加权统计，不是因果强度。
+            {crossEvent ? `自动发现来自服务端快照（参与比对 ${crossEvent.poolSize} 篇）。自由双事件对比在本机按同一公式计算。` : '自动发现按本机已加载语料计算。'}
           </p>
         </div>
 

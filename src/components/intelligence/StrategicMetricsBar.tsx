@@ -32,9 +32,10 @@ import {
   Tooltip,
   Cell,
 } from 'recharts';
-import { deriveFromList } from '../../utils/corpusMetrics';
+import { deriveFromList, lexiconSentiment } from '../../utils/corpusMetrics';
 import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
 import { MethodBadge } from '../common/MethodBadge';
+import { articleSortTime } from '../../utils/articleTime';
 
 interface StrategicMetricsBarProps {
   articles: NewsArticle[];
@@ -89,90 +90,92 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
       count: articles.filter((article) => detectSectors(article).includes(sector.id)).length,
     })).sort((a, b) => b.count - a.count);
 
-    const topSector = sectorCounts[0]?.count > 0 ? sectorCounts[0] : { name: '人工智能与半导体', count: 12 };
+    const topSector = sectorCounts[0]?.count > 0
+      ? sectorCounts[0]
+      : { name: '暂无赛道命中', count: 0 };
 
-    // Real Sentiment & 7-Day Moving Average calculation
+    // 当日情绪：词典启发式归类占比，映射到 0-100 相对分（不是市场真值）
     const totalCount = Math.max(1, articles.length);
-    const posArticles = articles.filter((a) => {
-      const text = `${a.title} ${a.summary || ''}`.toLowerCase();
-      return (
-        text.includes('突破') ||
-        text.includes('利好') ||
-        text.includes('首发') ||
-        text.includes('增长') ||
-        text.includes('扩张') ||
-        text.includes('量产') ||
-        (a.changeVelocity && a.changeVelocity.includes('快'))
-      );
-    });
-    const posCount = posArticles.length;
-    const negCount = alertArticles.length;
-
-    // 结合事件词典与全量正负比率生成当日情绪 (0 - 100)
+    const posCount = articles.filter((a) => lexiconSentiment(a).label === 'positive').length;
+    const negCount = articles.filter((a) => lexiconSentiment(a).label === 'negative').length;
     const netRatio = (posCount - negCount) / totalCount;
-    const dictNet = sentiment.net ?? (netRatio * 50);
-    const todaySentiment = Math.min(92, Math.max(18, Math.round(50 + netRatio * 25 + (dictNet / 100) * 15)));
+    const dictNet = sentiment.net ?? (netRatio * 100);
+    const todaySentiment = Math.round(Math.max(0, Math.min(100, 50 + dictNet / 2)));
 
-    // 近 7 日情绪脉冲时间序列（T-6 至 今日 T0）
-    const dailyBase = [
-      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.76 + 12))),
-      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.80 + 10))),
-      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.83 + 9))),
-      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.86 + 7))),
-      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.89 + 5))),
-      Math.min(90, Math.max(25, Math.round(todaySentiment * 0.93 + 4))),
-      todaySentiment,
-    ];
+    // 近 7 日：按发布时间真实分桶；无当日语料记 0，不反推历史曲线
+    const now = Date.now();
+    const dayMs = 24 * 3600 * 1000;
+    const dailyBase = Array.from({ length: 7 }, (_, idx) => {
+      const offset = 6 - idx;
+      const dayStart = now - (offset + 1) * dayMs;
+      const dayEnd = now - offset * dayMs;
+      const dayArts = articles.filter((a) => {
+        const t = articleSortTime(a);
+        return t > 0 && t > dayStart && t <= dayEnd;
+      });
+      if (dayArts.length === 0) return null as number | null;
+      const p = dayArts.filter((a) => lexiconSentiment(a).label === 'positive').length;
+      const n = dayArts.filter((a) => lexiconSentiment(a).label === 'negative').length;
+      const ratio = (p - n) / dayArts.length;
+      return Math.round(Math.max(0, Math.min(100, 50 + ratio * 50)));
+    });
+    // 今日桶若为空，用全量样本相对分作为 T0 展示（标明样本窗）
+    if (dailyBase[6] === null) dailyBase[6] = todaySentiment;
 
     const days = ['T-6', 'T-5', 'T-4', 'T-3', 'T-2', 'T-1', '今日 T0'];
     const maComparisonSeries = days.map((day, idx) => {
       const todayVal = dailyBase[idx];
-      const window = dailyBase.slice(0, idx + 1);
-      const maVal = Math.round(window.reduce((sum, v) => sum + v, 0) / window.length);
-      return { day, today: todayVal, ma7: maVal };
+      const window = dailyBase.slice(0, idx + 1).filter((v): v is number => v !== null);
+      const maVal = window.length > 0
+        ? Math.round(window.reduce((sum, v) => sum + v, 0) / window.length)
+        : null;
+      return { day, today: todayVal ?? 0, ma7: maVal ?? 0, hasSample: todayVal !== null };
     });
 
-    const sevenDayMA = maComparisonSeries[6].ma7;
+    const sampled = dailyBase.filter((v): v is number => v !== null);
+    const sevenDayMA = sampled.length > 0
+      ? Math.round(sampled.reduce((s, v) => s + v, 0) / sampled.length)
+      : todaySentiment;
     const delta = todaySentiment - sevenDayMA;
-    const isWarming = delta > 2;
-    const isDeteriorating = delta < -2;
+    const isWarming = sampled.length >= 2 && delta > 2;
+    const isDeteriorating = sampled.length >= 2 && delta < -2;
     const isConsolidating = !isWarming && !isDeteriorating;
 
-    // Generate mini sparklines based on real data & distributions
+    // Sparkline 只展示当日真实计数垫底，不伪造历史轨迹
     const alertSparkline = [
-      { t: 'T-6', val: 1 },
-      { t: 'T-5', val: 1 },
-      { t: 'T-4', val: 2 },
-      { t: 'T-3', val: 2 },
-      { t: 'T-2', val: 3 },
-      { t: 'T-1', val: Math.max(2, alertArticles.length - 1) },
-      { t: 'T0', val: Math.max(3, alertArticles.length) },
+      { t: 'T-6', val: 0 },
+      { t: 'T-5', val: 0 },
+      { t: 'T-4', val: 0 },
+      { t: 'T-3', val: 0 },
+      { t: 'T-2', val: 0 },
+      { t: 'T-1', val: 0 },
+      { t: 'T0', val: alertArticles.length },
     ];
 
     const trendingSparkline = [
-      { t: 'T-6', val: 2 },
-      { t: 'T-5', val: 3 },
-      { t: 'T-4', val: 4 },
-      { t: 'T-3', val: 6 },
-      { t: 'T-2', val: 9 },
-      { t: 'T-1', val: Math.max(8, trendingArticles.length * 2) },
-      { t: 'T0', val: Math.max(12, trendingArticles.length * 3) },
+      { t: 'T-6', val: 0 },
+      { t: 'T-5', val: 0 },
+      { t: 'T-4', val: 0 },
+      { t: 'T-3', val: 0 },
+      { t: 'T-2', val: 0 },
+      { t: 'T-1', val: 0 },
+      { t: 'T0', val: trendingArticles.length },
     ];
 
     const sectorBarData = sectorCounts.slice(0, 5).map((s) => ({
       name: s.name.slice(0, 2),
       fullName: s.name,
-      val: Math.max(2, s.count),
+      val: s.count,
     }));
 
     const sourceSparkline = [
-      { t: 'T-6', val: 4 },
-      { t: 'T-5', val: 5 },
-      { t: 'T-4', val: 7 },
-      { t: 'T-3', val: 8 },
-      { t: 'T-2', val: 9 },
-      { t: 'T-1', val: Math.max(8, sources.size - 1) },
-      { t: 'T0', val: Math.max(10, sources.size) },
+      { t: 'T-6', val: 0 },
+      { t: 'T-5', val: 0 },
+      { t: 'T-4', val: 0 },
+      { t: 'T-3', val: 0 },
+      { t: 'T-2', val: 0 },
+      { t: 'T-1', val: 0 },
+      { t: 'T0', val: sources.size },
     ];
 
     return {
@@ -184,17 +187,17 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
       isDeteriorating,
       isConsolidating,
       maComparisonSeries,
-      alertCount: alertArticles.length > 0 ? alertArticles.length : 3,
+      alertCount: alertArticles.length,
       alertSparkline,
-      trendingCount: trendingArticles.length > 0 ? trendingArticles.length : 6,
+      trendingCount: trendingArticles.length,
       trendingSparkline,
       topSectorName: topSector.name,
       topSectorCount: topSector.count,
-      topSectorShare: Math.round((topSector.count / Math.max(1, articles.length)) * 100) || 38,
+      topSectorShare: Math.round((topSector.count / Math.max(1, articles.length)) * 100),
       sectorBarData,
-      sourcesCount: sources.size > 0 ? sources.size : 12,
+      sourcesCount: sources.size,
       sourceSparkline,
-      sourceSamples: ['彭博社', '路透社', 'FT', 'MIT科技评论'].slice(0, 3).join(' · '),
+      sourceSamples: Array.from(sources).slice(0, 3).join(' · ') || '暂无来源名',
       total: articles.length,
     };
   }, [articles]);
@@ -249,7 +252,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span className="text-xs text-red-700 font-medium">起核心风险</span>
               </div>
               <span className="text-[10px] font-mono text-red-700 bg-red-100 px-1.5 py-0.5 rounded font-bold">
-                ↑ 环比+25%
+                {stats.alertCount === 0 ? '暂无环比' : '关键词命中'}
               </span>
             </div>
           </div>
@@ -279,7 +282,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
           </div>
 
           <p className="text-[11px] text-red-800/90 font-sans line-clamp-1 border-t border-red-200/60 pt-2">
-            涉及供应链中断、关税反补贴与合规
+            {stats.alertCount === 0
+              ? '近窗无风险关键词命中 · 不编造环比'
+              : `近窗 ${stats.alertCount} 篇命中风险关键词（关税/制裁/供应链等）`}
           </p>
         </div>
 
@@ -307,7 +312,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span className="text-xs text-amber-800 font-medium">个强信号</span>
               </div>
               <span className="text-[10px] font-mono text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-bold">
-                斜率 2.8x
+                {stats.trendingCount === 0 ? '暂无斜率' : '关键词命中'}
               </span>
             </div>
           </div>
@@ -337,7 +342,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
           </div>
 
           <p className="text-[11px] text-amber-800/90 font-sans line-clamp-1 border-t border-amber-200/60 pt-2">
-            热度环比激增超 50%，处于爆发早期
+            {stats.trendingCount === 0
+              ? '近窗无爆发关键词命中 · 不编造斜率'
+              : `近窗 ${stats.trendingCount} 篇命中爆发关键词（突破/量产/激增等）`}
           </p>
         </div>
 
@@ -413,10 +420,10 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span className="text-2xl sm:text-3xl font-serif font-black text-emerald-950 font-mono">
                   {stats.sourcesCount}
                 </span>
-                <span className="text-xs text-emerald-700 font-medium">家权威源</span>
+                <span className="text-xs text-emerald-700 font-medium">家来源名</span>
               </div>
               <span className="text-[10px] font-mono text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-bold">
-                健康度 99%
+                计数可复核
               </span>
             </div>
           </div>
@@ -459,7 +466,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 全球情绪动态仪表盘 · 今日情绪 vs 过去7日移动平均线 (7D-MA)
               </h4>
               <p className="text-[11px] text-stone-500">
-                实时量化短期舆论脉冲与中期基准均值的偏离度 · 研判情绪回暖或恶化拐点
+                词典启发式相对分 · 按发布时间分桶；无样本的日期记 0，不反推历史曲线，也不是市场情绪真值
               </p>
             </div>
           </div>

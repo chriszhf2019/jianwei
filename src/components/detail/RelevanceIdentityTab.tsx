@@ -75,6 +75,8 @@ interface RelevanceIdentityTabProps {
   onSelectPersona: (id: UserPersonaId) => void;
   /** 身份化「正反双向预测」：按需生成（仅服务全局默认身份） */
   onRunPersonaForecast?: (persona: UserPersona, article: NewsArticle) => Promise<NewsArticle | null>;
+  /** 写入「我的关注」行动备忘录，与 jianwei:action-memo 同一状态。 */
+  onAppendActionMemo?: (entry: string) => void;
 }
 
 export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
@@ -83,6 +85,7 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
   activePersona,
   onSelectPersona,
   onRunPersonaForecast,
+  onAppendActionMemo,
 }) => {
   const [selectedTabId, setSelectedTabId] = useState<UserPersonaId>(activePersona.id);
   const [forecastBusy, setForecastBusy] = useState(false);
@@ -112,11 +115,9 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
   };
 
   const handleSyncMemo = () => {
-    if (!currentImpact) return;
-    const currentMemo = localStorage.getItem('action-memo') || '';
+    if (!currentImpact || !onAppendActionMemo) return;
     const personaName = USER_PERSONAS.find((p) => p.id === currentImpact.personaId)?.name || '';
-    const newEntry = `\n\n【${article.title}】(${personaName}专属行动)：\n• ${currentImpact.recommendedAction}`;
-    localStorage.setItem('action-memo', currentMemo + newEntry);
+    onAppendActionMemo(`【${article.title}】(${personaName}专属行动)：\n• ${currentImpact.recommendedAction}`);
     setMemoSynced(true);
     setTimeout(() => setMemoSynced(false), 3000);
   };
@@ -318,10 +319,10 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
                       : 'bg-amber-100 text-amber-800 border-amber-300'
                 }`}>
                   {forecastEntry.directionBias === 'positive'
-                    ? 'AI 综合判断：主线对你有望偏利好'
+                    ? 'AI 模型推断：主线对你有望偏利好（未核验）'
                     : forecastEntry.directionBias === 'negative'
-                      ? 'AI 综合判断：主线对你偏利空'
-                      : 'AI 综合判断：方向不明'}
+                      ? 'AI 模型推断：主线对你偏利空（未核验）'
+                      : 'AI 模型推断：方向不明（未核验）'}
                 </span>
                 {forecastEntry.horizon && (
                   <span className="text-stone-500">
@@ -346,7 +347,7 @@ export const RelevanceIdentityTab: React.FC<RelevanceIdentityTabProps> = ({
               )}
 
               <p className="text-[10px] text-stone-400 border-t border-stone-100 pt-2 leading-relaxed">
-                口径：双向情景与概率带为 AI 生成观点（非事实结论、不构成投资建议）；主线数值是本地加权方向强度，不是发生概率，也未经过历史校准。生成结果已写回语料持久化。
+                口径：双向情景为 AI 模型推断（有密钥时仍非已核验事实、不构成投资建议）；主线数值是本地加权启发式方向强度，不是发生概率，也不是市场真值，且未经过历史校准。生成结果已写回语料持久化。
               </p>
             </>
           ) : (

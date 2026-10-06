@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NewsArticle, SpectrumLayerType, ReadingMode, SourceInspectionResult } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { NewsArticle, SpectrumLayerType, ReadingMode, DefaultReadingRhythm, SourceInspectionResult } from '../../types';
 import { 
   Sparkles, 
   Layers, 
@@ -17,10 +17,14 @@ import { MethodBadge } from '../common/MethodBadge';
 
 interface DeepSpectrumTabProps {
   article: NewsArticle;
+  initialRhythm?: DefaultReadingRhythm;
 }
 
-export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article }) => {
-  const [readingRhythm, setReadingRhythm] = useState<ReadingMode>('classic');
+export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article, initialRhythm = 'classic' }) => {
+  const [readingRhythm, setReadingRhythm] = useState<ReadingMode>(initialRhythm);
+  useEffect(() => {
+    setReadingRhythm(initialRhythm);
+  }, [article.id, initialRhythm]);
   const [activeLayer, setActiveLayer] = useState<SpectrumLayerType | 'all'>('all');
   const [sourceChecks, setSourceChecks] = useState<Record<string, {
     loading: boolean;
@@ -351,6 +355,26 @@ export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article }) => 
                             {result.contentHash && (
                               <div className="font-mono mt-0.5">
                                 页面指纹：{result.contentHash.slice(0, 16)}… · 抓取于 {new Date(result.fetchedAt).toLocaleString('zh-CN')}
+                              </div>
+                            )}
+                            {result.claimReviews && result.claimReviews.length > 0 && (
+                              <div className="mt-1 space-y-1">
+                                <div className="font-bold">页面自带 ClaimReview {result.claimReviews.length} 条</div>
+                                {result.claimReviews.slice(0, 3).map((review) => (
+                                  <div key={`${review.claimReviewed}:${review.url || ''}`} className="bg-white/60 border border-current/10 rounded px-2 py-1">
+                                    <div>{review.claimReviewed}</div>
+                                    <div className="font-mono mt-0.5">
+                                      {[
+                                        review.authorName,
+                                        review.datePublished,
+                                        review.ratingLabel,
+                                        review.ratingLabel ? '' : typeof review.ratingValue === 'number'
+                                          ? `原始评分 ${review.ratingValue}${typeof review.bestRating === 'number' ? ` / ${review.bestRating}` : ''}`
+                                          : '',
+                                      ].filter(Boolean).join(' · ')}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             )}
                             {result.reason && <div className="mt-0.5">原因：{result.reason}</div>}

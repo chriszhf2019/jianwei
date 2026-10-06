@@ -1,38 +1,27 @@
 import React, { useMemo } from 'react';
-import { NewsArticle } from '../../types';
+import { NewsArticle, type PredictionContract } from '../../types';
 import { CalendarClock, AlertTriangle, Info } from 'lucide-react';
-import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
-import { articleSortTime } from '../../utils/articleTime';
+import { deriveTomorrowHeat, type TomorrowHeatSnapshot } from '../../utils/corpusSnapshot';
+import { dueWatchItems } from '../../utils/forecastReference';
 
 interface TomorrowWatchlistWidgetProps {
   articles: NewsArticle[];
+  tomorrowWatch?: TomorrowHeatSnapshot | null;
+  predictionContracts?: PredictionContract[];
+  onOpenArticleById?: (articleId: string) => void;
 }
 
-export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = ({ articles }) => {
-  const watchlist = useMemo(() => {
-    // 按真实发布时间取最近 N 条；不能依赖数组首尾，因为语料合并来源不同。
-    const recent = [...articles]
-      .sort((a, b) => articleSortTime(b) - articleSortTime(a))
-      .slice(0, Math.min(articles.length, 80));
-    const counts = new Map<string, number>();
-    for (const a of recent) {
-      for (const id of detectSectors(a)) {
-        counts.set(id, (counts.get(id) || 0) + 1);
-      }
-    }
-    const totalWindow = recent.length || 1;
-    const list = SECTOR_TAXONOMY.map((sector) => ({
-      sector,
-      count: counts.get(sector.id) || 0,
-      share: Math.round(((counts.get(sector.id) || 0) / totalWindow) * 100),
-    }))
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    const maxCount = Math.max(...list.map((x) => x.count), 1);
-    return { list, maxCount, totalWindow };
-  }, [articles]);
+export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = ({
+  articles,
+  tomorrowWatch,
+  predictionContracts = [],
+  onOpenArticleById,
+}) => {
+  const watchlist = useMemo(
+    () => tomorrowWatch ?? deriveTomorrowHeat(articles),
+    [articles, tomorrowWatch],
+  );
+  const dueItems = useMemo(() => dueWatchItems(predictionContracts), [predictionContracts]);
 
   return (
     <div className="bg-white border-2 border-stone-800 rounded-xl p-6 shadow-xs font-sans space-y-6">
@@ -57,15 +46,43 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
         </div>
       </div>
 
-      {articles.length === 0 || watchlist.list.length === 0 ? (
+      <div className="space-y-2">
+        <h4 className="text-sm font-serif font-bold text-stone-950">核验日程</h4>
+        <p className="text-xs text-stone-500">
+          只列出未回测、且到期日是今天、明天或已经逾期的契约。日程没有发生概率。
+        </p>
+        {dueItems.length === 0 ? (
+          <p className="text-xs text-stone-400">没有今日、明日或逾期未回测的契约。</p>
+        ) : (
+          <div className="space-y-2">
+            {dueItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onOpenArticleById?.(item.articleId)}
+                className="w-full text-left p-3 bg-[#FAF8F5] border border-stone-300 rounded-lg hover:border-stone-800"
+              >
+                <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-stone-500">
+                  <span>{item.targetVerificationDate}</span>
+                  <span className="text-[#E3120B]">{item.label}</span>
+                </div>
+                <p className="mt-1 text-sm font-serif font-bold text-stone-950">{item.question}</p>
+                <p className="mt-0.5 text-[11px] text-stone-500 truncate">{item.articleTitle}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {watchlist.corpusSize === 0 || watchlist.list.length === 0 ? (
         <div className="py-8 text-center text-stone-400 text-xs">
           当前语料为空或未命中任何赛道关键词（请先配置 RSS 并摄取）。
         </div>
       ) : (
         <div className="space-y-3">
           {watchlist.list.map((item, idx) => (
-            <div
-              key={item.sector.id}
+              <div
+              key={item.sectorId}
               className="p-4 bg-[#FAF8F5] border border-stone-300 hover:border-stone-800 rounded-xl transition-all space-y-2"
             >
               <div className="flex items-center justify-between">
@@ -74,7 +91,7 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
                     {idx + 1}
                   </span>
                   <span className="text-sm font-serif font-bold text-stone-950">
-                    {item.sector.name}
+                    {item.name}
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -88,7 +105,7 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
                 <div style={{ width: `${(item.count / watchlist.maxCount) * 100}%` }} className="bg-stone-900 h-full" />
               </div>
               <p className="text-xs text-stone-600 leading-relaxed font-sans">
-                近 {watchlist.totalWindow} 条中命中 <strong>{item.count} 条</strong>（关键词：{item.sector.keywords.slice(0, 5).join('、')}）。
+                近 {watchlist.totalWindow} 条中命中 <strong>{item.count} 条</strong>（关键词：{item.keywords.join('、')}）。
                 建议明日持续跟踪该赛道的新增信号。
               </p>
             </div>
@@ -99,8 +116,7 @@ export const TomorrowWatchlistWidget: React.FC<TomorrowWatchlistWidgetProps> = (
       <div className="text-[11px] text-stone-500 border-t border-stone-200 pt-2 flex items-start space-x-1.5">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>
-          真实“概率化明早点名”需要日历事件与历史基准率建模（见 DATA_PIPELINE_DESIGN.md §5/M2）；
-          当前以语料热度口径提供可复核的明日跟踪候选，不编造概率。
+          赛道排名是最近窗口的热度占比。核验日程来自已保存契约的到期日。某一分类已确认且能判定正负的回测不足 20 条时，不计算基准率。
         </span>
       </div>
     </div>

@@ -402,10 +402,10 @@ export const ShareCardModal: React.FC<ShareCardModalProps> = ({
 
               {/* Footer */}
               <div className="pt-2 border-t border-stone-200 flex items-center justify-between text-[10px] text-stone-500 font-sans">
-                <span>出处：{prof?.displayName || article.sourceName || '权威全景信源'}</span>
-                <span className="font-bold text-emerald-600 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>逻辑因果链已核验</span>
+                <span>出处：{prof?.displayName || article.sourceName || '来源未标明'}</span>
+                <span className="font-bold text-amber-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-amber-700" />
+                  <span>逻辑链为模型/编辑推断 · 未核验</span>
                 </span>
               </div>
             </div>

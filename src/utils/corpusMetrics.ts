@@ -1,5 +1,5 @@
-// 面向语料的轻量“指标代理”工具：全部为透明可复核的统计口径（非黑盒模型）。
-// 说明：情感词典法是基于中文财经情感词的朴素基线，仅作趋势代理，不构成投资依据。
+// 面向语料的轻量“指标代理”工具：全部为透明可复核的启发式统计（非黑盒模型）。
+// 说明：情感词典法是基于中文财经情感词的朴素基线，可复核但不是市场真值，也不构成投资依据。
 
 import { detectSectors } from './sectorTaxonomy';
 import { parseArticleDate } from './articleTime';
@@ -13,6 +13,40 @@ export interface SentimentCounts {
   /** 同一篇同时命中正负词：不重复塞进正/负计数，避免三项之和超过样本量。 */
   mixed: number;
   scanned: number;
+}
+
+export type SentimentLabel = 'positive' | 'negative' | 'mixed' | 'neutral';
+
+export interface LexiconSentiment {
+  label: SentimentLabel;
+  positiveHits: string[];
+  negativeHits: string[];
+}
+
+const SENTIMENT_LABEL_TEXT: Record<SentimentLabel, string> = {
+  positive: '🟢 偏正面',
+  negative: '🔴 偏负面',
+  mixed: '🟡 多空交织',
+  neutral: '⚪ 中性',
+};
+
+export function sentimentLabelText(label: SentimentLabel): string {
+  return SENTIMENT_LABEL_TEXT[label];
+}
+
+/** 单篇词典归类。正负词都出现时记为交织，不按命中次数改判。 */
+export function lexiconSentiment(article: { title?: string; summary?: string }): LexiconSentiment {
+  const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
+  const positiveHits = POSITIVE_WORDS.filter((word) => text.includes(word.toLowerCase()));
+  const negativeHits = NEGATIVE_WORDS.filter((word) => text.includes(word.toLowerCase()));
+  const label: SentimentLabel = positiveHits.length > 0 && negativeHits.length > 0
+    ? 'mixed'
+    : positiveHits.length > 0
+      ? 'positive'
+      : negativeHits.length > 0
+        ? 'negative'
+        : 'neutral';
+  return { label, positiveHits, negativeHits };
 }
 
 /** 词典法粗粒度情感计数（标题+摘要）；每篇只归入正/负/中性/交织其中一类。 */
@@ -176,9 +210,8 @@ export function deriveFromList(list: NewsArticleLike[]): CorpusDerived {
 export function corpusDerived(
   articles: NewsArticleLike[],
   windowDays = 30,
-  nowMs?: number
+  now = Date.now()
 ): CorpusDerived {
-  const now = typeof nowMs === 'number' ? nowMs : Date.now();
   const windowMs = windowDays * 24 * 3600 * 1000;
   const recent = articles.filter((a) => {
     if (!a.publishedAt) return true; // 站内/用户投递文章无真实发布时刻：保留

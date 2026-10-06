@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Target,
 } from 'lucide-react';
+import { MethodBadge } from '../common/MethodBadge';
 import {
   ResponsiveContainer,
   RadarChart,
@@ -214,15 +215,16 @@ export const CompetitorDynamicRadar: React.FC<CompetitorDynamicRadarProps> = ({
             <h2 className="text-lg sm:text-xl font-serif font-black text-stone-950">
               跨国企业竞争对手异动雷达 (Competitive Dynamic Radar)
             </h2>
+            <MethodBadge methodId="editorial_template" compact />
           </div>
           <p className="text-xs text-stone-500">
-            四维穿透：专利技术密度、顶级人才流动、全球扩产基建与生态并购 · 对标态势与反制攻防
+            雷达分数、专利、人才和并购条目来自编辑档案。语料只用于跳到相关标题，不会每日同步工商或专利库。
           </p>
         </div>
 
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-xs font-mono font-bold">
           <Target className="w-3.5 h-3.5 text-amber-700" />
-          <span>战略对标战情室</span>
+          <span>编辑档案</span>
         </div>
       </div>
 
@@ -465,7 +467,7 @@ export const CompetitorDynamicRadar: React.FC<CompetitorDynamicRadarProps> = ({
           </div>
 
           <div className="text-[10px] font-mono text-stone-400 text-right pt-2">
-            战略雷达算法版本：v2.6-enterprise · 每日凌晨自动同步全球专利与工商动向
+            编辑档案 · 分数和动向不是实时同步结果
           </div>
         </div>
       </div>

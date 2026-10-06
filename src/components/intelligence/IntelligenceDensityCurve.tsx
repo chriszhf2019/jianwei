@@ -1,90 +1,25 @@
 import React, { useMemo, useState } from 'react';
 import { NewsArticle } from '../../types';
 import { Activity, Sparkles, Clock, Layers } from 'lucide-react';
-import { parseLocalHour } from '../../utils/publishedAt';
-import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
+import { deriveDensityCurve, type DensityCurveSnapshot } from '../../utils/arrivalPanels';
 
 interface IntelligenceDensityCurveProps {
   articles: NewsArticle[];
+  density?: DensityCurveSnapshot;
   onSelectArticleTitle?: (title: string) => void;
 }
 
-const SLOT_COUNT = 12;
 const PALETTE = ['#E3120B', '#0284C7', '#8B5CF6', '#0D9488', '#D97706', '#65A30D'];
-
-function buildSlots() {
-  return Array.from({ length: SLOT_COUNT }, (_, idx) => {
-    const start = idx * 2;
-    const end = start + 2;
-    const labelHour = end === 24 ? 24 : end;
-    return {
-      hour: `${String(labelHour).padStart(2, '0')}:00`,
-      rangeLabel: `${String(start).padStart(2, '0')}–${String(end).padStart(2, '0')}`,
-    };
-  });
-}
 
 export const IntelligenceDensityCurve: React.FC<IntelligenceDensityCurveProps> = ({
   articles,
+  density,
   onSelectArticleTitle,
 }) => {
   type Dim = 'none' | 'source' | 'sector';
   const [dim, setDim] = useState<Dim>('source');
 
-  const model = useMemo(() => {
-    const slots = buildSlots().map((s) => ({
-      ...s,
-      total: 0,
-      sources: new Map<string, number>(),
-      sectors: new Map<string, number>(),
-      samples: [] as string[],
-    }));
-    let timed = 0;
-    const now = Date.now();
-    for (const a of articles) {
-      if (!a.publishedAt) continue;
-      const ts = new Date(a.publishedAt).getTime();
-      if (Number.isNaN(ts)) continue;
-      if (now - ts > 30 * 24 * 3600 * 1000) continue; // 只统计近 30 天，排除历史旧文
-      const hour = parseLocalHour(a.publishedAt);
-      if (hour === null) continue;
-      timed += 1;
-      const idx = Math.floor(hour / 2);
-      const slot = slots[idx];
-      slot.total += 1;
-      const src = a.sourceName || '其他';
-      slot.sources.set(src, (slot.sources.get(src) || 0) + 1);
-      for (const id of detectSectors(a)) {
-        slot.sectors.set(id, (slot.sectors.get(id) || 0) + 1);
-      }
-      if (a.title && slot.samples.length < 2) slot.samples.push(a.title);
-    }
-    const max = Math.max(...slots.map((s) => s.total), 1);
-
-    const sourceTotals = new Map<string, number>();
-    const sectorTotals = new Map<string, number>();
-    for (const slot of slots) {
-      for (const [src, n] of slot.sources) sourceTotals.set(src, (sourceTotals.get(src) || 0) + n);
-      for (const [id, n] of slot.sectors) sectorTotals.set(id, (sectorTotals.get(id) || 0) + n);
-    }
-    const sourceOrder = [...sourceTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k).slice(0, 6);
-    const sectorOrder = [...sectorTotals.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k).slice(0, 6);
-    const sectorName = (id: string) => SECTOR_TAXONOMY.find((x) => x.id === id)?.name || id;
-
-    const rows = slots.map((slot) => ({
-      ...slot,
-      sourceSegments: sourceOrder
-        .map((src) => ({ source: src, count: slot.sources.get(src) || 0 }))
-        .filter((s) => s.count > 0),
-      sourceOther: [...slot.sources.entries()].filter(([src]) => !sourceOrder.includes(src)).reduce((s, [, n]) => s + n, 0),
-      sectorSegments: sectorOrder
-        .map((id) => ({ source: sectorName(id), id, count: slot.sectors.get(id) || 0 }))
-        .filter((s) => s.count > 0),
-      sectorOther: [...slot.sectors.entries()].filter(([id]) => !sectorOrder.includes(id)).reduce((s, [, n]) => s + n, 0),
-    }));
-
-    return { rows, max, timed, sourceOrder, sectorOrder, sectorName };
-  }, [articles]);
+  const model = useMemo(() => density ?? deriveDensityCurve(articles), [density, articles]);
 
   const peakSlots = useMemo(
     () => model.rows.filter((s) => s.total > 0).sort((a, b) => b.total - a.total).slice(0, 6),
@@ -103,6 +38,7 @@ export const IntelligenceDensityCurve: React.FC<IntelligenceDensityCurveProps> =
             </h3>
             <p className="text-xs text-stone-500">
               近 30 天外部信源按发布时刻的到达节奏（2 小时槽计数；共 {model.timed} 条，历史旧文已排除）；无发布时间条目不参与。
+              {density ? '时段按服务端本地时区。' : '时段按本机时区。'}
             </p>
           </div>
         </div>
@@ -241,7 +177,7 @@ export const IntelligenceDensityCurve: React.FC<IntelligenceDensityCurveProps> =
                 {model.sectorOrder.map((id, i) => (
                   <span key={id} className="flex items-center space-x-1">
                     <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: PALETTE[i % PALETTE.length] }} />
-                    <span>{model.sectorName(id)}</span>
+                    <span>{model.sectorNames[id] || id}</span>
                   </span>
                 ))}
                 {model.rows.some((r) => r.sectorOther > 0) && (
@@ -258,7 +194,7 @@ export const IntelligenceDensityCurve: React.FC<IntelligenceDensityCurveProps> =
           <div className="space-y-2 pt-2 border-t border-stone-200">
             <div className="text-xs font-serif font-bold text-stone-600 flex items-center space-x-1">
               <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />
-              <span>高峰时段（相对峰值 ≥50%）与样例条目：</span>
+              <span>计数大于 0 的时段，按条数取前 6，并附样例条目：</span>
             </div>
             {peakSlots.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">

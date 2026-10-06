@@ -3,9 +3,10 @@ import type { PredictionContract } from '../../types';
 import { Activity, AlertTriangle, Scale } from 'lucide-react';
 import {
   calibrationBuckets,
+  collectCalibrationSample,
   forecastMetrics,
-  predictionOutcomes,
-  type ForecastPoint,
+  MIN_CALIBRATION_SAMPLE,
+  monthlyCalibration,
 } from '../../utils/predictionCalibration';
 
 interface PredictionCalibrationPanelProps {
@@ -17,43 +18,21 @@ export const PredictionCalibrationPanel: React.FC<PredictionCalibrationPanelProp
   contracts,
   excludeIds = new Set(),
 }) => {
-  const data = useMemo(() => {
-    const userPoints: ForecastPoint[] = [];
-    const aiPoints: ForecastPoint[] = [];
-    for (const contract of contracts) {
-      if (excludeIds.has(contract.id)) continue;
-      if (
-        contract.ledger !== 'server' ||
-        contract.integrityValid !== true ||
-        contract.reviewStatus !== 'confirmed'
-      ) continue;
-      const hit = predictionOutcomes(contract);
-      if (!hit) continue;
-      userPoints.push({ probability: contract.userPred.confidence / 100, outcome: hit.user });
-      aiPoints.push({ probability: contract.aiPred.confidence / 100, outcome: hit.ai });
-    }
-    const buckets = calibrationBuckets(userPoints, aiPoints);
-    return {
-      user: forecastMetrics(userPoints),
-      ai: forecastMetrics(aiPoints),
-      buckets,
-    };
-  }, [contracts, excludeIds]);
+  const collected = useMemo(
+    () => collectCalibrationSample(contracts, excludeIds),
+    [contracts, excludeIds],
+  );
+  const data = useMemo(() => ({
+    user: forecastMetrics(collected.user),
+    ai: forecastMetrics(collected.ai),
+    buckets: calibrationBuckets(collected.user, collected.ai),
+    months: monthlyCalibration(collected),
+  }), [collected]);
 
   const sample = data.user.count;
-  const missingEvidence = contracts.filter(
-    (contract) =>
-      !excludeIds.has(contract.id) &&
-      contract.status !== 'pending' &&
-      !String(contract.actualOutcome || '').trim()
-  ).length;
-  const awaitingTwoPersonReview = contracts.filter(
-    (contract) =>
-      !excludeIds.has(contract.id) &&
-      contract.status !== 'pending' &&
-      contract.reviewStatus !== 'confirmed'
-  ).length;
-  const enough = sample >= 20;
+  const missingEvidence = collected.missingEvidence;
+  const awaitingTwoPersonReview = collected.awaitingTwoPersonReview;
+  const enough = sample >= MIN_CALIBRATION_SAMPLE;
   const winner =
     enough && data.user.brier !== null && data.ai.brier !== null
       ? data.user.brier < data.ai.brier
@@ -77,7 +56,7 @@ export const PredictionCalibrationPanel: React.FC<PredictionCalibrationPanelProp
 
       {sample === 0 ? (
         <p className="text-xs text-stone-400">
-          暂无已解决的真实契约。完成预测回测后，这里会按概率区间计算命中率，不会用单次结果宣称模型已校准。
+          暂无已解决的真实契约。完成预测回测后，这里会按概率区间计算命中率，并按回测月份列出 Brier、Log Loss 和样本量。不足 {MIN_CALIBRATION_SAMPLE} 条的月份不计算 ECE，也不会用单次结果宣称模型已校准。
           {missingEvidence > 0 ? ` 另有 ${missingEvidence} 条旧记录缺少结果证据，未进入统计。` : ''}
           {awaitingTwoPersonReview > 0 ? ` 另有 ${awaitingTwoPersonReview} 条尚未完成双人复核，未进入统计。` : ''}
         </p>
@@ -142,10 +121,51 @@ export const PredictionCalibrationPanel: React.FC<PredictionCalibrationPanelProp
             </table>
           </div>
 
+          <div className="space-y-2">
+            <div className="text-[11px] font-serif font-bold text-stone-200">月度回测</div>
+            {data.months.length === 0 ? (
+              <p className="text-[11px] text-stone-400">已确认记录都没有回测日期，月度表为空。</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="text-stone-500 font-mono">
+                    <tr className="border-b border-stone-700">
+                      <th className="text-left py-1.5">回测月</th>
+                      <th className="text-right py-1.5">用户 N / Brier / Log Loss</th>
+                      <th className="text-right py-1.5">模型 N / Brier / Log Loss</th>
+                      <th className="text-right py-1.5">ECE</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-stone-300">
+                    {data.months.map((row) => (
+                      <tr key={row.month} className="border-b border-stone-800/70">
+                        <td className="py-1.5 font-mono">{row.month}</td>
+                        <td className="py-1.5 text-right font-mono">
+                          {row.user.count} / {row.user.brier ?? '—'} / {row.user.logLoss ?? '—'}
+                        </td>
+                        <td className="py-1.5 text-right font-mono">
+                          {row.ai.count} / {row.ai.brier ?? '—'} / {row.ai.logLoss ?? '—'}
+                        </td>
+                        <td className="py-1.5 text-right font-mono">
+                          {row.userEce === null ? '样本不足' : `${row.userEce} / ${row.aiEce}`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {collected.undatedCount > 0 && (
+              <p className="text-[11px] text-stone-400">
+                {collected.undatedCount} 条已确认记录没有回测日期，未进入月度表。
+              </p>
+            )}
+          </div>
+
           <p className="text-[10px] text-stone-500">
             口径：Brier=(P-O)²，Log Loss 对概率和结果联合评分；预测区间按 20 个百分点分桶。
-            模型概率仍为未校准估计，样本达到更大规模后还应检查时间漂移和领域差异。
-            只有服务端存证、完整性校验通过且双人复核确认的记录才进入统计。
+            月度按回测时间的 UTC 月份汇总。不足 {MIN_CALIBRATION_SAMPLE} 条不计算 ECE，也不比较谁更准。
+            模型概率仍为未校准估计。只有服务端存证、完整性校验通过且双人复核确认的记录才进入统计。
           </p>
         </>
       )}

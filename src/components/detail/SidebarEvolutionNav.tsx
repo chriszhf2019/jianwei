@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NewsArticle, CognitiveDetailTab } from '../../types';
+import { EditorialNotice } from '../common/EditorialNotice';
+import { fetchArticleTimeline } from '../../utils/articleTimeline';
 import {
   Clock,
   Sparkles,
@@ -39,19 +41,6 @@ export interface EvolutionMilestone {
   sectionName: string;
 }
 
-interface EvolutionResponse {
-  summary: string;
-  timeline: Array<{
-    phase: string;
-    phaseLabel: string;
-    timeLabel: string;
-    title: string;
-    detail: string;
-    impact: string;
-    keySignals?: string[];
-  }>;
-}
-
 const TAB_ICON_MAP: Record<CognitiveDetailTab, React.ReactNode> = {
   seven_elements: <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />,
   logic_tree: <GitFork className="w-3.5 h-3.5 text-purple-600" />,
@@ -69,31 +58,24 @@ export const SidebarEvolutionNav: React.FC<SidebarEvolutionNavProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [milestones, setMilestones] = useState<EvolutionMilestone[]>([]);
   const [summary, setSummary] = useState<string>('');
+  const [timelineFallback, setTimelineFallback] = useState<string | null>(null);
   const [activeMilestoneId, setActiveMilestoneId] = useState<string>('node-1');
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState<boolean>(false);
 
-  const fetchTimelineData = async () => {
+  const fetchTimelineData = async (force = false) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/article-timeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          article: {
-            id: article.id,
-            title: article.title,
-            summary: article.summary,
-            oneSentenceVerdict: article.oneSentenceVerdict,
-            category: article.category,
-            publishedAt: article.publishedAt,
-          },
-        }),
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: EvolutionResponse = await res.json();
+      const data = await fetchArticleTimeline({
+        id: article.id,
+        title: article.title,
+        summary: article.summary,
+        oneSentenceVerdict: article.oneSentenceVerdict,
+        category: article.category,
+        publishedAt: article.publishedAt,
+      }, force);
       setSummary(data.summary || '事件全景演变脉络与深度研判导航');
+      setTimelineFallback(data.fallback ? (data.fallbackNote || '本次为模板时间线，不是模型判断。') : null);
 
       const rawNodes = Array.isArray(data.timeline) ? data.timeline : [];
       const mapped: EvolutionMilestone[] = rawNodes.map((n, idx) => {
@@ -133,8 +115,8 @@ export const SidebarEvolutionNav: React.FC<SidebarEvolutionNavProps> = ({
         };
       });
 
-      // If backend gave less than 3, pad with standard structure
       if (mapped.length < 3) {
+        setTimelineFallback('返回节点不足，侧栏已用固定模板补齐，不是模型判断。');
         setMilestones([
           {
             id: 'node-0',
@@ -175,6 +157,7 @@ export const SidebarEvolutionNav: React.FC<SidebarEvolutionNavProps> = ({
       }
     } catch (e) {
       console.warn('Fallback to local milestone timeline:', e);
+      setTimelineFallback('时间线请求失败，侧栏使用固定模板，不是模型判断。');
       setMilestones([
         {
           id: 'node-0',
@@ -271,7 +254,7 @@ export const SidebarEvolutionNav: React.FC<SidebarEvolutionNavProps> = ({
               </span>
             </div>
             <button
-              onClick={fetchTimelineData}
+              onClick={() => fetchTimelineData(true)}
               disabled={loading}
               title="重新生成/刷新演变脉络"
               className="p-1 rounded-md text-stone-400 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
@@ -279,6 +262,10 @@ export const SidebarEvolutionNav: React.FC<SidebarEvolutionNavProps> = ({
               <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
+
+          {timelineFallback && (
+            <EditorialNotice title="模板时间线">{timelineFallback}</EditorialNotice>
+          )}
 
           {/* SVG Linked Interactive Vertical Timeline */}
           <div className="relative pt-1 pb-1">
@@ -380,7 +367,9 @@ export const SidebarEvolutionNav: React.FC<SidebarEvolutionNavProps> = ({
           {/* Quick Tip Footer */}
           <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-[10px] text-stone-400 font-serif">
             <span>💡 点击节点直达深度段落</span>
-            <span className="font-mono text-emerald-700">AI 演变推演</span>
+            <span className={`font-mono ${timelineFallback ? 'text-amber-800' : 'text-emerald-700'}`}>
+              {timelineFallback ? '模板脉络' : '模型时间线'}
+            </span>
           </div>
         </div>
       </aside>

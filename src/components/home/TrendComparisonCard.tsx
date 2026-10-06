@@ -77,14 +77,14 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-serif font-black text-sm tracking-wide text-stone-100 truncate">
-                跨语料趋势对比与关键词热度演变
+                今日词频速览
               </h3>
               <span className="hidden sm:inline-block px-2 py-0.5 bg-stone-800 text-stone-300 font-mono text-[10px] rounded-full border border-stone-700">
-                时间窗演变算法 + AI 总结
+                当日看板 · 词频启发式
               </span>
             </div>
             <p className="text-[11px] text-stone-400 truncate mt-0.5">
-              对比语料在今日 vs 近 3 日 vs 近 30 日的出现频次与动量变化
+              以今日为锚，对照近 3 日 / 近 30 日词频；更宽的「最近」态势请看情报中心
             </p>
           </div>
         </div>
@@ -110,13 +110,16 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
       {/* 展开区域 */}
       {open && (
         <div className="p-5 space-y-4 bg-[#FAF9F6]">
-          {/* AI 纵览总结卡片 */}
+          {/* 词频启发式摘要（模板拼接，不是模型核验） */}
           {data?.aiSynthesis && (
             <div className="p-3.5 bg-gradient-to-r from-red-50/80 via-amber-50/50 to-stone-50 border border-red-200/80 rounded-xl flex items-start gap-3">
               <Sparkles className="w-4 h-4 text-[#E3120B] shrink-0 mt-0.5" />
               <div className="text-xs text-stone-800 leading-relaxed font-sans">
-                <span className="font-serif font-bold text-stone-900 mr-1">AI 演变纵览：</span>
+                <span className="font-serif font-bold text-stone-900 mr-1">词频摘要：</span>
                 {data.aiSynthesis}
+                <p className="mt-1.5 text-[10px] text-stone-500 font-mono">
+                  由时间窗词频规则拼接，不是模型核验，也不是市场真值。
+                </p>
               </div>
             </div>
           )}
@@ -200,7 +203,7 @@ export const TrendComparisonCard: React.FC<TrendComparisonCardProps> = ({
           )}
 
           <div className="text-right text-[10px] text-stone-400 font-mono">
-            说明：算法按时间衰减权重自动比对词频变动率；支持直接点击关键词筛选特定专题报道。
+            说明：按时间窗统计站内词频变动；热度指数是启发式相对分，不是市场热度真值。可点击关键词筛选语料。
           </div>
         </div>
       )}

@@ -3,14 +3,15 @@ import {
   NewsArticle, 
   HomeReadingMode, 
   UserPersona, 
-  RadarKeyword 
+  RadarKeyword,
+  ReadingDensity,
 } from '../../types';
 import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
-import { UserCheck, ShieldCheck, Bookmark, Radio, Target } from 'lucide-react';
-import { corpusDerived, deriveFromList } from '../../utils/corpusMetrics';
-import { articleSortTime, parseArticleDate } from '../../utils/articleTime';
+import { UserCheck, ShieldCheck, Bookmark, Radio, Target, Sparkles, Link2, FileText } from 'lucide-react';
+import { deriveFromList } from '../../utils/corpusMetrics';
+import { articleSortTime, parseArticleDate, filterTodayBoardArticles } from '../../utils/articleTime';
 import { detectBreaking } from '../../utils/todayBrief';
 import { NEWS_INTEREST_GROUPS, SECTOR_TAXONOMY, keywordMatches, matchesNewsInterestGroups } from '../../utils/sectorTaxonomy';
 import { monitorHits } from '../../utils/monitorKeywords';
@@ -62,6 +63,9 @@ interface HomeViewProps {
   onOpenTermExplain: (term: string) => void;
   onOpenSettings?: () => void;
   onOpenShareCard?: (article: NewsArticle) => void;
+  /** 打开「读懂新闻」：贴链接 / 贴正文 */
+  onOpenAnalyze?: () => void;
+  readingDensity?: ReadingDensity;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -84,6 +88,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenTermExplain,
   onOpenSettings,
   onOpenShareCard,
+  onOpenAnalyze,
+  readingDensity = 'comfortable',
 }) => {
 
   const [selectedCategory, setSelectedCategory] = useState<string>(() =>
@@ -106,19 +112,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
     });
   }, [interestSignature]);
 
-  // —— 今日简报数据：今日(本地日期)真实发布条目 → 情绪/热词/突发/赛道（见 utils/todayBrief.ts）——
-  const { todayList, dToday, d30, scope, breaking, sectorHeat, dayStartTs } = useMemo(() => {
+  // —— 当日看板：今日发布 + 今日同步入库的外部条目；不足也不回退近 30 天 ——
+  const { todayList, dToday, breaking, sectorHeat, dayStartTs } = useMemo(() => {
     const now = new Date();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const list = articles.filter((a) => {
-      if (!a.isExternal || !a.publishedAt) return false;
-      const ts = parseArticleDate(a.publishedAt);
-      return ts !== null && ts >= dayStart;
-    });
+    const list = filterTodayBoardArticles(articles);
     const today = deriveFromList(list);
-    const useToday = today.scanned >= 20;
-    const fallback = useToday ? today : corpusDerived(articles, 30);
-    // 今日赛道热度（统一替代“热词+赛道”两行）：每个赛道 = 命中文章数 + 命中 top 词（真实派生）
+    // 今日赛道热度：每个赛道 = 命中文章数 + 命中 top 词（真实派生）
     const sectorAgg = new Map<string, { count: number; words: Map<string, number> }>();
     for (const a of list) {
       const text = `${a.title || ''} ${a.summary || ''}`.toLowerCase();
@@ -146,8 +146,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return {
       todayList: list,
       dToday: today,
-      d30: fallback,
-      scope: (useToday ? 'today' : '30d') as 'today' | '30d',
       breaking: detectBreaking(list),
       sectorHeat: heat,
       dayStartTs: dayStart,
@@ -181,20 +179,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     };
   }, [interestSignature, radarKeywords]);
 
-  // —— 当日信息流池：首页只展示“今日（本地日期）真实发布”的外部新闻；
-  //     站内/投递文章若其发布日期是今天也计入。历史旧文不再混入首页信息流。
+  // —— 当日信息流池：今日真实发布，或今日同步入库的外部稿（不静默扩到近 30 天） ——
   const todayFeed = useMemo(() => {
-    const nextDay = dayStartTs + 24 * 3600 * 1000;
-    return articles.filter((a) => {
-      // 1) 有真实发布时间的外部条目：按今日判定
-      if (a.publishedAt) {
-        const ts = parseArticleDate(a.publishedAt);
-        if (ts !== null) return ts >= dayStartTs && ts < nextDay;
-      }
-      // 2) 无 publishedAt 的站内/投递文章：按 sourceDate/date（如用户今天 AI 投递）
-      const st = parseArticleDate(a.sourceDate) ?? parseArticleDate(a.date);
-      return st !== null && st >= dayStartTs && st < nextDay;
-    });
+    return filterTodayBoardArticles(articles, dayStartTs + 12 * 3600 * 1000);
   }, [articles, dayStartTs]);
 
   // 近 3 日信息流池 (72 小时范围)
@@ -211,25 +198,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
     });
   }, [articles, dayStartTs]);
 
-  // 时间窗口选择（今日 / 近 3 日 / 全部）
+  // 时间窗口选择（默认今日；近 3 日 / 全部需手动切换，不静默扩窗）
   const [timeHorizon, setTimeHorizon] = useState<'today' | '3d' | 'all'>('today');
 
   // 当日静默检测：今日确实无任何新情报
   const isQuietDay = todayFeed.length === 0;
 
-  // 基础底池：按时间窗口选取；若今日无条目，智能切换近 3 日或全部，避免空白
+  // 基础底池：严格按所选时间窗；今日空则空，不自动塞近 3 日/全部
   const basePool = useMemo(() => {
-    if (timeHorizon === 'today') {
-      if (isQuietDay) {
-        return threeDayFeed.length > 0 ? threeDayFeed : articles;
-      }
-      return todayFeed;
-    }
-    if (timeHorizon === '3d') {
-      return threeDayFeed.length > 0 ? threeDayFeed : articles;
-    }
+    if (timeHorizon === 'today') return todayFeed;
+    if (timeHorizon === '3d') return threeDayFeed;
     return articles;
-  }, [timeHorizon, isQuietDay, todayFeed, threeDayFeed, articles]);
+  }, [timeHorizon, todayFeed, threeDayFeed, articles]);
 
   // 当前底池命中监控词的条数（分类 pill 徽章）
   const monitorTodayCount = useMemo(
@@ -371,57 +351,97 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 font-sans">
-      {/* 1. Hero Bar —— 今日简报（词典统计：情绪/热词/突发，口径透明可复核） */}
-      <HomeHeroStatus
-        stats={{
-          total: articles.length,
-          todayCount: todayList.length,
-          scanned: (scope === 'today' ? dToday : d30).scanned,
-          positive: (scope === 'today' ? dToday : d30).positive,
-          negative: (scope === 'today' ? dToday : d30).negative,
-          neutral: (scope === 'today' ? dToday : d30).neutral,
-          mixed: (scope === 'today' ? dToday : d30).mixed,
-          net: (scope === 'today' ? dToday : d30).net,
-          ratio: (scope === 'today' ? dToday : d30).optimismRatio,
-          hasLive: articles.length > 0,
-          scope,
-        }}
-        breaking={breaking}
-        sectorHeat={sectorHeat}
-        onOpenBreaking={(art) => {
-          const matched = articles.find((a) => a.id === art.id);
-          if (matched) onSelectArticle(matched);
-          else onSelectArticle(art);
-        }}
-        onSelectSector={(sectorName) => {
-          // 映射到分类选择，若为 AI 与软件 则对应 AI 前沿，半导体与硬件 对应 科技前沿，宏观与金融 对应 全球财经，其他对应 产业纵深
-          if (sectorName.includes('AI') || sectorName.includes('软件')) {
-            setSelectedCategory('AI 前沿');
-          } else if (sectorName.includes('半导体') || sectorName.includes('硬件') || sectorName.includes('数码')) {
-            setSelectedCategory('科技前沿');
-          } else if (sectorName.includes('宏观') || sectorName.includes('金融')) {
-            setSelectedCategory('全球财经');
-          } else {
-            setSelectedCategory('产业纵深');
-          }
-        }}
-      />
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans ${readingDensity === 'compact' ? 'py-3' : 'py-6'}`}>
+      {articles.length === 0 ? (
+        <section className="mb-8 rounded-2xl border-2 border-stone-900 bg-[#FAF8F5] overflow-hidden">
+          <div className="bg-stone-900 text-stone-100 px-6 py-5 sm:px-8">
+            <p className="text-[11px] font-mono tracking-wide text-stone-400 mb-1">见微 · 主循环</p>
+            <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight">读懂新闻</h2>
+            <p className="mt-2 text-sm text-stone-300 max-w-xl leading-relaxed">
+              贴链接抓取正文，或直接粘贴内容，生成结构化拆解。输出是模型推断，不是已核验事实。
+            </p>
+          </div>
+          <div className="px-6 py-6 sm:px-8 sm:py-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            <div className="flex-1 space-y-2 text-sm text-stone-600">
+              <div className="flex items-start gap-2">
+                <Link2 className="w-4 h-4 mt-0.5 text-[#E3120B] shrink-0" />
+                <span>进料：链接或正文</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <FileText className="w-4 h-4 mt-0.5 text-[#E3120B] shrink-0" />
+                <span>拆解：七要素与证据线索</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Target className="w-4 h-4 mt-0.5 text-[#E3120B] shrink-0" />
+                <span>切身与复核：对照原文，不把推断当真相</span>
+              </div>
+            </div>
+            {onOpenAnalyze && (
+              <button
+                type="button"
+                onClick={onOpenAnalyze}
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#E3120B] hover:bg-red-700 text-white text-sm font-serif font-bold rounded-xl shadow-sm transition-all active:scale-[0.98]"
+              >
+                <Sparkles className="w-4 h-4" />
+                开始读懂新闻
+              </button>
+            )}
+          </div>
+        </section>
+      ) : (
+        <>
+          {/* 1. Hero Bar —— 今日简报（词典统计：情绪/热词/突发，口径透明可复核） */}
+          <HomeHeroStatus
+            stats={{
+              total: articles.length,
+              todayCount: todayList.length,
+              scanned: dToday.scanned,
+              positive: dToday.positive,
+              negative: dToday.negative,
+              neutral: dToday.neutral,
+              mixed: dToday.mixed,
+              net: dToday.net,
+              ratio: dToday.optimismRatio,
+              hasLive: articles.length > 0,
+              scope: 'today',
+            }}
+            breaking={breaking}
+            sectorHeat={sectorHeat}
+            onOpenBreaking={(art) => {
+              const matched = articles.find((a) => a.id === art.id);
+              if (matched) onSelectArticle(matched);
+              else onSelectArticle(art);
+            }}
+            onSelectSector={(sectorName) => {
+              // 映射到分类选择，若为 AI 与软件 则对应 AI 前沿，半导体与硬件 对应 科技前沿，宏观与金融 对应 全球财经，其他对应 产业纵深
+              if (sectorName.includes('AI') || sectorName.includes('软件')) {
+                setSelectedCategory('AI 前沿');
+              } else if (sectorName.includes('半导体') || sectorName.includes('硬件') || sectorName.includes('数码')) {
+                setSelectedCategory('科技前沿');
+              } else if (sectorName.includes('宏观') || sectorName.includes('金融')) {
+                setSelectedCategory('全球财经');
+              } else {
+                setSelectedCategory('产业纵深');
+              }
+            }}
+          />
 
-      {/* 2. 跨语料趋势对比卡片（词频演变 + AI 趋势演变纵览） */}
-      <div className="mt-6 mb-6">
-        <TrendComparisonCard
-          articles={articles}
-          onSelectKeyword={(kw) => {
-            setSelectedRadarFilter(kw);
-            window.scrollTo({ top: 400, behavior: 'smooth' });
-          }}
-        />
-      </div>
+          {/* 2. 跨语料趋势对比卡片（词频演变 + AI 趋势演变纵览） */}
+          <div className="mt-6 mb-6">
+            <TrendComparisonCard
+              articles={articles}
+              onSelectKeyword={(kw) => {
+                setSelectedRadarFilter(kw);
+                window.scrollTo({ top: 400, behavior: 'smooth' });
+              }}
+            />
+          </div>
+        </>
+      )}
 
-      {/* 3. Main Content Grid（监控已并入分类，feed 全宽） */}
+      {articles.length > 0 && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Category Filter + Feed (全宽) */}
+        {/* Main Content：分类筛选 + Feed */}
         <div className="lg:col-span-12 space-y-6">
           {/* 工具条：时间窗口切换 + 当日条数说明 + 阅读模式 + 🎧 听简报 */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -466,10 +486,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </button>
               </div>
 
-              {/* 静默过渡说明 */}
+              {/* 今日空窗说明：不静默扩窗，可手动切近 3 日 / 全部，或去情报中心看最近 */}
               {isQuietDay && timeHorizon === 'today' && (
                 <span className="text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-serif text-[11px]">
-                  今日暂无新情报，已呈现近 3 日精选
+                  今日暂无新情报 · 可切「近 3 日」或去情报中心看最近；服务启动后会自动同步信源
                 </span>
               )}
             </div>
@@ -613,6 +633,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {/* Render Active Reading Mode Feed（每次展示前 20 条） */}
           {readingMode === 'standard' && (
             <StandardModeFeed
+              readingDensity={readingDensity}
               articles={displayFeed}
               bookmarkedIds={bookmarkedIds}
               followedTags={followedTags}
@@ -628,6 +649,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               onOpenShareCard={onOpenShareCard}
               onOpenAudioBriefing={onOpenAudioBriefing}
               onOpenTermExplain={onOpenTermExplain}
+              onOpenAnalyze={onOpenAnalyze}
             />
           )}
 
@@ -664,6 +686,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

@@ -80,24 +80,26 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
     },
   ], []);
 
-  // Clustered Events for Tier 3
+  // Clustered Events for Tier 3：只用文章真实字段，不编造聚合篇数 / 权威档 / 热词
   const clusteredEvents = useMemo(() => {
     return articles.slice(0, 6).map((art, idx) => {
       const isTech = idx % 3 === 0;
       const isRisk = idx % 3 === 1;
-      const velocity = idx === 0 ? '🔥 正在爆发' : idx === 1 ? '🌱 刚刚萌芽' : idx === 2 ? '🌊 扩散重塑' : '🏛️ 已成定局';
-      const buzzwords = idx === 0 ? ['MoE架构', '端侧AI', '算力超售'] : idx === 1 ? ['CPO光电共封装', 'HBM', '晶圆公差'] : ['逆向本土化', 'CKD散件', '单位经济模型'];
+      const tags = (art.tags || []).filter(Boolean).slice(0, 3);
+      const sourceLabel = art.sourceName
+        ? `来源：${art.sourceName}${art.sourceCount && art.sourceCount > 1 ? ` · 标注来源家数 ${art.sourceCount}` : ''}`
+        : '来源未标明';
 
       return {
         article: art,
-        corpusCount: (art.sourceCount || 1) * 6 + 12,
-        velocity,
-        buzzwords,
+        corpusCount: Math.max(1, Number(art.sourceCount) || 1),
+        velocity: null as string | null,
+        buzzwords: tags,
         type: isTech ? 'tech' : isRisk ? 'supply' : 'competitor',
-        typeLabel: isTech ? '🔬 技术破局' : isRisk ? '⚠️ 供应链预警' : '⚔️ 竞品与商业动作',
+        typeLabel: isTech ? '🔬 技术相关' : isRisk ? '⚠️ 供给/风险相关' : '⚔️ 竞品/商业相关',
         whoWhat: art.summary || art.title,
-        impact: art.oneSentenceVerdict || '重塑上下游定价权与毛利分配，建议跟进相关企业供应链备货策略。',
-        sourceLevel: '一级权威信源 · 彭博 / 路透 / 官方公报',
+        impact: art.oneSentenceVerdict || art.aiInterpretation?.core || null,
+        sourceLevel: sourceLabel,
       };
     });
   }, [articles]);
@@ -458,11 +460,13 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-serif font-bold bg-stone-900 text-white">
                       {evt.typeLabel}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                      {evt.velocity}
-                    </span>
+                    {evt.velocity ? (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        {evt.velocity}
+                      </span>
+                    ) : null}
                     <span className="text-xs font-mono text-stone-500">
-                      聚合 {evt.corpusCount} 篇多源报道
+                      标注来源家数 {evt.corpusCount}（非多源核验计数）
                     </span>
                   </div>
 
@@ -499,7 +503,9 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
                       <span>潜在影响 (Impact & So What)</span>
                     </div>
                     <p className="text-stone-700 leading-relaxed font-sans">
-                      <KeyTermHighlight text={evt.impact} />
+                      {evt.impact
+                        ? <KeyTermHighlight text={evt.impact} />
+                        : <span className="text-stone-400">暂无站内解读摘要；以上仅为标题/摘要，不是已核验影响结论。</span>}
                     </p>
                   </div>
 
@@ -527,24 +533,28 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
 
                 {/* Buzzword Extraction & Action */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="font-serif font-bold text-stone-600">正在涌现的新词黑话：</span>
-                    {evt.buzzwords.map((bw) => (
-                      <span
-                        key={bw}
-                        onClick={() => onOpenTermExplain && onOpenTermExplain(bw)}
-                        className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-900 border border-purple-200 font-mono text-[11px] cursor-pointer hover:bg-purple-100 transition-colors"
-                      >
-                        #{bw}
-                      </span>
-                    ))}
+                  <div className="flex items-center gap-1.5 text-xs flex-wrap">
+                    <span className="font-serif font-bold text-stone-600">文章标签：</span>
+                    {evt.buzzwords.length > 0 ? (
+                      evt.buzzwords.map((bw) => (
+                        <span
+                          key={bw}
+                          onClick={() => onOpenTermExplain && onOpenTermExplain(bw)}
+                          className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-900 border border-purple-200 font-mono text-[11px] cursor-pointer hover:bg-purple-100 transition-colors"
+                        >
+                          #{bw}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-stone-400 font-mono text-[11px]">无标签（不编造热词）</span>
+                    )}
                   </div>
 
                   <button
                     onClick={() => onOpenArticleById ? onOpenArticleById(evt.article.id) : onSelectArticleTitle && onSelectArticleTitle(evt.article.title)}
                     className="px-3.5 py-1.5 rounded-lg bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold inline-flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
                   >
-                    <span>穿透剖析 4 大认知篇章</span>
+                    <span>打开详情</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>

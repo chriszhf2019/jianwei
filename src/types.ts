@@ -36,6 +36,11 @@ export type ReadingMode =
   | 'magazine'         // 现代杂志 (Kinfolk · 界面新闻)
   | 'immersive';       // 沉浸叙事 (NYT Longform · The Pudding)
 
+export type ReadingDensity = 'comfortable' | 'compact';
+
+/** 设置页可选的默认通读节奏。杂志和沉浸仍可在光谱页临时切换。 */
+export type DefaultReadingRhythm = 'classic' | 'fast_dialogue' | 'data_driven';
+
 export type SpectrumLayerType = 'micro_signal' | 'interests' | 'logic_chain' | 'data_signal' | 'deduction';
 
 export interface SpectrumLayer {
@@ -292,9 +297,9 @@ export interface NewsArticle {
   sourceName: string;
   sourceDate: string;
   sourceCount: number;
-  credibilityStars?: number; // 已下线占位字段，新建文章不再写入；保留可选以兼容历史语料
+  credibilityStars?: number; // 历史字段：兼容保留；运行逻辑已不读
   impactScope: '全球' | '区域' | '特定行业' | '本地' | string;
-  changeVelocity?: '↑↑ 极快' | '↑ 快速' | '→ 稳定' | '↓ 放缓' | string;
+  changeVelocity?: '↑↑ 极快' | '↑ 快速' | '→ 稳定' | '↓ 放缓' | string; // 历史字段：兼容保留；运行逻辑已不读
   coverImage?: string;
   
   // Accessible / Tongsu mode content
@@ -366,8 +371,6 @@ export interface NewsArticle {
   entityMentions?: EntityMention[];
   /** 各 AI 字段的生成来源与版本；用于审计模型切换、提示词更新和缓存命中。 */
   aiFieldMeta?: Record<string, AiFieldMeta>;
-  /** 离线下载至本地 IndexedDB 的持久化时间戳 */
-  offlineSavedAt?: string;
 }
 
 export interface AiFieldMeta {
@@ -405,6 +408,17 @@ export interface SourceInspectionResult {
   cached?: boolean;
   fetchedAt: string;
   reason?: string;
+  /** 页面自带的 schema.org ClaimReview。没有该标记时不出现。 */
+  claimReviews?: Array<{
+    claimReviewed: string;
+    url?: string;
+    authorName?: string;
+    datePublished?: string;
+    ratingLabel?: string;
+    ratingValue?: number;
+    bestRating?: number;
+    worstRating?: number;
+  }>;
 }
 
 // Intelligence Hub Types
@@ -753,7 +767,9 @@ export interface SnapshotMeta {
 
 export interface SnapshotDerived {
   categoryCounts: Record<string, number>;
+  /** 历史兼容字段：恒为空对象。运行逻辑已不读 credibilityStars，不再派生星级分布。 */
   starDistribution: Record<number, number>;
+  /** 历史兼容字段：恒为空对象。运行逻辑已不读 changeVelocity，不再派生速度分布。 */
   velocityCounts: Record<string, number>;
   tagFrequency: Array<{ tag: string; count: number }>;
   sourceStats: { total: number; avgPerArticle: number };
@@ -761,6 +777,40 @@ export interface SnapshotDerived {
   /** AI 涉事地区标注（/api/regions/annotate 写回后才有） */
   regionMentionDistribution?: Array<{ region: string; weight: number }>;
   regionAnnotatedCount?: number;
+  /** 来源构成与可追溯计数，不合成健康分 */
+  sourceHealth?: {
+    total: number;
+    externalCount: number;
+    curatedCount: number;
+    distinctExternalHosts: number;
+    topSources: Array<{ name: string; count: number }>;
+    withOriginalLink: number;
+    withTimestamp: number;
+    fullyTraceable: number;
+    knownGroupCount: number;
+    unknownDomainCount: number;
+  };
+  /** 赛道覆盖扫描。低覆盖是相对候选，不是全局盲区 */
+  blindspots?: {
+    total: number;
+    matchedTotal: number;
+    maxCount: number;
+    coveredSectorCount: number;
+    lowCoverage: Array<{ sectorId: string; name: string; count: number; samples: string[] }>;
+  };
+  /** 最近窗口的赛道热度。share 是占比，不是概率 */
+  tomorrowWatch?: {
+    corpusSize: number;
+    totalWindow: number;
+    maxCount: number;
+    list: Array<{ sectorId: string; name: string; keywords: string[]; count: number; share: number }>;
+  };
+  /** 近 30 天到达热力。六种行列组合都按同一计数口径，intensity 只是相对峰值分级 */
+  arrivalHeat?: import('./utils/arrivalPanels').ArrivalHeatBundle;
+  /** 2 小时槽到达密度。按来源、按赛道从同一批计数拆出 */
+  density?: import('./utils/arrivalPanels').DensityCurveSnapshot;
+  /** 跨篇信号重叠前 5 对。共振分是加权统计，不是因果强度 */
+  crossEvent?: import('./utils/arrivalPanels').CrossEventSnapshot;
 }
 
 export interface SnapshotResponse {
