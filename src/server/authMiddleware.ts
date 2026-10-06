@@ -49,11 +49,12 @@ function isGuestReadRoute(pathname: string): boolean {
   );
 }
 
-function isGuestLightSkillRoute(pathname: string): boolean {
+/** 「大白话」等轻量试读：不消耗游客唯一深度解读额度。 */
+export function isGuestLightSkillRoute(pathname: string): boolean {
   return pathname === "/skill/plain";
 }
 
-function isGuestDeepRoute(pathname: string): boolean {
+export function isGuestDeepRoute(pathname: string): boolean {
   if (isGuestLightSkillRoute(pathname)) return false;
   return (
     pathname === "/enrich" ||

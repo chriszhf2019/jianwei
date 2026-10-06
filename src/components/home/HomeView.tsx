@@ -355,7 +355,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {articles.length === 0 ? (
         <section className="mb-8 rounded-2xl border-2 border-stone-900 bg-[#FAF8F5] overflow-hidden">
           <div className="bg-stone-900 text-stone-100 px-6 py-5 sm:px-8">
-            <p className="text-[11px] font-mono tracking-wide text-stone-400 mb-1">见微 · 主循环</p>
+            <p className="text-xs font-mono tracking-wide text-stone-400 mb-1">见微 · 主循环</p>
             <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight">读懂新闻</h2>
             <p className="mt-2 text-sm text-stone-300 max-w-xl leading-relaxed">
               贴链接抓取正文，或直接粘贴内容，生成结构化拆解。输出是模型推断，不是已核验事实。
@@ -390,52 +390,76 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </section>
       ) : (
         <>
-          {/* 1. Hero Bar —— 今日简报（词典统计：情绪/热词/突发，口径透明可复核） */}
-          <HomeHeroStatus
-            stats={{
-              total: articles.length,
-              todayCount: todayList.length,
-              scanned: dToday.scanned,
-              positive: dToday.positive,
-              negative: dToday.negative,
-              neutral: dToday.neutral,
-              mixed: dToday.mixed,
-              net: dToday.net,
-              ratio: dToday.optimismRatio,
-              hasLive: articles.length > 0,
-              scope: 'today',
-            }}
-            breaking={breaking}
-            sectorHeat={sectorHeat}
-            onOpenBreaking={(art) => {
-              const matched = articles.find((a) => a.id === art.id);
-              if (matched) onSelectArticle(matched);
-              else onSelectArticle(art);
-            }}
-            onSelectSector={(sectorName) => {
-              // 映射到分类选择，若为 AI 与软件 则对应 AI 前沿，半导体与硬件 对应 科技前沿，宏观与金融 对应 全球财经，其他对应 产业纵深
-              if (sectorName.includes('AI') || sectorName.includes('软件')) {
-                setSelectedCategory('AI 前沿');
-              } else if (sectorName.includes('半导体') || sectorName.includes('硬件') || sectorName.includes('数码')) {
-                setSelectedCategory('科技前沿');
-              } else if (sectorName.includes('宏观') || sectorName.includes('金融')) {
-                setSelectedCategory('全球财经');
-              } else {
-                setSelectedCategory('产业纵深');
-              }
-            }}
-          />
+          {/* 有语料时仍把「读懂新闻」放在第一视口，统计墙默认折叠 */}
+          {onOpenAnalyze && (
+            <section className="mb-4 rounded-xl border border-stone-900 bg-white px-4 py-3 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base sm:text-lg font-serif font-black text-stone-950 tracking-tight">
+                  贴链接，读懂一条新闻
+                </h2>
+                <p className="text-xs sm:text-sm text-stone-500 mt-0.5">
+                  核心动作：抓取或粘贴正文 → 结构化解读（模型推断，非已核验事实）
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenAnalyze}
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 text-white text-sm font-serif font-bold rounded-xl transition-all"
+              >
+                <Sparkles className="w-4 h-4" />
+                读懂新闻
+              </button>
+            </section>
+          )}
 
-          {/* 2. 跨语料趋势对比卡片（词频演变 + AI 趋势演变纵览） */}
-          <div className="mt-6 mb-6">
-            <TrendComparisonCard
-              articles={articles}
-              onSelectKeyword={(kw) => {
-                setSelectedRadarFilter(kw);
-                window.scrollTo({ top: 400, behavior: 'smooth' });
-              }}
-            />
-          </div>
+          <details className="mb-6 rounded-xl border border-stone-200 bg-[#FAF8F5] open:shadow-xs">
+            <summary className="cursor-pointer list-none px-4 py-3 sm:px-5 flex items-center justify-between gap-3 text-sm font-serif font-bold text-stone-800 hover:bg-stone-50 rounded-xl">
+              <span>今日词典摘要与词频（可展开）</span>
+              <span className="text-xs font-sans font-normal text-stone-500">启发式 · 非市场热度</span>
+            </summary>
+            <div className="px-3 pb-4 sm:px-4 space-y-4 border-t border-stone-200 pt-3">
+              <HomeHeroStatus
+                stats={{
+                  total: articles.length,
+                  todayCount: todayList.length,
+                  scanned: dToday.scanned,
+                  positive: dToday.positive,
+                  negative: dToday.negative,
+                  neutral: dToday.neutral,
+                  mixed: dToday.mixed,
+                  net: dToday.net,
+                  ratio: dToday.optimismRatio,
+                  hasLive: articles.length > 0,
+                  scope: 'today',
+                }}
+                breaking={breaking}
+                sectorHeat={sectorHeat}
+                onOpenBreaking={(art) => {
+                  const matched = articles.find((a) => a.id === art.id);
+                  if (matched) onSelectArticle(matched);
+                  else onSelectArticle(art);
+                }}
+                onSelectSector={(sectorName) => {
+                  if (sectorName.includes('AI') || sectorName.includes('软件')) {
+                    setSelectedCategory('AI 前沿');
+                  } else if (sectorName.includes('半导体') || sectorName.includes('硬件') || sectorName.includes('数码')) {
+                    setSelectedCategory('科技前沿');
+                  } else if (sectorName.includes('宏观') || sectorName.includes('金融')) {
+                    setSelectedCategory('全球财经');
+                  } else {
+                    setSelectedCategory('产业纵深');
+                  }
+                }}
+              />
+              <TrendComparisonCard
+                articles={articles}
+                onSelectKeyword={(kw) => {
+                  setSelectedRadarFilter(kw);
+                  window.scrollTo({ top: 400, behavior: 'smooth' });
+                }}
+              />
+            </div>
+          </details>
         </>
       )}
 
@@ -519,7 +543,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <button
                 onClick={onOpenAudioBriefing}
                 className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-serif font-bold rounded-lg border border-amber-600/50 transition-all"
-                title="听今日简报（AI 语音，3 分钟晨间解读）"
+                title="听今日简报（浏览器朗读，非云端 TTS）"
               >
                 🎧 听简报
               </button>

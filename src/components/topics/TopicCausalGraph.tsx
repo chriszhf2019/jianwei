@@ -208,7 +208,7 @@ export const TopicCausalGraph: React.FC<TopicCausalGraphProps> = ({ topic }) => 
             </div>
 
             <span className="text-xs font-mono text-stone-500">
-              传导置信度：92% (基于多源实证交叉检验)
+              编辑因果示意 · 非经校准的传导概率
             </span>
           </div>
 

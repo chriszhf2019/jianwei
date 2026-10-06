@@ -162,11 +162,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSendTestPush = () => {
     setTestingDispatch(true);
+    // 推送通道尚未接入真实邮件/Webhook 发送；不得伪装成功。
     setTimeout(() => {
       setTestingDispatch(false);
-      setTestSentMsg('测试推送已成功发送！请查收您的邮箱或群机器人通知。');
-      setTimeout(() => setTestSentMsg(''), 4000);
-    }, 700);
+      setTestSentMsg('推送通道尚未接入：订阅偏好仅保存在本机，测试推送不会真正发出。');
+      setTimeout(() => setTestSentMsg(''), 5000);
+    }, 300);
   };
 
   if (!isOpen) return null;
@@ -543,8 +544,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               )}
 
               {testSentMsg && (
-                <div className="p-3 bg-blue-50 border border-blue-300 text-blue-900 rounded-xl text-xs font-serif font-bold flex items-center space-x-2">
-                  <Send className="w-4 h-4 text-blue-600 shrink-0" />
+                <div className="p-3 bg-amber-50 border border-amber-300 text-amber-950 rounded-xl text-xs font-serif font-bold flex items-center space-x-2">
+                  <Send className="w-4 h-4 text-amber-700 shrink-0" />
                   <span>{testSentMsg}</span>
                 </div>
               )}

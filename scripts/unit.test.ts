@@ -1126,4 +1126,60 @@ test('预设管理员：须由环境变量显式配置，无写死凭据', async
   assert.equal(feed.includes('承压 15%'), false);
 });
 
+test('游客：大白话不计入深度解读额度', async () => {
+  const { isGuestDeepRoute, isGuestLightSkillRoute } = await import('../src/server/authMiddleware');
+  assert.equal(isGuestLightSkillRoute('/skill/plain'), true);
+  assert.equal(isGuestDeepRoute('/skill/plain'), false);
+  assert.equal(isGuestDeepRoute('/skill/sevenw'), true);
+  assert.equal(isGuestDeepRoute('/fetch-article'), true);
+  assert.equal(isGuestDeepRoute('/analyze'), true);
+
+  const authGate = fs.readFileSync(path.join(process.cwd(), 'src/components/AuthGate.tsx'), 'utf8');
+  assert.match(authGate, /大白话/);
+  assert.match(authGate, /不占用/);
+});
+
+test('classifyAiClientError: 区分无 Key / 游客限额 / 超时', async () => {
+  const { classifyAiClientError } = await import('../src/utils/aiClientErrors');
+  assert.match(classifyAiClientError({ payload: { reason: 'no_api_key' } }), /Key/);
+  assert.match(
+    classifyAiClientError({ payload: { error: 'guest_deep_read_limit' } }),
+    /游客/
+  );
+  assert.match(
+    classifyAiClientError({ error: new Error('AbortError: timed out'), fallbackMs: 45_000 }),
+    /超时/
+  );
+});
+
+test('信任余项：推送不伪装成功、首页先贴链接、因果图无假 92%', () => {
+  const settings = fs.readFileSync(path.join(process.cwd(), 'src/components/SettingsModal.tsx'), 'utf8');
+  assert.match(settings, /推送通道尚未接入/);
+  assert.equal(settings.includes('测试推送已成功发送'), false);
+
+  const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
+  assert.match(home, /贴链接，读懂一条新闻/);
+  assert.match(home, /今日词典摘要与词频（可展开）/);
+  assert.match(home, /浏览器朗读/);
+
+  const modal = fs.readFileSync(path.join(process.cwd(), 'src/components/AnalyzeModal.tsx'), 'utf8');
+  assert.match(modal, /classifyAiClientError/);
+  assert.match(modal, /已等待/);
+  assert.match(modal, /取消请求/);
+  assert.match(modal, /AbortController/);
+
+  const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
+  assert.match(header, /shortLabel/);
+  assert.match(header, /MoreHorizontal/);
+  assert.match(header, /浏览器朗读/);
+
+  const causal = fs.readFileSync(path.join(process.cwd(), 'src/components/topics/TopicCausalGraph.tsx'), 'utf8');
+  assert.equal(causal.includes('传导置信度：92%'), false);
+  assert.match(causal, /编辑因果示意/);
+
+  const audio = fs.readFileSync(path.join(process.cwd(), 'src/components/AudioBriefingModal.tsx'), 'utf8');
+  assert.match(audio, /浏览器朗读/);
+  assert.equal(audio.includes('AI 语音 × 实时研讨'), false);
+});
+
 
