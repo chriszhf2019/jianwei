@@ -252,7 +252,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span className="text-xs text-red-700 font-medium">起核心风险</span>
               </div>
               <span className="text-[10px] font-mono text-red-700 bg-red-100 px-1.5 py-0.5 rounded font-bold">
-                ↑ 环比+25%
+                {stats.alertCount === 0 ? '暂无环比' : '关键词命中'}
               </span>
             </div>
           </div>
@@ -282,7 +282,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
           </div>
 
           <p className="text-[11px] text-red-800/90 font-sans line-clamp-1 border-t border-red-200/60 pt-2">
-            涉及供应链中断、关税反补贴与合规
+            {stats.alertCount === 0
+              ? '近窗无风险关键词命中 · 不编造环比'
+              : `近窗 ${stats.alertCount} 篇命中风险关键词（关税/制裁/供应链等）`}
           </p>
         </div>
 
@@ -310,7 +312,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span className="text-xs text-amber-800 font-medium">个强信号</span>
               </div>
               <span className="text-[10px] font-mono text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-bold">
-                斜率 2.8x
+                {stats.trendingCount === 0 ? '暂无斜率' : '关键词命中'}
               </span>
             </div>
           </div>
@@ -340,7 +342,9 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
           </div>
 
           <p className="text-[11px] text-amber-800/90 font-sans line-clamp-1 border-t border-amber-200/60 pt-2">
-            热度环比激增超 50%，处于爆发早期
+            {stats.trendingCount === 0
+              ? '近窗无爆发关键词命中 · 不编造斜率'
+              : `近窗 ${stats.trendingCount} 篇命中爆发关键词（突破/量产/激增等）`}
           </p>
         </div>
 
