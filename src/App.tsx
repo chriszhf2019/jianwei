@@ -413,6 +413,7 @@ export const App: React.FC = () => {
   const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAddRadarOpen, setIsAddRadarOpen] = useState(false);
   const [isAudioBriefingOpen, setIsAudioBriefingOpen] = useState(false);
@@ -456,28 +457,44 @@ export const App: React.FC = () => {
       const detail = (event as CustomEvent).detail || {};
       if (detail.error === 'guest_deep_read_limit') {
         setAuthError('游客只能使用一次深度解读。注册并等待管理员审批后可继续使用。');
+        setAuthMode('register');
       } else if (detail.error === 'password_change_required') {
         setMustChangePassword(true);
       } else {
         setAuthError(detail.message || '该功能需要注册并完成审批。');
+        setAuthMode('login');
       }
-      setAuthMode('register');
       setIsAuthModalOpen(true);
     };
     window.addEventListener('jianwei:auth-required', handleAuthRequired);
     return () => window.removeEventListener('jianwei:auth-required', handleAuthRequired);
   }, []);
 
-  const submitAuth = async () => {
+  const submitAuth = async (form?: HTMLFormElement | null) => {
     setAuthError('');
+    // 浏览器自动填充可能只改 DOM、不触发 onChange；提交时以表单值为准。
+    const fd = form ? new FormData(form) : null;
+    const username = String(fd?.get('username') ?? authUsername).trim();
+    const password = String(fd?.get('password') ?? authPassword);
+    const accessToken = String(fd?.get('accessToken') ?? authTokenInput).trim();
+    if (username) setAuthUsername(username);
+    if (password) setAuthPassword(password);
+    if (accessToken) setAuthTokenInput(accessToken);
+
+    if (!accessToken && (!username || password.length < 6)) {
+      setAuthError(!username ? '请输入用户名。' : '密码至少 6 位。');
+      return;
+    }
+
+    setAuthSubmitting(true);
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          authTokenInput.trim()
-            ? { accessToken: authTokenInput.trim() }
-            : { username: authUsername.trim(), password: authPassword }
+          accessToken
+            ? { accessToken }
+            : { username, password }
         ),
       });
       const data = await response.json();
@@ -487,7 +504,9 @@ export const App: React.FC = () => {
             ? '账号正在等待管理员审批。'
             : data?.error === 'rejected'
               ? '注册申请未通过，请联系管理员。'
-              : '登录失败：账号、密码或访问令牌无效。'
+              : data?.error === 'inactive'
+                ? '账号已停用，请联系管理员。'
+                : '登录失败：账号、密码或访问令牌无效。'
         );
         return;
       }
@@ -496,12 +515,15 @@ export const App: React.FC = () => {
       if (data.user?.mustChangePassword) {
         setMustChangePassword(true);
         setAuthRequired(false);
+        setIsAuthModalOpen(true);
         return;
       }
       setAuthRequired(false);
       window.location.reload();
     } catch {
       setAuthError('登录服务不可达，请确认本地服务已启动。');
+    } finally {
+      setAuthSubmitting(false);
     }
   };
 
@@ -1330,7 +1352,7 @@ export const App: React.FC = () => {
               e.preventDefault();
               if (mustChangePassword) void submitRequiredPasswordChange();
               else if (authMode === 'register') void submitRegistration();
-              else void submitAuth();
+              else void submitAuth(e.currentTarget);
             }}
             className="w-full max-w-sm bg-[#FAF8F5] border-2 border-stone-900 rounded-2xl p-6 shadow-2xl space-y-4"
           >
@@ -1407,12 +1429,23 @@ export const App: React.FC = () => {
                   <p className="text-[10px] text-stone-400">
                     密码至少 6 位。注册后需管理员批准方可完整使用。
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setAuthError('');
+                    }}
+                    className="text-xs font-serif font-bold text-[#E3120B] hover:text-red-800"
+                  >
+                    已有账号？去登录
+                  </button>
                 </div>
               )
             ) : (
             <div className="space-y-3">
               <input
                 type="text"
+                name="username"
                 value={authUsername}
                 onChange={(e) => setAuthUsername(e.target.value)}
                 placeholder="用户名"
@@ -1422,6 +1455,7 @@ export const App: React.FC = () => {
               />
               <input
                 type="password"
+                name="password"
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
                 placeholder="密码"
@@ -1432,6 +1466,7 @@ export const App: React.FC = () => {
                 <summary className="text-xs text-stone-500 cursor-pointer hover:text-stone-800">使用旧版访问令牌</summary>
                 <input
                   type="password"
+                  name="accessToken"
                   value={authTokenInput}
                   onChange={(e) => setAuthTokenInput(e.target.value)}
                   placeholder="访问令牌"
@@ -1455,22 +1490,25 @@ export const App: React.FC = () => {
             <button
               type="submit"
               disabled={
-                mustChangePassword
+                authSubmitting ||
+                (mustChangePassword
                   ? newPassword.length < 6
                   : authMode === 'register'
                     ? registrationSubmitted ||
                       registerUsername.trim().length < 2 ||
                       registerPassword.length < 6 ||
                       registerPassword !== registerConfirm
-                    : !authTokenInput.trim() && (!authUsername.trim() || authPassword.length < 6)
+                    : false)
               }
-              className="w-full px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-serif font-bold hover:bg-red-700 transition-colors"
+              className="w-full px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-serif font-bold enabled:hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {mustChangePassword
-                ? '修改密码'
-                : authMode === 'register'
-                  ? registrationSubmitted ? '等待审批' : '提交注册申请'
-                  : '进入见微'}
+              {authSubmitting
+                ? '登录中…'
+                : mustChangePassword
+                  ? '修改密码'
+                  : authMode === 'register'
+                    ? registrationSubmitted ? '等待审批' : '提交注册申请'
+                    : '进入见微'}
             </button>
             {!mustChangePassword && (
               <button

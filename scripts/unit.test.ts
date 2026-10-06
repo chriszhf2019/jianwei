@@ -1631,6 +1631,13 @@ test('预设管理员：默认账号与 UsersTab 审批能力', async () => {
   const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
   assert.match(serverSrc, /import "dotenv\/config"/);
   assert.match(serverSrc, /ensureBootstrapUser\(PRESET_ADMIN_USER/);
+  const appSrc = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.match(appSrc, /name="username"/);
+  assert.match(appSrc, /name="password"/);
+  assert.match(appSrc, /FormData/);
+  assert.match(appSrc, /登录中…/);
+  assert.match(appSrc, /disabled:opacity-40/);
+  assert.match(appSrc, /已有账号？去登录/);
 });
 
 test('预设管理员：冷启动建库后可登录并强制改密', async () => {
