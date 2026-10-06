@@ -14,6 +14,8 @@ import { scheduledBackupStatus, startBackupScheduler } from "./src/server/backup
 import { registerDeepEndpoints } from "./src/server/deepEndpoints";
 import { registerAnalysisRoutes } from "./src/server/routes/analysisRoutes";
 import { registerEvaluationRoutes } from "./src/server/routes/evaluationRoutes";
+import { registerAuthRoutes, type RequestAuth } from "./src/server/routes/authRoutes";
+import { registerPredictionRoutes } from "./src/server/routes/predictionRoutes";
 import {
   settings,
   persistSettings,
@@ -31,6 +33,7 @@ import {
   backupCorpus,
   backupDirectory,
   getCorpusRevision,
+  ALLOW_DEMO_DATA,
 } from "./src/server/corpus";
 import {
   activeProvider,
@@ -73,20 +76,10 @@ import {
 import {
   databaseStats,
   importEvaluationRecords,
-  createPredictionContract,
-  createUser,
-  createUserSession,
   consumeGuestDeepRead,
   ensureBootstrapUser,
-  getUserPreferences,
-  buildPredictionLedgerExport,
-  deletePendingPredictionContract,
-  listPredictionContracts,
   listDatabaseBackups,
   listAuditEvents,
-  listPredictionLedgerSnapshots,
-  listUsers,
-  changeUserPassword,
   cleanupExpiredUserSessions,
   listEvaluationAdjudications,
   listEvaluationAnnotations,
@@ -94,25 +87,15 @@ import {
   loadSourceCheck,
   loadSourcePageText,
   loadEvaluationGoldSet,
-  loadPredictionLedgerSnapshot,
   persistSourceCheck,
   queryArticlesPage,
   persistEvaluationGoldSet,
   recordEvaluationAdjudication,
   recordEvaluationAnnotation,
   recordAuditEvent,
-  recordPredictionOutcomeReview,
   resolveUserSession,
-  saveUserPreferences,
-  resetUserPassword,
-  revokeUserSessions,
-  revokeUserSession,
-  persistPredictionLedgerSnapshot,
   restoreDatabaseBackup,
   verifyDatabaseBackup,
-  resolvePredictionContract,
-  updateUser,
-  type UserRole,
   generateAnalysisKey,
   getAnalysisFromDatabase,
   saveAnalysisToDatabase,
@@ -139,7 +122,7 @@ const serverStartTime = Date.now();
 const AUTH_TOKEN = process.env.JIANWEI_AUTH_TOKEN || "";
 const AUTH_ENABLED = !!AUTH_TOKEN;
 const BIND_HOST = "0.0.0.0";
-const DEMO_DATA_ENABLED = process.env.JIANWEI_ENABLE_DEMO_DATA === "1";
+const DEMO_DATA_ENABLED = ALLOW_DEMO_DATA;
 const SOURCE_CHECK_TTL_MS = Number(process.env.SOURCE_CHECK_TTL_MS || 24 * 60 * 60 * 1000);
 const BOOTSTRAP_ADMIN_USER = process.env.JIANWEI_ADMIN_USER || "";
 const BOOTSTRAP_ADMIN_PASSWORD = process.env.JIANWEI_ADMIN_PASSWORD || "";
@@ -239,16 +222,6 @@ app.use("/api/evaluation", (_req, res, next) => {
   next();
 });
 
-type RequestAuth = {
-  userId: string;
-  username: string;
-  role: UserRole;
-  legacyToken: boolean;
-  mustChangePassword: boolean;
-  isGuest?: boolean;
-  guestId?: string;
-};
-
 const GUEST_ARTICLE_LIMIT = Math.max(1, Math.min(50, Number(process.env.GUEST_ARTICLE_LIMIT || 4)));
 const GUEST_DEEP_READ_LIMIT = Math.max(1, Math.min(20, Number(process.env.GUEST_DEEP_READ_LIMIT || 1)));
 const GUEST_COOKIE_NAME = "jw_guest_id";
@@ -322,35 +295,6 @@ function requestAuth(req: express.Request): RequestAuth | null {
     } : null;
   }
   return null;
-}
-
-const LOGIN_FAILURE_LIMIT = Math.max(3, Number(process.env.LOGIN_FAILURE_LIMIT || 5));
-const LOGIN_FAILURE_WINDOW_MS = Math.max(60_000, Number(process.env.LOGIN_FAILURE_WINDOW_MS || 15 * 60 * 1000));
-const loginFailures = new Map<string, number[]>();
-
-function loginLimitKey(req: express.Request, username: string): string {
-  return `${String(req.ip || req.socket.remoteAddress || "unknown")}\n${username.toLowerCase()}`;
-}
-
-function loginBlocked(key: string): boolean {
-  const now = Date.now();
-  const recent = (loginFailures.get(key) || []).filter((at) => now - at <= LOGIN_FAILURE_WINDOW_MS);
-  if (recent.length === 0) loginFailures.delete(key);
-  else loginFailures.set(key, recent);
-  return recent.length >= LOGIN_FAILURE_LIMIT;
-}
-
-function recordLoginFailure(key: string): void {
-  const recent = (loginFailures.get(key) || []).filter(
-    (at) => Date.now() - at <= LOGIN_FAILURE_WINDOW_MS
-  );
-  recent.push(Date.now());
-  loginFailures.set(key, recent.slice(-LOGIN_FAILURE_LIMIT));
-  while (loginFailures.size > 2000) {
-    const oldest = loginFailures.keys().next().value;
-    if (oldest === undefined) break;
-    loginFailures.delete(oldest);
-  }
 }
 
 app.use("/api", (req, res, next) => {
@@ -454,229 +398,8 @@ registerAnnotationRoutes(app, applyRateLimit);
 registerDeepEndpoints(app, applyRateLimit);
 registerAnalysisRoutes(app, applyRateLimit);
 registerEvaluationRoutes(app, applyRateLimit);
-
-app.post("/api/auth/login", applyRateLimit, (req, res) => {
-  const accessToken = String(req.body?.accessToken || "").trim();
-  const username = String(req.body?.username || "").trim();
-  const password = String(req.body?.password || "");
-  const limitKey = loginLimitKey(req, username || "token");
-  if (loginBlocked(limitKey)) {
-    recordAuditEvent({
-      actor: username || "unknown",
-      action: "auth.login",
-      status: "error",
-      metadata: { reason: "login_rate_limited" },
-    });
-    return res.status(429).json({ error: "login_rate_limited" });
-  }
-  if (accessToken && safeTokenEqual(accessToken, AUTH_TOKEN)) {
-    loginFailures.delete(limitKey);
-    recordAuditEvent({ actor: "token-admin", action: "auth.login", status: "success" });
-    return res.json({
-      ok: true,
-      token: AUTH_TOKEN,
-      user: { id: "legacy-token", username: "token-admin", role: "admin" },
-      legacy: true,
-    });
-  }
-  const sessionResult = createUserSession({ username, password });
-  if (!sessionResult.ok) {
-    recordLoginFailure(limitKey);
-    recordAuditEvent({
-      actor: username || "unknown",
-      action: "auth.login",
-      status: "error",
-      metadata: { reason: sessionResult.reason },
-    });
-    const status =
-      sessionResult.reason === "pending_approval" || sessionResult.reason === "rejected" ? 403 : 401;
-    return res.status(status).json({ error: sessionResult.reason });
-  }
-  loginFailures.delete(limitKey);
-  recordAuditEvent({ actor: sessionResult.user.username, action: "auth.login", status: "success" });
-  res.json({
-    ok: true,
-    token: sessionResult.token,
-    user: sessionResult.user,
-    expiresAt: sessionResult.expiresAt,
-  });
-});
-
-app.post("/api/auth/register", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "persistence_disabled" });
-  try {
-    const user = createUser({
-      username: String(req.body?.username || ""),
-      password: String(req.body?.password || ""),
-      role: "viewer",
-      approvalStatus: "pending",
-    });
-    recordAuditEvent({
-      actor: user.username,
-      action: "user.register",
-      entityType: "user",
-      entityId: user.id,
-      metadata: { approvalStatus: user.approvalStatus },
-    });
-    res.status(201).json({
-      ok: true,
-      status: "pending",
-      user: { id: user.id, username: user.username, approvalStatus: user.approvalStatus },
-    });
-  } catch (error: any) {
-    const reason = String(error?.message || error);
-    if (reason.includes("UNIQUE")) return res.status(409).json({ error: "username_exists" });
-    res.status(400).json({ error: reason });
-  }
-});
-
-app.get("/api/auth/me", (req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  res.json({ user: (req as any).auth || null });
-});
-
-app.post("/api/auth/logout", (req, res) => {
-  const bearer = (req.header("authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  if (bearer.startsWith("jw_")) revokeUserSession(bearer);
-  recordAuditEvent({
-    actor: String((req as any).auth?.username || "unknown"),
-    action: "auth.logout",
-  });
-  res.json({ ok: true });
-});
-
-app.get("/api/users", (_req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  res.json({ users: NO_PERSIST ? [] : listUsers() });
-});
-
-app.post("/api/users", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "persistence_disabled" });
-  try {
-    const user = createUser({
-      username: String(req.body?.username || ""),
-      password: String(req.body?.password || ""),
-      role: String(req.body?.role || "viewer") as any,
-    });
-    recordAuditEvent({
-      actor: String((req as any).auth?.username || "admin"),
-      action: "user.create",
-      entityType: "user",
-      entityId: user.id,
-      metadata: { username: user.username, role: user.role },
-    });
-    res.status(201).json({ ok: true, user });
-  } catch (error: any) {
-    if (String(error?.message || error).includes("UNIQUE")) {
-      return res.status(409).json({ error: "username_exists" });
-    }
-    res.status(400).json({ error: String(error?.message || error) });
-  }
-});
-
-app.patch("/api/users/:id", applyRateLimit, (req, res) => {
-  try {
-    const user = updateUser({
-      id: String(req.params.id || ""),
-      role: req.body?.role,
-      active: typeof req.body?.active === "boolean" ? req.body.active : undefined,
-      approvalStatus: ["pending", "approved", "rejected"].includes(String(req.body?.approvalStatus))
-        ? String(req.body.approvalStatus) as any
-        : undefined,
-      approvedBy: String((req as any).auth?.username || "admin"),
-    });
-    recordAuditEvent({
-      actor: String((req as any).auth?.username || "admin"),
-      action: "user.update",
-      entityType: "user",
-      entityId: user.id,
-      metadata: {
-        role: user.role,
-        active: user.active,
-        approvalStatus: user.approvalStatus,
-      },
-    });
-    res.json({ ok: true, user });
-  } catch (error: any) {
-    const reason = String(error?.message || error);
-    res.status(reason === "user_not_found" ? 404 : 409).json({ error: reason });
-  }
-});
-
-app.post("/api/users/:id/reset-password", applyRateLimit, (req, res) => {
-  try {
-    resetUserPassword(String(req.params.id || ""), String(req.body?.password || ""));
-    recordAuditEvent({
-      actor: String((req as any).auth?.username || "admin"),
-      action: "user.reset_password",
-      entityType: "user",
-      entityId: String(req.params.id || ""),
-    });
-    res.json({ ok: true, sessionsRevoked: true });
-  } catch (error: any) {
-    res.status(400).json({ error: String(error?.message || error) });
-  }
-});
-
-app.delete("/api/users/:id/sessions", applyRateLimit, (req, res) => {
-  const revoked = revokeUserSessions(String(req.params.id || ""));
-  recordAuditEvent({
-    actor: String((req as any).auth?.username || "admin"),
-    action: "user.revoke_sessions",
-    entityType: "user",
-    entityId: String(req.params.id || ""),
-    metadata: { revoked },
-  });
-  res.json({ ok: true, revoked });
-});
-
-app.post("/api/auth/change-password", applyRateLimit, (req, res) => {
-  const auth = (req as any).auth as RequestAuth;
-  const changed = changeUserPassword({
-    userId: auth.userId,
-    currentPassword: String(req.body?.currentPassword || ""),
-    newPassword: String(req.body?.newPassword || ""),
-  });
-  if (!changed) {
-    return res.status(400).json({ error: "password_change_failed" });
-  }
-  recordAuditEvent({
-    actor: auth.username,
-    action: "auth.change_password",
-    entityType: "user",
-    entityId: auth.userId,
-  });
-  res.json({ ok: true, sessionsRevoked: true });
-});
-
-app.get("/api/preferences", (req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  const auth = (req as any).auth as RequestAuth;
-  res.json(NO_PERSIST ? { payload: null, version: 0, updatedAt: null } : getUserPreferences(auth.userId));
-});
-
-app.put("/api/preferences", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "persistence_disabled" });
-  const auth = (req as any).auth as RequestAuth;
-  const payload = req.body?.payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return res.status(400).json({ error: "invalid_preferences_payload" });
-  }
-  const result = saveUserPreferences({
-    userId: auth.userId,
-    payload,
-    expectedVersion: Number(req.body?.version || 0),
-  });
-  if (!result.ok) return res.status(409).json(result);
-  recordAuditEvent({
-    actor: auth.username,
-    action: "preferences.update",
-    entityType: "user",
-    entityId: auth.userId,
-    metadata: { version: result.version, keys: Object.keys(payload).sort() },
-  });
-  res.json(result);
-});
+registerAuthRoutes(app, applyRateLimit, { authToken: AUTH_TOKEN, safeTokenEqual });
+registerPredictionRoutes(app, applyRateLimit);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -711,211 +434,6 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-const PREDICTION_RESOLUTION_STATUSES = new Set([
-  "verified_hit_user",
-  "verified_hit_ai",
-  "verified_both_win",
-  "verified_both_miss",
-]);
-
-app.get("/api/predictions", (req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  if (NO_PERSIST) return res.json({ contracts: [] });
-  const view = String(req.query.view || "all");
-  const auth = (req as any).auth as RequestAuth;
-  const contracts = listPredictionContracts(auth.userId, auth.role === "admin");
-  const dueStates = new Set(["overdue", "due_today", "due_soon"]);
-  const filtered = view === "due"
-    ? contracts.filter((contract) => dueStates.has(String(contract.dueState)))
-    : view === "pending"
-      ? contracts.filter((contract) => contract.status === "pending")
-      : view === "resolved"
-        ? contracts.filter((contract) => contract.status !== "pending")
-        : contracts;
-  res.json({ contracts: filtered, total: contracts.length });
-});
-
-app.post("/api/predictions", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "prediction_ledger_persistence_disabled" });
-  try {
-    const auth = (req as any).auth as RequestAuth;
-    const contract = createPredictionContract({ ...(req.body || {}), ownerUserId: auth.userId });
-    recordAuditEvent({
-      actor: "local",
-      action: "prediction.create",
-      entityType: "prediction_contract",
-      entityId: contract.id,
-      metadata: { articleId: contract.articleId, targetVerificationDate: contract.targetVerificationDate },
-    });
-    res.status(201).json({ ok: true, contract });
-  } catch (error: any) {
-    if (String(error?.message || error).includes("UNIQUE")) {
-      return res.status(409).json({ error: "prediction_contract_already_exists" });
-    }
-    res.status(400).json({ error: "invalid_prediction_contract" });
-  }
-});
-
-app.get("/api/predictions/export", (req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  if (NO_PERSIST) return res.json({ schemaVersion: 1, generatedAt: new Date().toISOString(), contracts: [], summary: null });
-  const auth = (req as any).auth as RequestAuth;
-  const exported = buildPredictionLedgerExport(auth.userId, auth.role === "admin");
-  res.json({ ...exported.payload, dataHash: exported.dataHash });
-});
-
-app.get("/api/predictions/snapshots", (_req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  res.json({ snapshots: NO_PERSIST ? [] : listPredictionLedgerSnapshots() });
-});
-
-app.get("/api/predictions/snapshots/:version", (req, res) => {
-  res.setHeader("Cache-Control", "private, no-store");
-  if (NO_PERSIST) return res.status(404).json({ error: "snapshot_not_found" });
-  const snapshot = loadPredictionLedgerSnapshot(String(req.params.version || ""));
-  if (!snapshot) return res.status(404).json({ error: "snapshot_not_found" });
-  res.json(snapshot);
-});
-
-app.post("/api/predictions/freeze", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "prediction_ledger_persistence_disabled" });
-  const version = String(req.body?.version || "").trim();
-  if (!/^[a-zA-Z0-9._-]{1,60}$/.test(version)) {
-    return res.status(400).json({ error: "invalid_snapshot_version" });
-  }
-  const auth = (req as any).auth as RequestAuth;
-  const exported = buildPredictionLedgerExport(auth.userId, auth.role === "admin");
-  if (exported.payload.contracts.length === 0) {
-    return res.status(409).json({ error: "no_prediction_contracts_to_freeze" });
-  }
-  try {
-    persistPredictionLedgerSnapshot({
-      version,
-      dataHash: exported.dataHash,
-      payload: exported.payload,
-    });
-    recordAuditEvent({
-      actor: "local",
-      action: "prediction.freeze",
-      entityType: "prediction_ledger",
-      entityId: version,
-      metadata: {
-        dataHash: exported.dataHash,
-        contractCount: exported.payload.summary.contracts,
-      },
-    });
-    res.status(201).json({
-      ok: true,
-      version,
-      dataHash: exported.dataHash,
-      contractCount: exported.payload.summary.contracts,
-      reviewCount: exported.payload.summary.contracts
-        ? exported.payload.contracts.reduce(
-            (sum: number, contract: any) => sum + (Array.isArray(contract?.outcomeReviews) ? contract.outcomeReviews.length : 0),
-            0
-          )
-        : 0,
-      createdAt: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    if (String(error?.message || error).includes("UNIQUE")) {
-      return res.status(409).json({ error: "snapshot_version_exists" });
-    }
-    res.status(500).json({ error: "failed_to_freeze_prediction_ledger" });
-  }
-});
-
-app.post("/api/predictions/:id/resolve", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "prediction_ledger_persistence_disabled" });
-  const id = String(req.params.id || "").trim();
-  const status = String(req.body?.status || "").trim();
-  const actualOutcome = String(req.body?.actualOutcome || "").trim();
-  const outcomeEvidence = String(req.body?.outcomeEvidence || "").trim();
-  const outcomeSourceUrl = String(req.body?.outcomeSourceUrl || "").trim();
-  const reviewer = String(req.body?.reviewer || "").trim();
-  if (!id || !PREDICTION_RESOLUTION_STATUSES.has(status)) {
-    return res.status(400).json({ error: "invalid_prediction_resolution" });
-  }
-  if (outcomeEvidence.length < 20) {
-    return res.status(400).json({ error: "outcome_evidence_too_short" });
-  }
-  if (reviewer.length < 2) {
-    return res.status(400).json({ error: "reviewer_name_required" });
-  }
-  if (outcomeSourceUrl) {
-    try {
-      const source = new URL(outcomeSourceUrl);
-      if (source.protocol !== "http:" && source.protocol !== "https:") throw new Error("protocol");
-    } catch {
-      return res.status(400).json({ error: "invalid_outcome_source_url" });
-    }
-  }
-  const result = resolvePredictionContract({
-    id,
-    status,
-    actualOutcome: actualOutcome || outcomeEvidence,
-    outcomeEvidence,
-    outcomeSourceUrl: outcomeSourceUrl || undefined,
-    brierScore: typeof req.body?.brierScore === "number" ? req.body.brierScore : undefined,
-    reviewer,
-    ownerUserId: (req as any).auth?.userId,
-    includeAll: (req as any).auth?.role === "admin",
-  });
-  if (!result.ok) return res.status(result.reason === "not_found" ? 404 : 409).json(result);
-  recordAuditEvent({
-    actor: reviewer,
-    action: "prediction.resolve",
-    entityType: "prediction_contract",
-    entityId: id,
-    metadata: { status, brierScore: req.body?.brierScore ?? null, hasEvidenceLink: Boolean(outcomeSourceUrl) },
-  });
-  res.json(result);
-});
-
-app.post("/api/predictions/:id/reviews", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "prediction_ledger_persistence_disabled" });
-  const contractId = String(req.params.id || "").trim();
-  const reviewer = String(req.body?.reviewer || "").trim();
-  const decision = String(req.body?.decision || "").trim();
-  const notes = String(req.body?.notes || "").trim();
-  if (!contractId || reviewer.length < 2 || !["confirm", "dispute"].includes(decision)) {
-    return res.status(400).json({ error: "invalid_prediction_review" });
-  }
-  const result = recordPredictionOutcomeReview({
-    contractId,
-    reviewer,
-    decision: decision as "confirm" | "dispute",
-    notes,
-    ownerUserId: (req as any).auth?.userId,
-    includeAll: (req as any).auth?.role === "admin",
-  });
-  if (!result.ok) return res.status(result.reason === "not_found" ? 404 : 409).json(result);
-  recordAuditEvent({
-    actor: reviewer,
-    action: "prediction.review",
-    entityType: "prediction_contract",
-    entityId: contractId,
-    metadata: { decision, hasNotes: Boolean(notes) },
-  });
-  res.status(201).json(result);
-});
-
-app.delete("/api/predictions/:id", applyRateLimit, (req, res) => {
-  if (NO_PERSIST) return res.status(503).json({ error: "prediction_ledger_persistence_disabled" });
-  const deleted = deletePendingPredictionContract(
-    String(req.params.id || ""),
-    (req as any).auth?.userId,
-    (req as any).auth?.role === "admin"
-  );
-  if (!deleted) return res.status(409).json({ error: "resolved_contract_is_immutable" });
-  recordAuditEvent({
-    actor: "local",
-    action: "prediction.delete",
-    entityType: "prediction_contract",
-    entityId: String(req.params.id || ""),
-  });
-  res.json({ ok: true });
-});
 
 // AI News Interpretation & Cognitive Analysis endpoint
 app.post("/api/analyze", applyRateLimit, async (req, res) => {

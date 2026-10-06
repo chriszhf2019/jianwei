@@ -26,6 +26,14 @@ import type { NewsSkill } from '../components/home/HomeView';
 const INDEXED_DB_CORPUS_KEY = 'jianwei:indexeddb-corpus-v2';
 const SESSION_CORPUS_CACHE_KEY = 'jianwei:cached-corpus-v1';
 const LEGACY_DEMO_PREDICTION_IDS = new Set(['contract-agent-2026', 'contract-semi-historical']);
+/** 与服务端默认零演示对齐：客户端缓存中剔除历史精选演示文，避免空语料时闪现伪新闻。 */
+const LEGACY_DEMO_ARTICLE_IDS = new Set(
+  CURATED_ARTICLES.map((article) => String(article.id || '')).filter(Boolean)
+);
+
+function withoutLegacyDemoArticles(list: NewsArticle[]): NewsArticle[] {
+  return list.filter((article) => !LEGACY_DEMO_ARTICLE_IDS.has(String(article.id || '')));
+}
 
 // 创建 localforage IndexedDB 存储实例，支持大规模语料持久化存储并防止配额溢出
 const corpusDB = localforage.createInstance({
@@ -113,19 +121,26 @@ export function useAppStorage() {
     [selectedPersonaId]
   );
 
-  // 语料库核心状态
-  const [articles, setArticles] = useState<NewsArticle[]>(CURATED_ARTICLES);
+  // 语料库核心状态：默认空态，真实语料由 /api/corpus 分页填充（演示文仅服务端显式开关注入）
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
   const articlesRef = useRef<NewsArticle[]>(articles);
   useEffect(() => {
     articlesRef.current = articles;
   }, [articles]);
 
-  // 组件挂载时异步读取 IndexedDB 中持久化的语料库
+  // 组件挂载时异步读取 IndexedDB 中持久化的语料库（剔除历史演示 ID）
   useEffect(() => {
     let active = true;
     loadCachedCorpus().then((cached) => {
-      if (active && cached && cached.length > 0) {
-        setArticles(cached);
+      if (!active || !cached || cached.length === 0) return;
+      const cleaned = withoutLegacyDemoArticles(cached);
+      if (cleaned.length > 0) {
+        setArticles(cleaned);
+        if (cleaned.length !== cached.length) {
+          void saveCachedCorpus(cleaned);
+        }
+      } else if (cached.length > 0) {
+        void corpusDB.removeItem(INDEXED_DB_CORPUS_KEY);
       }
     });
     return () => {
@@ -608,13 +623,22 @@ export function useAppStorage() {
         if (!res.ok) throw new Error(`corpus ${res.status}`);
         const json = await res.json();
         const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
-        if (page.length > 0) {
+        // 首页以服务端语料为唯一事实源：避免本地缓存/旧演示文在空语料时残留
+        if (offset === 0) {
+          loadedCount = page.length;
+          setArticles(page);
+          if (page.length > 0) {
+            void saveCachedCorpus(page);
+          } else {
+            void corpusDB.removeItem(INDEXED_DB_CORPUS_KEY);
+          }
+        } else if (page.length > 0) {
           loadedCount += page.length;
           setArticles((prev) => {
             const seen = new Set(prev.map((a) => a.id));
             const fresh = page.filter((a) => !seen.has(a.id));
             const next = fresh.length > 0 ? [...prev, ...fresh] : prev;
-            saveCachedCorpus(next);
+            void saveCachedCorpus(next);
             return next;
           });
         }

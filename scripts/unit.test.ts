@@ -979,4 +979,14 @@ test('diagnoseFeedContract: 结构化契约探针与修复建议输出', async (
   assert.ok(privateDiag.issues[0].suggestion.includes('SSRF'));
 });
 
+test('isDemoDataEnabled: 仅显式 =1 开启，默认零演示', async () => {
+  const { isDemoDataEnabled } = await import('../src/server/demoData');
+  assert.equal(isDemoDataEnabled('1'), true);
+  assert.equal(isDemoDataEnabled(undefined), false);
+  assert.equal(isDemoDataEnabled(''), false);
+  assert.equal(isDemoDataEnabled('0'), false);
+  assert.equal(isDemoDataEnabled('true'), false);
+  assert.equal(isDemoDataEnabled('yes'), false);
+});
+
 
