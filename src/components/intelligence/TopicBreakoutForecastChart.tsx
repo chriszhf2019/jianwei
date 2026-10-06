@@ -76,7 +76,6 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
         color: '#E3120B',
         icon: '🤖',
         keywords: ['ai', 'semi', '算力', '芯片', '大模型', 'gpu', 'moe', 'cpo', 'openai', 'agent', '封装', '台积电'],
-        baseTrend: [35, 42, 48, 56, 68, 80, 88],
         catalyst: '开源低成本架构爆发与超大规模算力集群供电采购提速',
         actionGuidance: '重点关注上下游光模块与端侧芯片模组供应链排产交付',
       },
@@ -87,7 +86,6 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
         color: '#059669',
         icon: '🔋',
         keywords: ['auto', 'battery', '固态电池', '锂电', '储能', '新能源', '出海', '整车', 'ckd'],
-        baseTrend: [30, 36, 42, 49, 58, 68, 78],
         catalyst: '车企海外散件本土化合资点火与下一代电池产业链深潜',
         actionGuidance: '防范液态锂电正负极旧产能减值风险，跟踪海外本土化代工厂订单',
       },
@@ -98,7 +96,6 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
         color: '#D97706',
         icon: '🌐',
         keywords: ['gov', '关税', '出海', '反补贴', '制裁', '贸易', 'ckd', '美联储', '流动性', '汇率'],
-        baseTrend: [28, 32, 38, 45, 52, 62, 72],
         catalyst: '原产地规则与跨境贸易监管重审，倒逼供应链散件化与多地代工',
         actionGuidance: '加速东南亚与拉美本地合资工厂备案，规避反规避审查',
       },
@@ -109,7 +106,6 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
         color: '#8B5CF6',
         icon: '🦾',
         keywords: ['机器人', '人形机器人', '具身智能', '灵巧手', '自动化', 'agent', '数字员工'],
-        baseTrend: [25, 29, 34, 40, 48, 58, 66],
         catalyst: '端到端自主 Agent 落地验证与工业级灵巧操作模块量产',
         actionGuidance: '跟踪工业自动化集成商与高精度减速器供应商订单拐点',
       },
@@ -135,36 +131,35 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
         }
       }
 
-      // Real forecast counts: project based on recent counts
+      // 动量分：主要由真实日计数驱动；不再叠加虚构 baseTrend 地板
+      const historyScores = historyCounts.map((dayCount, idx) => {
+        const fromCount = Math.min(100, dayCount * 18);
+        const prev = idx > 0 ? historyCounts[idx - 1] : dayCount;
+        const slopeBoost = Math.max(-10, Math.min(10, (dayCount - prev) * 4));
+        return Math.min(100, Math.max(0, Math.round(fromCount + slopeBoost)));
+      });
+
+      // 外推：仅基于计数斜率的启发式，不是校准预测
       const countSlope = (historyCounts[6] - historyCounts[3]) / 3;
+      const recentTrend = (historyScores[6] - historyScores[3]) / 3;
+      const f1 = Math.min(100, Math.max(0, Math.round(historyScores[6] + recentTrend * 0.9)));
+      const f2 = Math.min(100, Math.max(0, Math.round(f1 + recentTrend * 0.7)));
+      const f3 = Math.min(100, Math.max(0, Math.round(f2 + recentTrend * 0.5)));
+      const forecastScores = [f1, f2, f3];
+
       const forecastCounts = [
         Math.max(0, Math.round(historyCounts[6] + countSlope)),
         Math.max(0, Math.round(historyCounts[6] + countSlope * 1.5)),
         Math.max(0, Math.round(historyCounts[6] + countSlope * 2)),
       ];
 
-      // Momentum scores (0 - 100): dynamically calibrated by actual matches and article impact
-      const articleImpactBoost = matchedArticles.length > 0
-        ? Math.min(10, matchedArticles.length * 2.5)
-        : 0;
-      const historyScores = cfg.baseTrend.map((base, idx) => {
-        const dayCount = historyCounts[idx];
-        return Math.min(96, Math.max(20, Math.round(base + dayCount * 3 + (idx >= 5 ? articleImpactBoost : 0))));
-      });
-
-      // Forecast next 3 days using exponential smoothing + acceleration
-      const recentTrend = (historyScores[6] - historyScores[3]) / 3;
-      const f1 = Math.min(98, Math.round(historyScores[6] + recentTrend * 0.9));
-      const f2 = Math.min(99, Math.round(f1 + recentTrend * 0.7));
-      const f3 = Math.min(100, Math.round(f2 + recentTrend * 0.5));
-      const forecastScores = [f1, f2, f3];
-
       const burstScore = historyScores[6];
-      // 过去 72 小时动量增幅 (T0 vs T-3)
-      const momentumGain = Math.round(((historyScores[6] - historyScores[3]) / Math.max(1, historyScores[3])) * 100);
-      const growthRate = `+${Math.max(15, momentumGain)}%`;
+      const momentumGain = historyScores[3] > 0
+        ? Math.round(((historyScores[6] - historyScores[3]) / historyScores[3]) * 100)
+        : historyScores[6] > 0 ? 100 : 0;
+      const growthRate = `${momentumGain > 0 ? '+' : ''}${momentumGain}%`;
       const status: 'critical_breakout' | 'surging' | 'steady' =
-        burstScore >= 80 ? 'critical_breakout' : burstScore >= 65 ? 'surging' : 'steady';
+        burstScore >= 80 ? 'critical_breakout' : burstScore >= 40 ? 'surging' : 'steady';
 
       return {
         id: cfg.id,
@@ -179,9 +174,9 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
         burstScore,
         growthRate,
         status,
-        catalyst: cfg.catalyst,
-        actionGuidance: cfg.actionGuidance,
-        representativeArticle: matchedArticles[0] || articles[0],
+        catalyst: `编辑模板：${cfg.catalyst}`,
+        actionGuidance: `编辑提示（非实时情报）：${cfg.actionGuidance}`,
+        representativeArticle: matchedArticles[0] || undefined,
       };
     });
   }, [articles]);
@@ -431,7 +426,7 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
           </span>
         </div>
         <div className="text-[11px] text-stone-400 font-mono">
-          预测模型算法：权威信源加权 + 发稿频率加速度 (d²N/dt²) + EMA 指数平滑
+          口径：历史段=站内发稿计数；虚线=计数线性外推（启发式，非权威加权、非市场预测）；催化剂文案为编辑模板
         </div>
       </div>
 

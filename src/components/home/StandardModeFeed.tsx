@@ -224,20 +224,20 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
               ? article.trendForecastText
               : (article.trendForecastText as any)?.shortTerm
               || article.rippleEffect?.stages?.[0]?.title
-              || '短期价格与产品博弈蔓延，中期加速行业渗透与标准重构';
+              || null;
 
             const riskText = typeof article.riskReviewText === 'string'
               ? article.riskReviewText
               : (article.riskReviewText as any)?.mainRisk
               || personaImpact?.threatRisk
-              || '警惕二线初创厂商现金流与算力超售风险，防范恶性竞争';
+              || null;
 
             // 媒体信息
             const prof = mediaProfile(article.sourceName, article.sourceUrl);
             const badge = prof ? tierBadge(prof.tier) : null;
             const mediaDisplayName = prof?.displayName
               || article.sourceName?.replace(/^www\./, '').replace(/\.(com|cn|net|org|gov)($|\.)/, '')
-              || '权威信源';
+              || '来源未标明';
 
             return (
               <article
@@ -398,7 +398,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <span>发展趋势</span>
                     </div>
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {trendText}
+                      {trendText || '尚未生成趋势摘要（不使用模板补全）'}
                     </p>
                   </div>
 
@@ -408,42 +408,23 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <span>潜在风险</span>
                     </div>
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {riskText}
+                      {riskText || '尚未生成风险摘要（不使用模板补全）'}
                     </p>
                   </div>
                 </div>
 
-                {/* 7. 各方立场温差图示能量条 */}
+                {/* 7. 各方立场：无独立立场样本时不展示伪比例条 */}
                 <div className="bg-[#FAF8F5] border border-stone-200/90 rounded-xl p-3 text-xs space-y-2 font-sans">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-serif font-bold text-stone-800 flex items-center gap-1.5">
                       <Scale className="w-3.5 h-3.5 text-stone-600" />
-                      <span>多方立场温差图示 (Consensus Spectrum)</span>
+                      <span>多方立场温差</span>
                     </span>
-                    <span className="text-stone-400 font-mono text-[10px]">乐观 60% · 观望 25% · 承压 15%</span>
+                    <span className="text-stone-400 font-mono text-[10px]">立场比例未测算 · 不展示伪百分比</span>
                   </div>
-
-                  {/* 堆叠色彩能量条 */}
-                  <div className="h-2 w-full rounded-full bg-stone-200 overflow-hidden flex shadow-inner">
-                    <div className="h-full bg-emerald-500 transition-all hover:opacity-90" style={{ width: '60%' }} title="官方/当事方：极度乐观 (60%)" />
-                    <div className="h-full bg-amber-400 transition-all hover:opacity-90" style={{ width: '25%' }} title="独立智库：谨慎观望 (25%)" />
-                    <div className="h-full bg-rose-500 transition-all hover:opacity-90" style={{ width: '15%' }} title="同业/竞品：承压跟进 (15%)" />
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-stone-600 pt-0.5">
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                      <span>官方：技术普惠</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                      <span>智库：警惕算力超售</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                      <span>同业：毛利承压跟降</span>
-                    </span>
-                  </div>
+                  <p className="text-[11px] text-stone-500 leading-relaxed">
+                    当前卡片没有独立立场标注样本，因此不绘制乐观/观望/承压比例条，也不编造官方、智库、同业话术。
+                  </p>
                 </div>
 
 

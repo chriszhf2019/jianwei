@@ -137,41 +137,41 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
     const isDeteriorating = delta < -2;
     const isConsolidating = !isWarming && !isDeteriorating;
 
-    // Generate mini sparklines based on real data & distributions
+    // Sparkline 只展示当日真实计数垫底，不伪造历史轨迹
     const alertSparkline = [
-      { t: 'T-6', val: 1 },
-      { t: 'T-5', val: 1 },
-      { t: 'T-4', val: 2 },
-      { t: 'T-3', val: 2 },
-      { t: 'T-2', val: 3 },
-      { t: 'T-1', val: Math.max(2, alertArticles.length - 1) },
-      { t: 'T0', val: Math.max(3, alertArticles.length) },
+      { t: 'T-6', val: 0 },
+      { t: 'T-5', val: 0 },
+      { t: 'T-4', val: 0 },
+      { t: 'T-3', val: 0 },
+      { t: 'T-2', val: 0 },
+      { t: 'T-1', val: 0 },
+      { t: 'T0', val: alertArticles.length },
     ];
 
     const trendingSparkline = [
-      { t: 'T-6', val: 2 },
-      { t: 'T-5', val: 3 },
-      { t: 'T-4', val: 4 },
-      { t: 'T-3', val: 6 },
-      { t: 'T-2', val: 9 },
-      { t: 'T-1', val: Math.max(8, trendingArticles.length * 2) },
-      { t: 'T0', val: Math.max(12, trendingArticles.length * 3) },
+      { t: 'T-6', val: 0 },
+      { t: 'T-5', val: 0 },
+      { t: 'T-4', val: 0 },
+      { t: 'T-3', val: 0 },
+      { t: 'T-2', val: 0 },
+      { t: 'T-1', val: 0 },
+      { t: 'T0', val: trendingArticles.length },
     ];
 
     const sectorBarData = sectorCounts.slice(0, 5).map((s) => ({
       name: s.name.slice(0, 2),
       fullName: s.name,
-      val: Math.max(2, s.count),
+      val: s.count,
     }));
 
     const sourceSparkline = [
-      { t: 'T-6', val: 4 },
-      { t: 'T-5', val: 5 },
-      { t: 'T-4', val: 7 },
-      { t: 'T-3', val: 8 },
-      { t: 'T-2', val: 9 },
-      { t: 'T-1', val: Math.max(8, sources.size - 1) },
-      { t: 'T0', val: Math.max(10, sources.size) },
+      { t: 'T-6', val: 0 },
+      { t: 'T-5', val: 0 },
+      { t: 'T-4', val: 0 },
+      { t: 'T-3', val: 0 },
+      { t: 'T-2', val: 0 },
+      { t: 'T-1', val: 0 },
+      { t: 'T0', val: sources.size },
     ];
 
     return {
@@ -183,17 +183,17 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
       isDeteriorating,
       isConsolidating,
       maComparisonSeries,
-      alertCount: alertArticles.length > 0 ? alertArticles.length : 3,
+      alertCount: alertArticles.length,
       alertSparkline,
-      trendingCount: trendingArticles.length > 0 ? trendingArticles.length : 6,
+      trendingCount: trendingArticles.length,
       trendingSparkline,
       topSectorName: topSector.name,
       topSectorCount: topSector.count,
-      topSectorShare: Math.round((topSector.count / Math.max(1, articles.length)) * 100) || 38,
+      topSectorShare: Math.round((topSector.count / Math.max(1, articles.length)) * 100),
       sectorBarData,
-      sourcesCount: sources.size > 0 ? sources.size : 12,
+      sourcesCount: sources.size,
       sourceSparkline,
-      sourceSamples: ['彭博社', '路透社', 'FT', 'MIT科技评论'].slice(0, 3).join(' · '),
+      sourceSamples: Array.from(sources).slice(0, 3).join(' · ') || '暂无来源名',
       total: articles.length,
     };
   }, [articles]);

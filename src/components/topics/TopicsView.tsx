@@ -405,7 +405,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
     md += `- 🛑 **假设证伪条件**：${topic.invalidationTrigger}\n\n`;
     md += `## 📚 专题收录的深度解读报告列表\n\n`;
     topic.articles.forEach((art, idx) => {
-      md += `${idx + 1}. **《${art.title}》** (${formatArticleTime(art)} · ${art.sourceName || '权威信源'})\n   - 核心定性：${art.oneSentenceVerdict || art.summary || '详见站内报告'}\n\n`;
+      md += `${idx + 1}. **《${art.title}》** (${formatArticleTime(art)} · ${art.sourceName || '来源未标明'})\n   - 核心定性：${art.oneSentenceVerdict || art.summary || '详见站内报告'}\n\n`;
     });
     md += `---\n*见微 Genway · 内部深度专题决策档案*\n`;
 
@@ -846,7 +846,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
                         </p>
                         <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-200/60">
                           <span className="text-stone-400 font-mono text-[10px]">
-                            {art.sourceName || '权威信源'}
+                            {art.sourceName || '来源未标明'}
                           </span>
                           <span className="font-serif font-bold text-stone-800 group-hover:text-[#E3120B] flex items-center gap-1">
                             <span>阅读深度拆解</span>

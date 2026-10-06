@@ -14,7 +14,7 @@ export function generateStructuredMarkdown(article: NewsArticle): string {
 
   let md = `# 【见微战略情报简报】${article.title}\n\n`;
   md += `> **生成时间**：${new Date().toLocaleString('zh-CN')}  \n`;
-  md += `> **权威信源**：${article.sourceName || '公开权威信源'} ｜ **发布时间**：${timeStr} ｜ **所属赛道**：${sectors}  \n`;
+  md += `> **信源**：${article.sourceName || '来源未标明'} ｜ **发布时间**：${timeStr} ｜ **所属赛道**：${sectors}  \n`;
   md += `> **原文链接**：${article.sourceUrl || '内部语料库'}  \n\n`;
 
   md += `---\n\n`;
@@ -252,7 +252,7 @@ export function exportBriefingAsPdf(article: NewsArticle): void {
     <div class="brand">JIANWEI INTELLIGENCE · 见微战略情报简报</div>
     <div class="title">${article.title}</div>
     <div class="meta">
-      信源：${article.sourceName || '公开权威信源'} ｜ 时间：${timeStr} ｜ 赛道：${sectors} ｜ 归档编号：#${article.id.slice(0, 8)}
+      信源：${article.sourceName || '来源未标明'} ｜ 时间：${timeStr} ｜ 赛道：${sectors} ｜ 归档编号：#${article.id.slice(0, 8)}
     </div>
   </div>
 

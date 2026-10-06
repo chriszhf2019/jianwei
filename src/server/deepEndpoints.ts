@@ -365,18 +365,18 @@ app.all("/api/trend-comparison", applyRateLimit, async (req, res) => {
         else if (todayHits >= 2 || growth >= 25) status = 'hot';
         else if (growth <= -25) status = 'cooling';
 
-        const baseHeat = Math.min(100, Math.max(20, todayHits * 25 + d3Hits * 12 + d30Hits * 5 + (growth > 0 ? Math.min(25, growth * 0.15) : 0)));
+        const baseHeat = Math.min(100, Math.max(0, todayHits * 25 + d3Hits * 12 + d30Hits * 5 + (growth > 0 ? Math.min(25, growth * 0.15) : 0)));
         const heatIndex = Math.round(baseHeat);
 
         let insight = '';
         if (status === 'surge') {
-          insight = `近期在站内语料中出现频率显著飙升，动态动量增幅达 ${growth > 0 ? '+' : ''}${growth}%`;
+          insight = `站内词频相对近窗上升（启发式增长率 ${growth > 0 ? '+' : ''}${growth}%），不是市场热度真值`;
         } else if (status === 'hot') {
-          insight = `在近期及今日持续高居关注焦点，多信源交叉发酵`;
+          insight = `近窗与今日命中较多；多信源交叉需另看原文，此处只计词频`;
         } else if (status === 'cooling') {
-          insight = `热度较前期有所回落，注意力向衍生议题转移`;
+          insight = `相对近窗词频回落；注意力是否转移需对照原文`;
         } else {
-          insight = `跨时间窗口（今日 vs 近30天）保持稳健关注度`;
+          insight = `跨时间窗口词频相对平稳（站内样本，非全网）`;
         }
 
         return {
@@ -394,7 +394,7 @@ app.all("/api/trend-comparison", applyRateLimit, async (req, res) => {
       .sort((a, b) => b.heatIndex - a.heatIndex)
       .slice(0, 10);
 
-    // 兜底保障：若筛选后为空，提取高频标签填充，保证卡片绝对有内容呈现
+    // 无命中时诚实返回空列表，不再编造 +150% 与假今日计数
     if (trends.length === 0 && corpus.length > 0) {
       const tagCountMap: Record<string, number> = {};
       corpus.forEach((a: any) => {
@@ -405,15 +405,15 @@ app.all("/api/trend-comparison", applyRateLimit, async (req, res) => {
       trends = Object.entries(tagCountMap)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 6)
-        .map(([kw, count], idx) => ({
+        .map(([kw, count]) => ({
           keyword: kw,
-          todayCount: Math.max(1, Math.floor(count / 2)),
-          prev3dCount: count,
+          todayCount: 0,
+          prev3dCount: 0,
           prev30dCount: count,
-          heatIndex: Math.max(30, 85 - idx * 8),
-          status: idx === 0 ? 'surge' : idx < 3 ? 'hot' : 'stable',
-          growthRate: idx === 0 ? '+150%' : '+45%',
-          insight: '站内核心高频词，多篇情报关联度显著',
+          heatIndex: Math.min(100, count * 10),
+          status: 'stable' as const,
+          growthRate: 'n/a',
+          insight: '字典窗无时间戳命中；此处仅展示语料标签总频次，不编造今日增速',
         }));
     }
 
@@ -421,21 +421,23 @@ app.all("/api/trend-comparison", applyRateLimit, async (req, res) => {
     const hotItems = trends.filter((t) => t.status === 'hot').map((t) => t.keyword);
 
     const leadKeywords = trends.slice(0, 2).map(t => t.keyword);
-    const key1 = leadKeywords[0] || '核心战略产业';
-    const key2 = leadKeywords[1] || '产业链供应链';
+    const key1 = leadKeywords[0];
+    const key2 = leadKeywords[1];
 
     let focalPhrase = '';
     if (surgingItems.length > 0) {
-      focalPhrase = `今日表现出显著热度飙升的话题为「${surgingItems.slice(0, 3).join('」、「')}」`;
+      focalPhrase = `词频相对近窗上升的话题包括「${surgingItems.slice(0, 3).join('」、「')}」`;
     } else if (hotItems.length > 0) {
-      focalPhrase = `维持高发酵度的热词包括「${hotItems.slice(0, 3).join('」、「')}」`;
+      focalPhrase = `近窗命中较多的热词包括「${hotItems.slice(0, 3).join('」、「')}」`;
     } else if (trends.length > 0) {
-      focalPhrase = `持续高频聚焦的热词包括「${trends.slice(0, 3).map(t => t.keyword).join('」、「')}」`;
+      focalPhrase = `当前样本中出现较多的词包括「${trends.slice(0, 3).map(t => t.keyword).join('」、「')}」`;
     } else {
-      focalPhrase = `重点聚焦于宏观政策与产业结构性调整`;
+      focalPhrase = '当前样本没有足够词频信号';
     }
 
-    const aiSynthesis = `跨语料演变分析显示：当前高频关注集中在「${key1}」与「${key2}」。${focalPhrase}。演变趋势显示市场注意力正从单纯消息发布向二次深层传导转移。`;
+    const aiSynthesis = key1
+      ? `站内词频统计：高频词包括「${key1}」${key2 ? `与「${key2}」` : ''}。${focalPhrase}。以上为启发式词频摘要，不是模型核验，也不是市场注意力真值。`
+      : '站内词频统计：当前样本没有可展示的高频词。不会用模板叙事代替结论。';
 
     return res.json({
       ok: true,
