@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="brand h1">登录见微</view>
+  <view class="muted" style="margin: 12rpx 0 32rpx;">
+    使用服务端账号，或粘贴共享访问令牌。Token 仅存本机 Storage，并通过 Authorization 发送。
+  </view>
+
+  <view class="mode-row">
+    <view class="mode {{mode==='password'?'on':''}}" data-mode="password" bindtap="setMode">账号密码</view>
+    <view class="mode {{mode==='token'?'on':''}}" data-mode="token" bindtap="setMode">访问令牌</view>
+  </view>
+
+  <block wx:if="{{mode==='password'}}">
+    <view class="field">
+      <text class="field-label">用户名</text>
+      <input class="field-input" value="{{username}}" bindinput="onUsername" />
+    </view>
+    <view class="field">
+      <text class="field-label">密码</text>
+      <input class="field-input" password value="{{password}}" bindinput="onPassword" />
+    </view>
+  </block>
+
+  <view class="field" wx:else>
+    <text class="field-label">JIANWEI_AUTH_TOKEN / 会话令牌</text>
+    <textarea class="field-input token-input" value="{{accessToken}}" bindinput="onToken" />
+  </view>
+
+  <button class="btn btn-primary" bindtap="onSubmit" loading="{{loading}}">登录</button>
+</view>

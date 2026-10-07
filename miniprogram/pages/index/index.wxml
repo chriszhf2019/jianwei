@@ -1,0 +1,60 @@
+<view class="container">
+  <view class="hero">
+    <view class="brand h1">见微</view>
+    <view class="muted hero-sub">于细微处，读懂新闻背后</view>
+  </view>
+
+  <view wx:if="{{!baseUrl}}" class="notice warn">
+    尚未配置 API 基址。请到「我的」填写已部署的 HTTPS 服务地址，并在微信后台配置 request 合法域名。
+  </view>
+
+  <view wx:elif="{{statusText}}" class="notice">{{statusText}}</view>
+
+  <view class="search-row">
+    <input
+      class="search-input"
+      placeholder="搜索标题 / 摘要"
+      value="{{query}}"
+      confirm-type="search"
+      bindinput="onQueryInput"
+      bindconfirm="onSearch"
+    />
+    <button class="btn btn-primary search-btn" bindtap="onSearch" loading="{{loading}}">搜索</button>
+  </view>
+
+  <view wx:if="{{snapshot}}" class="stats muted">
+    语料 {{snapshot.meta.corpusSize}} 篇 · {{snapshot.meta.corpus}}{{snapshot.meta.demo ? ' · 演示' : ''}}
+  </view>
+
+  <view wx:if="{{loading && !articles.length}}" class="empty">加载中…</view>
+
+  <view wx:elif="{{!loading && !articles.length}}" class="empty">
+    <view class="h2" style="margin-bottom: 12rpx;">暂无语料</view>
+    <view class="muted">服务端无 RSS / 提交数据时显示空态，不会注入假新闻。</view>
+  </view>
+
+  <block wx:else>
+    <view
+      class="article"
+      wx:for="{{articles}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="openDetail"
+    >
+      <view class="article-title">{{item.title}}</view>
+      <view class="article-teaser" wx:if="{{item._teaser}}">{{item._teaser}}</view>
+      <view class="article-meta muted">{{item._meta}}</view>
+      <view class="tag-row" wx:if="{{item.tags && item.tags.length}}">
+        <text class="tag" wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this">{{tag}}</text>
+      </view>
+      <view class="tag" wx:if="{{item.isExternal}}">外部信源 · 可深读补全</view>
+    </view>
+
+    <button
+      wx:if="{{hasMore}}"
+      class="btn btn-ghost section-gap"
+      bindtap="loadMore"
+      loading="{{loadingMore}}"
+    >加载更多</button>
+  </block>
+</view>

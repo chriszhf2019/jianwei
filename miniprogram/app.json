@@ -1,0 +1,46 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/detail/detail",
+    "pages/analyze/analyze",
+    "pages/login/login",
+    "pages/mine/mine"
+  ],
+  "window": {
+    "navigationBarTitleText": "见微 Genway",
+    "navigationBarBackgroundColor": "#1c1917",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f2eb",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "tabBar": {
+    "color": "#78716c",
+    "selectedColor": "#1c1917",
+    "backgroundColor": "#fafaf9",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "情报",
+        "iconPath": "assets/tab-home.png",
+        "selectedIconPath": "assets/tab-home-active.png"
+      },
+      {
+        "pagePath": "pages/analyze/analyze",
+        "text": "分析",
+        "iconPath": "assets/tab-analyze.png",
+        "selectedIconPath": "assets/tab-analyze-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "assets/tab-mine.png",
+        "selectedIconPath": "assets/tab-mine-active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

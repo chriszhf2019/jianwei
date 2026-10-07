@@ -1,0 +1,43 @@
+<view class="container">
+  <view class="hero">
+    <view class="brand h1">见微</view>
+    <view class="muted">移动端轻量客户端 · 对接同一后端</view>
+  </view>
+
+  <view class="card">
+    <view class="row">
+      <text class="label">登录状态</text>
+      <text class="value">{{userLabel}}</text>
+    </view>
+    <view class="row">
+      <text class="label">AI 通道</text>
+      <text class="value">{{aiLabel}}</text>
+    </view>
+    <view class="row">
+      <text class="label">服务</text>
+      <text class="value small">{{healthLabel}}</text>
+    </view>
+  </view>
+
+  <view class="section-gap">
+    <view class="h2" style="margin-bottom: 16rpx;">API 基址</view>
+    <view class="notice warn">
+      须为 HTTPS 公网地址，并在微信公众平台「开发 → 开发管理 → 服务器域名」加入 request 合法域名。本地调试可在开发者工具关闭域名校验。
+    </view>
+    <view class="field">
+      <text class="field-label">例如 https://api.example.com</text>
+      <input class="field-input" value="{{baseUrl}}" bindinput="onBaseUrl" placeholder="https://" />
+    </view>
+    <button class="btn btn-primary" bindtap="saveBaseUrl" loading="{{saving}}">保存并检测</button>
+  </view>
+
+  <view class="actions section-gap">
+    <button class="btn btn-accent" wx:if="{{!loggedIn}}" bindtap="goLogin">登录</button>
+    <button class="btn btn-ghost" wx:else bindtap="logout">退出登录</button>
+    <button class="btn btn-ghost" bindtap="pingHealth" loading="{{pinging}}">重新检测健康</button>
+  </view>
+
+  <view class="muted footer">
+    小程序不依赖游客 Cookie；未登录时部分接口可能受服务端游客限额约束。完整情报中心 / 专题 / 管理台仍请使用 Web 端。
+  </view>
+</view>

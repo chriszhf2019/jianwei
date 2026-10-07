@@ -45,10 +45,15 @@ pnpm test:func        # 功能级端到端测试（含设置热更新/真实 RSS
 - **真实信源接入**：`GET /api/feeds/status` 查看配置；`POST /api/feeds/ingest` 抓取 RSS 并入语料（`NEWS_FEED_URLS`）；`GET /api/corpus` 返回服务端运行时语料，首页信息流/搜索自动合并摄取的新条目；`POST /api/enrich` 对浅层条目做深度认知懒加载补全（无 Key 明确返回不可用，不造假）。
 - **持久化**：收藏、关注标签、雷达关键词、预测契约、行动备忘录、身份与阅读模式均存于 localStorage（`useLocalState`）；服务端设置（Key/通道/信源/昵称）存于 `data/settings.json`；运行时语料以 `data/corpus.db` SQLite 为主存储，`data/corpus.json` 保留兼容快照。
 
+## 微信小程序（移动端）
+
+原生微信小程序客户端在 `miniprogram/`：情报流、详情深读、提交分析、登录与 API 基址配置，对接同一后端。用微信开发者工具打开该目录即可调试；正式环境需 HTTPS + 合法域名。详见 [`miniprogram/README.md`](miniprogram/README.md)。
+
 ## 目录速览
 
 ```
 server.ts                     Express + Vite 中间件 + Gemini 代理端点（默认 PORT=3000 / BIND_HOST=0.0.0.0）
+miniprogram/                  微信小程序客户端（情报 / 分析 / 我的）
 src/
   App.tsx                     全局状态/导航/模态编排（含 useLocalState 持久化）
   types.ts                    全量数据契约

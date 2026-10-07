@@ -1,0 +1,23 @@
+.hero {
+  margin-bottom: 28rpx;
+}
+
+.hero-sub {
+  margin-top: 10rpx;
+  line-height: 1.55;
+}
+
+.body-input {
+  min-height: 280rpx;
+  width: 100%;
+}
+
+.result {
+  padding-top: 8rpx;
+}
+
+.block-body {
+  font-size: 30rpx;
+  line-height: 1.65;
+  color: var(--ink);
+}
