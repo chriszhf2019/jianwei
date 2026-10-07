@@ -1,0 +1,83 @@
+<view class="container" wx:if="{{article}}">
+  <view class="brand muted" style="margin-bottom: 12rpx;">见微 · 深读</view>
+  <view class="h1">{{article.title}}</view>
+  <view class="muted meta">{{meta}}</view>
+
+  <view class="notice warn" wx:if="{{article.isExternal && !enriched}}">
+    外部信源浅层条目。下方可请求服务端深读补全；无 AI Key 时会明确返回不可用，不会伪造分析。
+  </view>
+
+  <view class="block" wx:if="{{article.oneSentenceVerdict}}">
+    <view class="block-label">一句话结论</view>
+    <view class="block-body">{{article.oneSentenceVerdict}}</view>
+  </view>
+
+  <view class="block" wx:if="{{article.summary}}">
+    <view class="block-label">摘要</view>
+    <view class="block-body">{{article.summary}}</view>
+  </view>
+
+  <view class="block" wx:if="{{article.tongsuSummary && article.tongsuSummary.simpleSay}}">
+    <view class="block-label">通俗说</view>
+    <view class="block-body">{{article.tongsuSummary.simpleSay}}</view>
+    <view class="block-body soft" wx:if="{{article.tongsuSummary.whyExplanation}}">{{article.tongsuSummary.whyExplanation}}</view>
+  </view>
+
+  <view class="block" wx:if="{{seven}}">
+    <view class="block-label">七要素（模型推断）</view>
+    <view class="seven-row" wx:for="{{sevenRows}}" wx:key="k">
+      <text class="seven-k">{{item.k}}</text>
+      <text class="seven-v">{{item.v}}</text>
+    </view>
+    <view class="verdict" wx:if="{{seven.aiVerdict}}">
+      <view>裁决：{{seven.aiVerdict.verdictSummary}}</view>
+      <view class="muted" style="margin-top: 8rpx;">
+        置信 {{seven.aiVerdict.confidenceScore}} · {{seven.aiVerdict.volatility}}波动 · {{seven.aiVerdict.actionLevel}}
+      </view>
+      <view class="muted" style="margin-top: 8rpx;">以上为模型推断，不是已核验事实。</view>
+    </view>
+  </view>
+
+  <view class="block" wx:if="{{article.coreQuote}}">
+    <view class="block-label">核心引语</view>
+    <view class="quote">「{{article.coreQuote}}」</view>
+    <view class="muted" wx:if="{{article.quoteAuthor}}">—— {{article.quoteAuthor}}</view>
+  </view>
+
+  <button
+    wx:if="{{article.sourceUrl}}"
+    class="btn btn-ghost"
+    bindtap="openSource"
+  >打开原文链接</button>
+
+  <button
+    wx:if="{{article.isExternal && !enriched}}"
+    class="btn btn-accent section-gap"
+    bindtap="onEnrich"
+    loading="{{enriching}}"
+  >深读补全</button>
+
+  <view class="section-gap">
+    <view class="h2" style="margin-bottom: 16rpx;">追问</view>
+    <view class="field">
+      <text class="field-label">基于本文上下文提问（消耗深度解读额度）</text>
+      <textarea
+        class="field-input nuance-input"
+        placeholder="例如：这对供应链意味着什么？"
+        value="{{question}}"
+        maxlength="500"
+        bindinput="onQuestionInput"
+      />
+    </view>
+    <button class="btn btn-primary" bindtap="onAsk" loading="{{asking}}" disabled="{{!question}}">提问</button>
+    <view class="answer" wx:if="{{answer}}">
+      <view class="block-label">回答</view>
+      <view class="block-body">{{answer}}</view>
+      <view class="muted" style="margin-top: 8rpx;">模型回答，需自行核验。</view>
+    </view>
+  </view>
+</view>
+
+<view class="container empty" wx:else>
+  未找到文章，请从情报流重新进入。
+</view>

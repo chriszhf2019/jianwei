@@ -1,0 +1,46 @@
+<view class="container">
+  <view class="hero">
+    <view class="brand h1">提交分析</view>
+    <view class="muted hero-sub">粘贴新闻标题与正文，服务端生成认知分析。无 Key 时明确返回未生成，不伪造。</view>
+  </view>
+
+  <view class="field">
+    <text class="field-label">标题</text>
+    <input class="field-input" placeholder="新闻标题" value="{{title}}" bindinput="onTitle" />
+  </view>
+
+  <view class="field">
+    <text class="field-label">正文</text>
+    <textarea
+      class="field-input body-input"
+      placeholder="粘贴原文或要点"
+      value="{{content}}"
+      maxlength="12000"
+      bindinput="onContent"
+    />
+  </view>
+
+  <view class="field">
+    <text class="field-label">来源（可选）</text>
+    <input class="field-input" placeholder="媒体名或链接" value="{{source}}" bindinput="onSource" />
+  </view>
+
+  <button
+    class="btn btn-primary"
+    bindtap="onAnalyze"
+    loading="{{loading}}"
+    disabled="{{!title || !content}}"
+  >生成分析</button>
+
+  <view class="result section-gap" wx:if="{{resultNote || result}}">
+    <view class="notice warn" wx:if="{{resultNote}}">{{resultNote}}</view>
+    <block wx:if="{{result}}">
+      <view class="h2">{{result.title}}</view>
+      <view class="block-body" style="margin-top: 16rpx;" wx:if="{{result.oneSentenceVerdict}}">
+        {{result.oneSentenceVerdict}}
+      </view>
+      <view class="muted" style="margin-top: 12rpx;">模型产出，请自行核验事实与数字。</view>
+      <button class="btn btn-ghost section-gap" bindtap="openResult">查看详情</button>
+    </block>
+  </view>
+</view>

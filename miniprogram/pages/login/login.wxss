@@ -1,0 +1,27 @@
+.mode-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 28rpx;
+}
+
+.mode {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border: 2rpx solid var(--line);
+  border-radius: 8rpx;
+  color: var(--muted);
+  font-size: 26rpx;
+}
+
+.mode.on {
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 650;
+  background: var(--paper-raised);
+}
+
+.token-input {
+  min-height: 160rpx;
+  width: 100%;
+}

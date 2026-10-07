@@ -1,0 +1,52 @@
+.hero {
+  margin-bottom: 28rpx;
+  padding-bottom: 24rpx;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.card {
+  background: var(--paper-raised);
+  border: 2rpx solid var(--line);
+  border-radius: 8rpx;
+  padding: 8rpx 24rpx;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 22rpx 0;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 26rpx;
+  flex-shrink: 0;
+}
+
+.value {
+  color: var(--ink);
+  font-size: 26rpx;
+  text-align: right;
+  word-break: break-all;
+}
+
+.value.small {
+  font-size: 22rpx;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.footer {
+  margin-top: 48rpx;
+  line-height: 1.6;
+}

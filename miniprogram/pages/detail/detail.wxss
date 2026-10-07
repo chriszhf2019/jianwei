@@ -1,0 +1,75 @@
+.meta {
+  margin: 16rpx 0 28rpx;
+}
+
+.block {
+  margin-bottom: 32rpx;
+  padding-bottom: 28rpx;
+  border-bottom: 2rpx solid var(--line);
+}
+
+.block-label {
+  font-size: 22rpx;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12rpx;
+}
+
+.block-body {
+  font-size: 30rpx;
+  color: var(--ink);
+  line-height: 1.65;
+}
+
+.block-body.soft {
+  margin-top: 12rpx;
+  color: var(--ink-soft);
+  font-size: 28rpx;
+}
+
+.seven-row {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+
+.seven-k {
+  flex: 0 0 90rpx;
+  color: var(--muted);
+  font-size: 24rpx;
+}
+
+.seven-v {
+  flex: 1;
+  font-size: 28rpx;
+  color: var(--ink);
+}
+
+.verdict {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  background: rgba(28, 25, 23, 0.04);
+  border-radius: 8rpx;
+  font-size: 28rpx;
+}
+
+.quote {
+  font-family: "Songti SC", "Source Han Serif SC", serif;
+  font-size: 32rpx;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.nuance-input {
+  min-height: 160rpx;
+  width: 100%;
+}
+
+.answer {
+  margin-top: 28rpx;
+  padding: 24rpx;
+  background: var(--paper-raised);
+  border: 2rpx solid var(--line);
+  border-radius: 8rpx;
+}
