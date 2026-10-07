@@ -252,7 +252,7 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
 
           {isForecast && (
             <div className="pt-2 border-t border-stone-800 text-[10px] text-amber-300/90 font-serif leading-relaxed">
-              💡 <b>动量预警：</b>该预测基于近7日发稿加速度 (d²N/dt²) 与跨源共振频率外推，置信度随时间推移递减。
+              💡 <b>动量外推说明：</b>按近窗发稿加速度做本地相对外推，随时间衰减；不是经校准的置信度或全网热度预测。
             </div>
           )}
 

@@ -1216,6 +1216,13 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   const metricsBar = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/StrategicMetricsBar.tsx'), 'utf8');
   assert.equal(metricsBar.includes('市场信心加速修复'), false);
   assert.match(metricsBar, /站内词典情绪对照/);
+
+  const biasRadar = fs.readFileSync(path.join(process.cwd(), 'src/components/focus/CognitiveBiasRadarPanel.tsx'), 'utf8');
+  assert.equal(biasRadar.includes('偏高 (+14%)'), false);
+  assert.equal(biasRadar.includes('超级预测者风范'), false);
+  assert.equal(biasRadar.includes('群体平均基准'), false);
+  assert.match(biasRadar, /不伪造能力雷达分/);
+  assert.match(biasRadar, /样本不足|需 ≥3|尚无带主观概率/);
 });
 
 
