@@ -1899,6 +1899,230 @@ export const CURATED_ARTICLES: NewsArticle[] = [
       { tag: '物理突破', text: '让量子计算机克服了“脆弱易错”的致命毛病，走向长寿命容错计算。' },
       { tag: '未来算力', text: '新药研发与新材料筛选迎来超级加速器，抗量子加密改造倒计时开启。' }
     ]
+  },
+  {
+    id: 'news-edu-ai-curriculum',
+    title: '教育部首批人工智能通识必修课落地高校：跨学科产教融合重塑本科培养方案',
+    subtitle: '从单一计算机专业拓展为全校通识基座，高校联合科技领军企业共建实训模型',
+    oneSentenceVerdict: 'AI 技能正从计算机系的“专业壁垒”转变为全学科大学生的“新型数字识字率”，产教融合决定未来人才供给质量。',
+    category: '教育',
+    tags: ['高等教育', '人工智能通识课', '产教融合', '人才培养', '高校改革'],
+    date: '2026年9月25日',
+    timeAgo: '3小时前',
+    readTimeMinutes: 4,
+    sourceName: '教育部高教司 / 见微教育观察',
+    sourceDate: '2026-09-25 09:30',
+    sourceUrl: 'http://www.moe.gov.cn/jyb_xwfb/s5147/202609/t20260925_100234.html',
+    sourceCount: 6,
+    credibilityStars: 5,
+    impactScope: '全国',
+    changeVelocity: '↑ 稳健提速',
+    summary: '教育部联合清华、北大、浙大等高校发布首批高校人工智能通识核心课程建设指导方案，自2026年秋季学期起面向理、工、农、医、文、史、哲各学科本科生全覆盖开课。方案强调“模型素养、人机协作、算法伦理与真实场景解决”，并联合科技企业开源平台建立跨学科算力实训空间。',
+    coreQuote: '未来的文科生不是要变成程序员，而是要掌握向智能体下达精准指令并对生成结论进行批判性校验的认知能力。',
+    quoteAuthor: '高校人工智能通识教育专家组',
+
+    tongsuSummary: {
+      simpleSay: '以前学大学计算机基础是教你用 Word、Excel、PPT 打字排版；现在这门课变成了教所有专业的大学生怎么指挥 AI 工具、怎么写好提示词、怎么判断 AI 给出的答案对不对，哪怕文科生也要学。',
+      whyExplanation: '就像几十年前全民普及学英语和学开车一样：AI 不再是程序员独享的高深技术，而变成了每个人进入职场都必须会用的新工具。',
+      whatItMeans: '未来的毕业生如果只懂死记硬背专业知识，很容易被机器取代；懂得用 AI 放大自己专业思考深度的人，将具备更强就业竞争力。',
+      jargonTerms: ['产教融合', '通识教育', '人机协作']
+    },
+
+    dehydratedItems: {
+      coreEntity: '教育部高等教育司 / 高校教务处 / 领军科技企业',
+      keyAction: '发布全学科本科生 AI 通识核心课程与实验实训标准',
+      relatedCount: 42,
+      coreShifts: [
+        '课程纳入学分体系：2-3 个必修学分，覆盖全国 200 余所重点试点高校',
+        '科技企业联合参与：提供免配置云端推理环境与行业真实脱敏案例库',
+        '考核模式革新：减少期末理论死记硬背，重点考察人机协同完成综合项目的交付质量'
+      ],
+      impactHighlights: [
+        '传统社科与艺术专业迎来“AI + 专业”二次升级契机',
+        '高校算力资源与教学实训云平台采购需求呈爆发式增长'
+      ]
+    },
+
+    sevenElements: {
+      what: '全国高校推行人工智能通识必修课与跨学科创新人才培养方案。',
+      who: '高校教务部门、一线教学名师、领军人工智能与云厂商、全体在校本科生。',
+      when: '2026年9月秋季学期在首批 200 余所重点高校全面铺开。',
+      where: '全国高校教室及产学研联合云端实训实验室。',
+      why: '生成式人工智能与大模型彻底重构行业生产力，高校人才培养体系亟需对齐行业前沿技能需求。',
+      how: '制定统一通识大纲、培训高校跨学科授课师资、引入企业真实项目实践案例与低门槛开发工具。',
+      soWhat: '将中国年轻一代人才的通用数字素养整体拉升至 Agent 时代，为新质生产力储备复合型生力军。',
+      aiVerdict: {
+        confidenceScore: 92,
+        volatility: '低',
+        actionLevel: '行动',
+        verdictSummary: '全学科AI通识必修化已成定局，高校应加速更新实验实训环境，引导学生掌握人机协同实操能力。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '智能时代职业技能要求重构倒逼高等教育基础培养基座变革',
+      nodes: [
+        { id: 'edu-1', label: '大模型与人机协同成为职场标配技能', category: 'cause', description: '单一专业知识边界模糊，跨学科综合解决能力更被看重', dataPoint: '普及率 100%' },
+        { id: 'edu-2', label: '打破传统文理分科与计算机学科孤岛', category: 'mid_effect', description: '文科重思辨质询，理工重工程实践，医学重伦理校验', dataPoint: '覆盖 200+ 高校' },
+        { id: 'edu-3', label: '高校云端算力与 EdTech 实训服务需求爆发', category: 'market_impact', description: '高校数字化采购预算向智慧教学与 AI 实验集群倾斜' }
+      ],
+      variableWeights: [
+        { name: '高校教师 AI 教学能力转化率', weight: 45, impactDirection: 'up', description: '决定课程质量是走向水课还是真正提升学生能力' },
+        { name: '校企联合实训案例迭代速度', weight: 35, impactDirection: 'up', description: '防止教学内容与快速演进的产业前沿严重脱节' },
+        { name: '跨专业考评与学分互认机制', weight: 20, impactDirection: 'neutral', description: '影响各院系推进教学改革的内生积极性' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '教育部发布全国高校 AI 通识课程方案',
+        content: '2026 年秋季学期起面向全国高校本科生全面开设 AI 通识课。',
+        keyIndicators: ['200+ 重点高校', '必修学分']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '智慧教育与高校教学算力采购升温',
+        content: '各大科技巨头积极向高校捐赠算力点数并提供配套教学套件以抢占下一代开发者心智。',
+        keyIndicators: ['生态绑定', '开发者培育']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-edu-1',
+        claim: '教育部组织专家组编制并印发《高校人工智能通识核心课程教学指南》',
+        sourceFact: '教育部高教司 2026 年第 18 号政策通报与官方新闻发布会通稿',
+        reliability: '极高 (部委权威政策文件与官方发布会录音录像)',
+        confidenceScore: 98
+      }
+    ],
+
+    industrySignals: [
+      { sector: '教育与人才培养', strength: 95, trend: 'up', detail: '高校课程体系全方位拥抱智能化，通识教学标准确立' },
+      { sector: 'IT与软件工程', strength: 88, trend: 'up', detail: '国产开源大模型与教学工具链迎来数百万年轻高校用户' }
+    ],
+
+    fastReadPoints: [
+      { tag: '人才新基建', text: '大学计算机通识课正式从教 Office 转向教用 AI 办实事。' },
+      { tag: '跨学科赋能', text: '文理工商医全学科本科生都将拥有属于自己的数字化生产力杠杆。' }
+    ]
+  },
+  {
+    id: 'news-edu-vocational-reform',
+    title: '现代职业教育深化改革：头部科技企业联合共建“工匠学院”与实战化实训基地',
+    subtitle: '破解高端制造与智能产线“蓝领技工荒”，双师型教师与实操考核成核心硬指标',
+    oneSentenceVerdict: '新质生产力不仅需要顶尖科学家，更离不开操作先进光刻机与自动化产线的现代化高技能工匠。',
+    category: '教育',
+    tags: ['职业教育', '工匠学院', '蓝领人才', '新质生产力', '产教融合'],
+    date: '2026年9月24日',
+    timeAgo: '5小时前',
+    readTimeMinutes: 3,
+    sourceName: '中国教育报 / 见微职业教育专栏',
+    sourceDate: '2026-09-24 15:40',
+    sourceUrl: 'http://www.jyb.cn/rmtzcg/xwy/wzxw/202609/t20260924_200456.html',
+    sourceCount: 5,
+    credibilityStars: 5,
+    impactScope: '全国',
+    changeVelocity: '↑ 稳健提速',
+    summary: '国家职业教育产教融合专项政策进一步深化落地，工信部与教育部遴选首批 50 家智能制造与高科技领军企业，联合地方高职院校共建示范性“现代产业工匠学院”。课程采用真实工业软件、仿真半导体产线与模块化实训设备，毕业生定向输送至先进制程代工、新能源动力电池超级工厂与工业互联网核心岗位。',
+    coreQuote: '把车间搬进学校、把讲台设在产线，职业教育才能真正接住高精尖产业的用工缺口。',
+    quoteAuthor: '全国职业教育产教融合联盟',
+
+    tongsuSummary: {
+      simpleSay: '过去职业学校学生实训用的可能是落后很多年的老机器；现在领军科技公司把最新智能产线搬进职校，让学生在校期间直接用最新的真实设备上手练习，毕业直接进高精尖大厂上岗。',
+      whyExplanation: '现代工厂里全是工业机器人和自动化电脑系统，传统只懂拧螺丝的工人不够用了，极其稀缺的是懂得看懂屏幕报错、能调机器参数的“高技能工程师型技工”。',
+      whatItMeans: '职业教育的含金量大幅提升，年轻人掌握一门过硬的现代设备运维技能，薪资待遇和职业尊严不再逊色于普通白领。',
+      jargonTerms: ['工匠学院', '双师型教师', '产教联合体']
+    },
+
+    dehydratedItems: {
+      coreEntity: '教育部 / 工信部 / 示范性高职院校 / 智能制造企业',
+      keyAction: '推行“校企双元协同育人”工匠学院建设计划',
+      relatedCount: 28,
+      coreShifts: [
+        '首批设立 50 个高标准产业工匠学院，年培养高技能实操人才 15 万人',
+        '双师型教师比例达 65%：企业工程师直接带薪驻校讲授真实故障排除经验',
+        '实行“微证书与技能等级互认”，实训成果直接折算行业上岗认证'
+      ],
+      impactHighlights: [
+        '先进制造与新能源超级工厂高端技工招募周期缩短 40%',
+        '职业技术院校招录分数线与社会美誉度呈现明显回升态势'
+      ]
+    },
+
+    sevenElements: {
+      what: '部委联合推行现代职业教育工匠学院建设，攻坚高端产业蓝领技能缺口。',
+      who: '教育部、工信部、国家级产教融合型企业、职业院校师生。',
+      when: '2026年9月下旬正式发布专项立项与验收指标清单。',
+      where: '长三角、珠三角、成渝等先进制造成熟产业聚集区。',
+      why: '高端装备制造升级遭遇人才断层，传统脱节教学模式无法满足高精度工业要求。',
+      how: '以股份制、混合所有制形式联合办学，共享工业仿真软件与特种实习机台。',
+      soWhat: '夯实实体工业强国的底座技工队伍，为新一代高端制造提供稳定高素质劳动力保障。',
+      aiVerdict: {
+        confidenceScore: 90,
+        volatility: '低',
+        actionLevel: '行动',
+        verdictSummary: '工匠学院实训直接连通高精制造用工刚需，校企协同育人有效化解技能落差与就业摩擦。'
+      }
+    },
+
+    logicTree: {
+      rootCause: '实体制造业向高端化智能化跃进遭遇熟练技能人才供给断层',
+      nodes: [
+        { id: 'voc-1', label: '精密设备与智能产线要求复合操作技能', category: 'cause', description: '简单重复性流水线岗位被自动化消灭，参数调试与故障排查成为刚需', dataPoint: '技术要求 ↑' },
+        { id: 'voc-2', label: '校企共建真实实训产线消除技能落差', category: 'mid_effect', description: '毕业生无缝上岗，企业免除半年二次内训成本', dataPoint: '缩短 40% 周期' },
+        { id: 'voc-3', label: '职业技能人才社会地位与薪酬水平结构性改善', category: 'market_impact', description: '高素质工匠薪资突破万元，职业教育形成正向循环', dataPoint: '薪酬上升' }
+      ],
+      variableWeights: [
+        { name: '校企实训机台折旧与更新资金支持', weight: 40, impactDirection: 'up', description: '直接决定实训是否能够紧跟工业最新批次升级' },
+        { name: '企业资深工程师授课考核激励机制', weight: 35, impactDirection: 'up', description: '保障双师型教学团队的实战传帮带深度' },
+        { name: '区域产业集群配套协同度', weight: 25, impactDirection: 'neutral', description: '产业越聚集，工匠学院的人才吸纳与轮岗效益越突出' }
+      ]
+    },
+
+    spectrumLayers: [
+      {
+        layer: 'data_signal',
+        name: '现象层 (Surface)',
+        color: '#E3120B',
+        headline: '首批 50 家现代产业工匠学院获批建设',
+        content: '聚焦半导体、工业母机与电池装备，校企联合开展订单式定向培养。',
+        keyIndicators: ['50 家试点', '15 万高技能人才']
+      },
+      {
+        layer: 'interests',
+        name: '资本层 (Capital)',
+        color: '#3B82F6',
+        headline: '先进制造企业加大产教融合资本投入',
+        content: '企业将实训基地建设纳入研发与供应链长期投资，享受增值税等税收抵扣红利。',
+        keyIndicators: ['税收优惠', '技能供给保障']
+      }
+    ],
+
+    evidenceChain: [
+      {
+        id: 'ev-voc-1',
+        claim: '两部委联合发布首批现代产业工匠学院名单与支持办法',
+        sourceFact: '中国政府网与中国教育报 2026年9月24日头版联合公示',
+        reliability: '极高 (官方联合发文与部委公示文件)',
+        confidenceScore: 97
+      }
+    ],
+
+    industrySignals: [
+      { sector: '教育与人才培养', strength: 92, trend: 'up', detail: '职业教育与实体产业无缝咬合，高技能人才蓄水池拓宽' },
+      { sector: '前沿科技与硬件', strength: 89, trend: 'up', detail: '高端智造工厂一线技术人员流失率下降，设备综合效率 (OEE) 提升' }
+    ],
+
+    fastReadPoints: [
+      { tag: '技能兴邦', text: '从黑板讲操作走向在真实机台练真招，培养智能时代的当代鲁班。' },
+      { tag: '就业新路', text: '具备高端现代设备调试运维技能的职业人才在就业市场上供不应求。' }
+    ]
   }
 ];
 

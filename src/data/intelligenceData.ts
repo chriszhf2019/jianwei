@@ -63,37 +63,37 @@ export const INITIAL_RADAR_KEYWORDS: RadarKeyword[] = [];
 
 export const HEATMAP_24H_DATA: HeatmapCell[] = [];
 const LEGACY_HEATMAP_24H_DATA: HeatmapCell[] = [
-  // AI
-  { category: 'AI 前沿', timeSlot: '00:00', intensity: 1, reason: '欧美晚间社区技术讨论平稳', triggerArticles: ['开源轻量化小模型更新'] },
-  { category: 'AI 前沿', timeSlot: '04:00', intensity: 1, reason: '硅谷夜间静默期', triggerArticles: [] },
-  { category: 'AI 前沿', timeSlot: '08:00', intensity: 3, reason: '亚洲早盘算力股跟涨', triggerArticles: ['台积电先进制程指引'] },
-  { category: 'AI 前沿', timeSlot: '12:00', intensity: 4, reason: '午盘企业级Agent采购数据流出', triggerArticles: ['企业级SaaS调研报告'] },
-  { category: 'AI 前沿', timeSlot: '16:00', intensity: 5, reason: 'OpenAI/谷歌大模型发布会重叠引发全网讨论峰值', triggerArticles: ['OpenAI新模型发布', '算力重构与半导体微澜'] },
-  { category: 'AI 前沿', timeSlot: '20:00', intensity: 4, reason: '盘后机构电话会集中复盘算力瓶颈', triggerArticles: ['CPO光电共封装测试白皮书'] },
-
   // 财经
-  { category: '全球财经', timeSlot: '00:00', intensity: 1, reason: '外汇交易清淡', triggerArticles: [] },
-  { category: '全球财经', timeSlot: '04:00', intensity: 2, reason: '美股盘后财报披露', triggerArticles: ['北美云厂商资本开支季报'] },
-  { category: '全球财经', timeSlot: '08:00', intensity: 4, reason: '亚洲央行早间公开市场操作', triggerArticles: ['逆回购工具资金分流'] },
-  { category: '全球财经', timeSlot: '12:00', intensity: 4, reason: '欧洲早盘离岸美元拆借利率波动', triggerArticles: ['伦敦离岸资金池挪移'] },
-  { category: '全球财经', timeSlot: '16:00', intensity: 2, reason: '美联储例行发言前观望情绪浓厚', triggerArticles: ['降息周期的静默伏流'] },
-  { category: '全球财经', timeSlot: '20:00', intensity: 1, reason: '夜间宏观数据消化期', triggerArticles: [] },
+  { category: '财经', timeSlot: '00:00', intensity: 1, reason: '欧美盘后交易平稳，外汇交易清淡', triggerArticles: [] },
+  { category: '财经', timeSlot: '04:00', intensity: 2, reason: '美股盘后大型财报与资本开支指引披露', triggerArticles: ['北美云厂商资本开支季报'] },
+  { category: '财经', timeSlot: '08:00', intensity: 4, reason: '亚洲央行早间公开市场逆回购与流动性投放', triggerArticles: ['央行买断式逆回购操作'] },
+  { category: '财经', timeSlot: '12:00', intensity: 4, reason: '欧洲早盘离岸拆借利率与跨境资本定价变动', triggerArticles: ['离岸流动性再分配'] },
+  { category: '财经', timeSlot: '16:00', intensity: 3, reason: '国债期货收盘与宏观货币政策预期消化', triggerArticles: ['央行资金面与债券定价'] },
+  { category: '财经', timeSlot: '20:00', intensity: 2, reason: '晚间宏观数据与离岸汇率稳步消化', triggerArticles: [] },
 
-  // 科技与半导体
-  { category: '半导体硬件', timeSlot: '00:00', intensity: 1, reason: '常规生产排班', triggerArticles: [] },
-  { category: '半导体硬件', timeSlot: '04:00', intensity: 1, reason: '常规运转', triggerArticles: [] },
-  { category: '半导体硬件', timeSlot: '08:00', intensity: 3, reason: '台系代工厂月度营运数据发布', triggerArticles: ['晶圆代工订单公差微调'] },
-  { category: '半导体硬件', timeSlot: '12:00', intensity: 4, reason: '供应链散件出货量环比激增确认', triggerArticles: ['特种液冷连接器订单大涨'] },
-  { category: '半导体硬件', timeSlot: '16:00', intensity: 4, reason: '欧洲半导体设备巨头订单上修', triggerArticles: ['EUV光刻机交付计划加速'] },
-  { category: '半导体硬件', timeSlot: '20:00', intensity: 3, reason: '行业自媒体拆解散热封装技术细节', triggerArticles: ['单芯片1200W极限测试'] },
+  // 科技
+  { category: '科技', timeSlot: '00:00', intensity: 1, reason: '晶圆代工厂生产与设备维护排班', triggerArticles: [] },
+  { category: '科技', timeSlot: '04:00', intensity: 2, reason: '海外顶刊前沿物理与工程成果发布', triggerArticles: ['容错量子计算纠错突破'] },
+  { category: '科技', timeSlot: '08:00', intensity: 4, reason: '半导体代工厂月度营运与先进制程良率公告', triggerArticles: ['2nm制程试验线良率突破'] },
+  { category: '科技', timeSlot: '12:00', intensity: 4, reason: '固态动力电池材料与高精产线中试进展', triggerArticles: ['全固态电池能量密度跃升'] },
+  { category: '科技', timeSlot: '16:00', intensity: 4, reason: '先进制程关键设备交付与封装订单上修', triggerArticles: ['光刻机交付计划与先进封装'] },
+  { category: '科技', timeSlot: '20:00', intensity: 3, reason: '学术期刊与产业实验室公布关键材料数据', triggerArticles: ['单芯片物理功耗极限测试'] },
 
-  // 产业与出海
-  { category: '产业出海', timeSlot: '00:00', intensity: 2, reason: '远洋货轮港口排队数据更新', triggerArticles: ['红海航线保费微调'] },
-  { category: '产业出海', timeSlot: '04:00', intensity: 3, reason: '拉美与欧洲本地合规法案公报', triggerArticles: ['匈牙利新能源基地环评通过'] },
-  { category: '产业出海', timeSlot: '08:00', intensity: 4, reason: '海关总署最新车辆零配件散件出口数据出炉', triggerArticles: ['新能源出海的风洞效应'] },
-  { category: '产业出海', timeSlot: '12:00', intensity: 3, reason: '海外售后网络与储能基地合作签署', triggerArticles: ['东盟充电协议互认联盟'] },
-  { category: '产业出海', timeSlot: '16:00', intensity: 3, reason: '反补贴听证会最新进展释放', triggerArticles: ['本土就业承诺转化为补贴资格'] },
-  { category: '产业出海', timeSlot: '20:00', intensity: 2, reason: '商贸物流晚报汇总', triggerArticles: ['CKD散件海运保费锁定'] }
+  // IT
+  { category: 'IT', timeSlot: '00:00', intensity: 2, reason: '开源社区与 GitHub 热门项目版本发布', triggerArticles: ['开源端侧大模型架构更新'] },
+  { category: 'IT', timeSlot: '04:00', intensity: 2, reason: '硅谷开发者生态与模型接口更新', triggerArticles: ['代码大模型多文件重构发布'] },
+  { category: 'IT', timeSlot: '08:00', intensity: 3, reason: '企业级软件与云原生工具链采购需求', triggerArticles: ['企业级Agent工作流调研'] },
+  { category: 'IT', timeSlot: '12:00', intensity: 4, reason: '主流大模型发布会重叠引发全网架构探讨', triggerArticles: ['新一代Agent多步长程规划突破'] },
+  { category: 'IT', timeSlot: '16:00', intensity: 5, reason: '企业IT系统集成与数字员工落地案例分享', triggerArticles: ['端到端业务工作流自动化'] },
+  { category: 'IT', timeSlot: '20:00', intensity: 3, reason: '开发者社群复盘模型量化与微调算力优化', triggerArticles: ['私有化部署推理成本压降85%'] },
+
+  // 教育
+  { category: '教育', timeSlot: '00:00', intensity: 1, reason: '学术智库与教育科研数据库更新', triggerArticles: [] },
+  { category: '教育', timeSlot: '04:00', intensity: 1, reason: '海外大学交流与前沿学科认证指引发布', triggerArticles: [] },
+  { category: '教育', timeSlot: '08:00', intensity: 4, reason: '高校秋季学期新开通识课与教学大纲公示', triggerArticles: ['高校首批AI通识必修课落地'] },
+  { category: '教育', timeSlot: '12:00', intensity: 3, reason: '部委深化现代职业教育体系文件解读出炉', triggerArticles: ['头部科技企业共建工匠学院'] },
+  { category: '教育', timeSlot: '16:00', intensity: 4, reason: '产教融合联合实训基地首批名单公示', triggerArticles: ['校企双元协同育人签约'] },
+  { category: '教育', timeSlot: '20:00', intensity: 2, reason: '晚间高教论坛复盘跨学科人才培养成效', triggerArticles: ['人机协作素养纳入高校考评'] }
 ];
 
 export const INTELLIGENCE_DENSITY_POINTS: IntelligenceDensityPoint[] = [];

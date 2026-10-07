@@ -6,6 +6,7 @@ import { formatArticleTime } from '../../utils/articleTime';
 import { useOfflineArticles } from '../../utils/offlineStorage';
 import type { NewsSkill } from './HomeView';
 import { KeyTermHighlight, KeyTermNote } from '../common/KeyTermHighlight';
+import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
 
 interface TongsuModeFeedProps {
   articles: NewsArticle[];
@@ -77,9 +78,15 @@ export const TongsuModeFeed: React.FC<TongsuModeFeedProps> = ({
             {/* Header */}
             <div className="flex items-center justify-between border-b border-stone-200 pb-3">
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full font-serif">
-                  {article.category}
-                </span>
+                {(() => {
+                  const canonicalCat = getArticleCanonicalCategory(article);
+                  const theme = CATEGORY_THEMES[canonicalCat];
+                  return (
+                    <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full font-serif border ${theme.badgeCls}`}>
+                      {canonicalCat}
+                    </span>
+                  );
+                })()}
                 <span className="text-xs text-stone-400">{formatArticleTime(article)}</span>
                 {isOffline(article.id) && (
                   <span

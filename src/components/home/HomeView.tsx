@@ -163,10 +163,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
       '全部',
       '关注',
       '影响我',
-      'AI 前沿',
-      '科技前沿',
-      '全球财经',
-      '产业纵深',
+      '财经',
+      '科技',
+      'IT',
+      '教育',
     ];
     // 有监控词时，在“关注/影响我”附近插入「监控中」筛选
     if (radarKeywords.length > 0) {
@@ -257,14 +257,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
           return article.personaImpacts?.some((p) => p.personaId === selectedPersona.id);
         }
 
-        // 核心赛道规范化互斥归类：彻底消除「科技前沿」与「全球财经」的模糊重叠与串台
+        // 核心赛道规范化互斥归类：聚焦财经、科技、IT、教育四大领域
         if (
+          selectedCategory === '财经' ||
+          selectedCategory === '科技' ||
+          selectedCategory === 'IT' ||
+          selectedCategory === '教育' ||
           selectedCategory === 'AI 前沿' ||
           selectedCategory === '科技前沿' ||
           selectedCategory === '全球财经' ||
           selectedCategory === '产业纵深'
         ) {
-          return getArticleCanonicalCategory(article) === selectedCategory;
+          const canonical = getArticleCanonicalCategory(article);
+          if (selectedCategory === 'AI 前沿') return canonical === 'IT';
+          if (selectedCategory === '科技前沿') return canonical === '科技';
+          if (selectedCategory === '全球财经') return canonical === '财经';
+          if (selectedCategory === '产业纵深') return canonical === '科技';
+          return canonical === selectedCategory;
         }
 
         // 基础精确标签/分类匹配（兼容外部动态标签）
@@ -440,14 +449,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   else onSelectArticle(art);
                 }}
                 onSelectSector={(sectorName) => {
-                  if (sectorName.includes('AI') || sectorName.includes('软件')) {
-                    setSelectedCategory('AI 前沿');
-                  } else if (sectorName.includes('半导体') || sectorName.includes('硬件') || sectorName.includes('数码')) {
-                    setSelectedCategory('科技前沿');
-                  } else if (sectorName.includes('宏观') || sectorName.includes('金融')) {
-                    setSelectedCategory('全球财经');
+                  if (sectorName.includes('教育') || sectorName.includes('高校') || sectorName.includes('人才')) {
+                    setSelectedCategory('教育');
+                  } else if (sectorName.includes('IT') || sectorName.includes('软件') || sectorName.includes('AI') || sectorName.includes('代码')) {
+                    setSelectedCategory('IT');
+                  } else if (sectorName.includes('宏观') || sectorName.includes('金融') || sectorName.includes('财经') || sectorName.includes('资本')) {
+                    setSelectedCategory('财经');
                   } else {
-                    setSelectedCategory('产业纵深');
+                    setSelectedCategory('科技');
                   }
                 }}
               />

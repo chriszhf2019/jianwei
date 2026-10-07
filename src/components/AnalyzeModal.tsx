@@ -454,11 +454,10 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-lg text-sm text-stone-900 focus:outline-hidden focus:border-stone-900"
                 >
-                  <option value="科技前沿">科技前沿</option>
-                  <option value="AI 前沿">AI 前沿</option>
-                  <option value="全球财经">全球财经</option>
-                  <option value="产业纵深">产业纵深</option>
-                  <option value="地缘与能源">地缘与能源</option>
+                  <option value="科技">科技</option>
+                  <option value="财经">财经</option>
+                  <option value="IT">IT</option>
+                  <option value="教育">教育</option>
                   <option value="用户投递">用户投递</option>
                 </select>
               </div>

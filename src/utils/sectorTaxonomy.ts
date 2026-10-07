@@ -9,7 +9,11 @@ export interface SectorDef {
 }
 
 const SECTOR_TAXONOMY_BASE: SectorDef[] = [
-  { id: 'ai', name: 'AI 与软件', keywords: ['AI', '人工智能', '大模型', '智能体', 'Agent', 'OpenAI', 'Gemini', 'DeepSeek', '算法', '算力'] },
+  { id: 'finance', name: '财经与金融', keywords: ['财经', '央行', '美联储', '利率', '降息', '汇率', '通胀', '国债', '债券', '银行', '股市', '资本', '财报', '流动性'] },
+  { id: 'tech', name: '前沿科技与硬件', keywords: ['芯片', '半导体', '晶圆', '封装', 'NVIDIA', '英伟达', '光刻', 'HBM', '量子', '新能源', '电池', '材料', '机器人'] },
+  { id: 'it', name: 'IT与软件工程', keywords: ['IT', '软件', '大模型', 'AI', '人工智能', '智能体', 'Agent', '云计算', '开源', '算法', '算力', '数据库', '代码', '架构'] },
+  { id: 'edu', name: '教育与人才培养', keywords: ['教育', '大学', '高校', '考研', '高考', '科研', '学科', '教学', '职业教育', '智慧教育', 'EdTech', '人才', '院校', '本科', '产教融合'] },
+  { id: 'ai', name: 'AI 与智能算法', keywords: ['AI', '人工智能', '大模型', '智能体', 'Agent', 'OpenAI', 'Gemini', 'DeepSeek', '算法', '算力'] },
   { id: 'semi', name: '半导体与硬件', keywords: ['芯片', '半导体', '晶圆', '封装', 'NVIDIA', '英伟达', '光刻', 'HBM', '代工'] },
   { id: 'macro', name: '宏观与金融', keywords: ['央行', '美联储', '利率', '降息', '汇率', '通胀', '国债', '债券', '银行', '股市', '关税'] },
   { id: 'ev', name: '新能源与汽车', keywords: ['新能源', '电动车', 'EV', '电池', '充电', '汽车', '车企', '锂', '固态'] },
@@ -85,11 +89,12 @@ export interface NewsInterestGroup {
 
 /** 用户设置中的新闻兴趣领域；用于首页“我的领域”筛选，映射到可复核的赛道词表。 */
 export const NEWS_INTEREST_GROUPS: NewsInterestGroup[] = [
-  { id: 'finance', name: '财经', sectorIds: ['macro'] },
-  { id: 'tech', name: '科技', sectorIds: ['ai', 'semi', 'consume'] },
-  { id: 'internet', name: '互联网', sectorIds: ['internet'] },
+  { id: 'finance', name: '财经', sectorIds: ['macro', 'finance'] },
+  { id: 'tech', name: '科技', sectorIds: ['tech', 'semi', 'consume'] },
+  { id: 'it', name: 'IT与软件', sectorIds: ['it', 'ai', 'internet'] },
+  { id: 'edu', name: '教育', sectorIds: ['edu'] },
   { id: 'industry', name: '产业与制造', sectorIds: ['ev', 'energy', 'oversea'] },
-  { id: 'policy', name: '政策', sectorIds: ['gov'] },
+  { id: 'policy', name: '政策与监管', sectorIds: ['gov'] },
 ];
 
 export function matchesNewsInterestGroups(
