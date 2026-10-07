@@ -22,8 +22,11 @@ import {
 } from 'lucide-react';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { EvidenceBadge } from '../common/EvidenceBadge';
+import { EditorialNotice } from '../common/EditorialNotice';
 import { formatArticleTime } from '../../utils/articleTime';
 import { DynamicSentimentTrendChart } from './DynamicSentimentTrendChart';
+import { sentimentCounts, netSentiment } from '../../utils/corpusMetrics';
+import { inferDefaultRegionMentions, normalizeRegionMentions } from '../../utils/regionSemantics';
 
 
 interface StrategicThreeTierCenterProps {
@@ -44,41 +47,42 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
   const [activeTier, setActiveTier] = useState<LayerLevel>('tier1_macro');
   const [selectedRadarType, setSelectedRadarType] = useState<'all' | 'tech' | 'competitor' | 'supply' | 'policy'>('all');
 
-  // Derive Macro Geo-Heat data
-  const geoSignals = useMemo(() => [
-    {
-      region: '东南亚 (Southeast Asia)',
-      flag: '🌏',
-      topic: '新能源与汽车供应链本土化',
-      change: '+320%',
-      trend: 'up',
-      detail: '关税规避与本土化政策驱动散件出口与合资建厂讨论量激增。',
-    },
-    {
-      region: '北美 (North America)',
-      flag: '🇺🇸',
-      topic: '前沿芯片出口管制与 AI 算力中心供电',
-      change: '+180%',
-      trend: 'up',
-      detail: '超大规模数据中心核电直供与先进封装产能成为关注焦点。',
-    },
-    {
-      region: '欧洲 (Europe)',
-      flag: '🇪🇺',
-      topic: '碳关税 (CBAM) 与 AI 责任法案实施',
-      change: '+140%',
-      trend: 'neutral',
-      detail: '针对高耗能算力集群与跨国供应链碳足迹核查要求全面收紧。',
-    },
-    {
-      region: '东亚 (East Asia)',
-      flag: '🇨🇳',
-      topic: '低成本大模型 (MoE) 架构与具身智能突破',
-      change: '+290%',
-      trend: 'up',
-      detail: '开源模型性能反超与端侧算力芯片快速量产引发全球技术重估。',
-    },
-  ], []);
+  // 地域提及：只按语料标注/规则提取计数，不编造环比涨幅
+  const geoSignals = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const art of articles) {
+      const mentions =
+        Array.isArray((art as any).regionMentions) && (art as any).regionMentions.length > 0
+          ? normalizeRegionMentions((art as any).regionMentions)
+          : inferDefaultRegionMentions(art);
+      for (const m of mentions) {
+        counts.set(m.region, (counts.get(m.region) || 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([region, count]) => ({ region, count }));
+  }, [articles]);
+
+  const lexiconPulse = useMemo(() => {
+    const c = sentimentCounts(articles);
+    const scanned = Math.max(1, c.scanned);
+    const positivePct = Math.round((c.positive / scanned) * 100);
+    const negativePct = Math.round((c.negative / scanned) * 100);
+    const mixedPct = Math.round((c.mixed / scanned) * 100);
+    const neutralPct = Math.max(0, 100 - positivePct - negativePct - mixedPct);
+    const net = netSentiment(c);
+    const tone =
+      net == null
+        ? '样本不足'
+        : net >= 20
+          ? '偏正面'
+          : net <= -20
+            ? '偏负面'
+            : '多空接近';
+    return { ...c, positivePct, negativePct, mixedPct, neutralPct, net, tone };
+  }, [articles]);
 
   // Clustered Events for Tier 3：只用文章真实字段，不编造聚合篇数 / 权威档 / 热词
   const clusteredEvents = useMemo(() => {
@@ -112,11 +116,11 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
           <div className="flex items-center space-x-2">
             <Globe className="w-5 h-5 text-[#E3120B]" />
             <h2 className="text-xl sm:text-2xl font-serif font-black text-stone-950">
-              全球战略情报漏斗 · 全景 ➔ 垂类 ➔ 洞察
+              战略情报漏斗 · 全景 ➔ 垂类 ➔ 洞察
             </h2>
           </div>
           <p className="text-xs sm:text-sm text-stone-500">
-            按三层逻辑穿透海量噪音：宏观态势 ➔ 赛道竞品 ➔ 微观事件聚类与 AI 决策洞察
+            宏观层用站内词典/地域提及对照；垂类与事件层只展示语料已有字段，不编造全网指数
           </p>
         </div>
 
@@ -157,70 +161,55 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
          ========================================================================= */}
       {activeTier === 'tier1_macro' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          {/* 1. 全球情绪温度计 & 宏观地缘要点 */}
+          {/* 1. 站内词典情绪 & 说明 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Global Sentiment Meter */}
             <div className="bg-[#FAF8F5] border-2 border-stone-800 rounded-xl p-5 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-serif font-bold text-stone-900 flex items-center gap-1.5">
                   <Activity className="w-4 h-4 text-emerald-600" />
-                  <span>全球情绪指数温度计</span>
+                  <span>站内词典情绪对照</span>
                 </span>
-                <span className="font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-bold text-[11px]">
-                  整体偏积极 (62/100)
+                <span className="font-mono text-stone-700 bg-stone-100 px-2 py-0.5 rounded font-bold text-[11px]">
+                  {lexiconPulse.scanned === 0
+                    ? '暂无样本'
+                    : `${lexiconPulse.tone}${lexiconPulse.net == null ? '' : ` (${lexiconPulse.net > 0 ? '+' : ''}${lexiconPulse.net})`}`}
                 </span>
               </div>
 
-              {/* Stacked Sentiment Visual Meter */}
-              <div className="space-y-1.5">
-                <div className="h-3 w-full rounded-full bg-stone-200 overflow-hidden flex shadow-inner">
-                  <div className="h-full bg-emerald-500" style={{ width: '55%' }} title="积极利好 (55%)" />
-                  <div className="h-full bg-amber-400" style={{ width: '30%' }} title="观望中立 (30%)" />
-                  <div className="h-full bg-rose-500" style={{ width: '15%' }} title="风险警示 (15%)" />
+              {lexiconPulse.scanned === 0 ? (
+                <p className="text-xs text-stone-600 font-sans">当前语料无可扫描标题/摘要，不显示假比例条。</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="h-3 w-full rounded-full bg-stone-200 overflow-hidden flex shadow-inner">
+                    <div className="h-full bg-emerald-500" style={{ width: `${lexiconPulse.positivePct}%` }} title={`偏正面 ${lexiconPulse.positivePct}%`} />
+                    <div className="h-full bg-violet-400" style={{ width: `${lexiconPulse.mixedPct}%` }} title={`交织 ${lexiconPulse.mixedPct}%`} />
+                    <div className="h-full bg-stone-400" style={{ width: `${lexiconPulse.neutralPct}%` }} title={`中性 ${lexiconPulse.neutralPct}%`} />
+                    <div className="h-full bg-rose-500" style={{ width: `${lexiconPulse.negativePct}%` }} title={`偏负面 ${lexiconPulse.negativePct}%`} />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-stone-500 font-mono gap-2">
+                    <span>正面 {lexiconPulse.positive}（{lexiconPulse.positivePct}%）</span>
+                    <span>交织 {lexiconPulse.mixed}（{lexiconPulse.mixedPct}%）</span>
+                    <span>中性 {Math.max(0, lexiconPulse.scanned - lexiconPulse.positive - lexiconPulse.negative - lexiconPulse.mixed)}（{lexiconPulse.neutralPct}%）</span>
+                    <span>负面 {lexiconPulse.negative}（{lexiconPulse.negativePct}%）</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[10px] text-stone-500 font-mono">
-                  <span>🟢 投资利好 55%</span>
-                  <span>🟡 谨慎观望 30%</span>
-                  <span>🔴 衰退预警 15%</span>
-                </div>
-              </div>
+              )}
 
               <p className="text-xs text-stone-700 font-sans leading-relaxed pt-1">
-                本周技术创新与商业化落地讨论占据主流；地缘关税政策引发局部供应链成本担忧，但未演变为系统性恐慌。
+                口径：对当前语料标题/摘要做词典归类占比。净情绪 = (正面-负面)/(正面+负面)×100。不是市场情绪或全网舆论真值。
               </p>
             </div>
 
-            {/* Macro Key Trends */}
             <div className="lg:col-span-2 bg-[#FAF8F5] border-2 border-stone-800 rounded-xl p-5 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-serif font-bold text-stone-900 flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-[#E3120B]" />
-                  <span>宏观动向与地缘异动 (Macro Trends)</span>
+                  <span>宏观层说明</span>
                 </span>
-                <span className="text-[11px] font-mono text-stone-500">重点关注 3 项跨国政策</span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-white border border-stone-300 rounded-lg space-y-1">
-                  <div className="font-serif font-bold text-stone-950 flex items-center gap-1">
-                    <span className="text-amber-600">⚡</span>
-                    <span>美联储与主要央行降息预期重构</span>
-                  </div>
-                  <p className="text-[11px] text-stone-600 leading-snug">
-                    高利率维持时间可能短于预期，科技成长型资本开支有望在下季度迎来新一轮加速。
-                  </p>
-                </div>
-
-                <div className="p-3 bg-white border border-stone-300 rounded-lg space-y-1">
-                  <div className="font-serif font-bold text-stone-950 flex items-center gap-1">
-                    <span className="text-red-600">🌐</span>
-                    <span>跨国经贸关税与原产地规则重审</span>
-                  </div>
-                  <p className="text-[11px] text-stone-600 leading-snug">
-                    倒逼制造业龙头加速从单纯“整机外销”转向“海外本土化散件合资组装”。
-                  </p>
-                </div>
-              </div>
+              <EditorialNotice title="不再展示编辑预置宏观卡片">
+                美联储预期、关税叙事等硬编码摘要已移除。请到下方时序图与语料列表核验站内实际篇目；有密钥时的解读仍是模型推断。
+              </EditorialNotice>
             </div>
           </div>
 
@@ -238,33 +227,31 @@ export const StrategicThreeTierCenter: React.FC<StrategicThreeTierCenterProps> =
               <div className="flex items-center space-x-2">
                 <MapPin className="w-4 h-4 text-[#E3120B]" />
                 <h3 className="text-sm font-serif font-bold text-stone-950">
-                  全球地域热度异动榜 (Geo-Velocity Heatmap)
+                  站内地域提及榜
                 </h3>
               </div>
-              <span className="text-xs text-stone-500 font-mono">环比热度激增地区</span>
+              <span className="text-xs text-stone-500 font-mono">按语料提及篇数 · 非环比热度</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {geoSignals.map((geo, idx) => (
-                <div key={idx} className="p-4 bg-[#FAF8F5] border border-stone-300 rounded-xl space-y-2 hover:border-stone-800 transition-colors">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-serif font-bold text-stone-950 flex items-center gap-1">
-                      <span>{geo.flag}</span>
-                      <span>{geo.region}</span>
-                    </span>
-                    <span className="font-mono font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded text-[10px]">
-                      {geo.change}
-                    </span>
+            {geoSignals.length === 0 ? (
+              <p className="text-xs text-stone-500 font-sans">当前语料未提取到可展示的地域提及；不编造地区涨幅。</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {geoSignals.map((geo) => (
+                  <div key={geo.region} className="p-4 bg-[#FAF8F5] border border-stone-300 rounded-xl space-y-2 hover:border-stone-800 transition-colors">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-serif font-bold text-stone-950">{geo.region}</span>
+                      <span className="font-mono font-bold text-stone-700 bg-stone-100 border border-stone-200 px-1.5 py-0.2 rounded text-[10px]">
+                        {geo.count} 篇
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-600 leading-snug">
+                      标题/摘要/标注中提及该地区的语料篇数；不是进出口或市场热度环比。
+                    </p>
                   </div>
-                  <div className="text-xs font-serif font-bold text-stone-800">
-                    {geo.topic}
-                  </div>
-                  <p className="text-[11px] text-stone-600 leading-snug">
-                    {geo.detail}
-                  </p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

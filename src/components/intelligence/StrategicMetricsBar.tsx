@@ -463,7 +463,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
             </span>
             <div>
               <h4 className="text-sm sm:text-base font-serif font-black text-stone-950">
-                全球情绪动态仪表盘 · 今日情绪 vs 过去7日移动平均线 (7D-MA)
+                站内词典情绪对照 · 今日相对分 vs 近 7 日均线
               </h4>
               <p className="text-[11px] text-stone-500">
                 词典启发式相对分 · 按发布时间分桶；无样本的日期记 0，不反推历史曲线，也不是市场情绪真值
@@ -517,7 +517,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
               <div>
                 <div className="text-[11px] font-mono text-stone-500 font-bold flex items-center gap-1">
                   <Activity className="w-3.5 h-3.5 text-[#E3120B]" />
-                  <span>今日实时情绪指数 (Today)</span>
+                  <span>今日词典情绪相对分</span>
                 </div>
                 <div className="flex items-baseline space-x-1.5 mt-0.5">
                   <span className={`text-3xl sm:text-4xl font-serif font-black font-mono ${
@@ -644,12 +644,12 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
             </div>
 
             <p className="text-[11px] text-stone-600 font-sans leading-snug">
-              <strong>决策解读：</strong>
+              <strong>对照说明：</strong>
               {stats.isWarming
-                ? `当前单日情绪指数 (${stats.todaySentiment}) 显著突破 7 日移动均线 (${stats.sevenDayMA})（利差 +${stats.delta} 点），多项产业利好与技术突破持续催化，市场信心加速修复。`
+                ? `今日词典情绪相对分 (${stats.todaySentiment}) 高于近 7 日均线 (${stats.sevenDayMA})（差 +${stats.delta}）。这是站内标题/摘要词频启发式对照，不是市场信心或全网情绪真值。`
                 : stats.isDeteriorating
-                ? `当前单日情绪指数 (${stats.todaySentiment}) 跌破 7 日移动均线 (${stats.sevenDayMA})（利差 ${stats.delta} 点），突发地缘、监管或供应链不确定性引发市场谨慎防守。`
-                : `当前单日情绪指数 (${stats.todaySentiment}) 与 7 日移动均线 (${stats.sevenDayMA}) 基本持平（利差 ${stats.delta > 0 ? `+${stats.delta}` : stats.delta} 点），多空分歧势均力敌，处于震荡盘整与方向选择窗口。`}
+                ? `今日词典情绪相对分 (${stats.todaySentiment}) 低于近 7 日均线 (${stats.sevenDayMA})（差 ${stats.delta}）。这是站内标题/摘要词频启发式对照，不是市场恐慌或宏观判断。`
+                : `今日词典情绪相对分 (${stats.todaySentiment}) 与近 7 日均线 (${stats.sevenDayMA}) 接近（差 ${stats.delta > 0 ? `+${stats.delta}` : stats.delta}）。多空词命中接近时不外推「震荡盘整」叙事。`}
             </p>
           </div>
         </div>

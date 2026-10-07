@@ -109,7 +109,7 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
     items.push({
       timecode: '00:00',
       tag: '全局脉搏',
-      section: '今日宏观风向与全网异动脉搏',
+      section: '今日语料脉搏与突发候选',
       spokenText: breakingCount > 0
         ? `早上好，见微晨间简报。今日是${todayStr}。当前语料共 ${articles.length} 篇，其中按关键词规则标出 ${breakingCount} 条突发候选。以下只播报语料里已有的标题与摘要，不编造宏观指数。`
         : `早上好，见微晨间简报。今日是${todayStr}。当前语料共 ${articles.length} 篇。按关键词规则未标出突发候选；以下只播报语料里已有的标题与摘要，不编造宏观指数。`,

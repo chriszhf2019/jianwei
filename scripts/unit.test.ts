@@ -1203,10 +1203,19 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   assert.equal(heatChart.includes('>热度指数<'), false);
 
   const deepTrend = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  assert.equal(deepTrend.includes('/api/trend-comparison'), false);
   assert.equal(deepTrend.includes('heatIndex: Math.max(30, 85 - idx * 8)'), false);
-  assert.equal(deepTrend.includes("growthRate: idx === 0 ? '+150%'"), false);
-  assert.equal(deepTrend.includes('核心战略产业'), false);
-  assert.match(deepTrend, /不编造涨跌或宏观叙事/);
+
+  const threeTier = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/StrategicThreeTierCenter.tsx'), 'utf8');
+  assert.equal(threeTier.includes('整体偏积极 (62/100)'), false);
+  assert.equal(threeTier.includes('+320%'), false);
+  assert.equal(threeTier.includes('全球情绪指数温度计'), false);
+  assert.match(threeTier, /站内词典情绪对照/);
+  assert.match(threeTier, /站内地域提及榜/);
+
+  const metricsBar = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/StrategicMetricsBar.tsx'), 'utf8');
+  assert.equal(metricsBar.includes('市场信心加速修复'), false);
+  assert.match(metricsBar, /站内词典情绪对照/);
 });
 
 
