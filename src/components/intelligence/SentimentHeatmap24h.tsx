@@ -1,34 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { NewsArticle } from '../../types';
 import { Flame, Clock, CalendarDays } from 'lucide-react';
-import { parseLocalHour } from '../../utils/publishedAt';
-import { regionOf } from '../../utils/sourceRegion';
-import { primaryMentionRegion } from '../../utils/mentionRegion';
+import {
+  arrivalHeatView,
+  deriveArrivalHeatBundle,
+  type ArrivalCell,
+  type ArrivalGroupBy,
+  type ArrivalHeatBundle,
+  type ArrivalMode,
+} from '../../utils/arrivalPanels';
 
 interface ContentArrivalHeatmapProps {
   articles: NewsArticle[];
+  arrivalHeat?: ArrivalHeatBundle;
   onSelectArticleTitle?: (title: string) => void;
-}
-
-type Mode = 'hour' | 'day';
-type GroupBy = 'source' | 'region' | 'mention';
-
-const SLOTS = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
-const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
-
-function localDateKey(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function dayLabel(key: string): string {
-  const d = new Date(`${key}T12:00:00`);
-  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} 周${WEEK[d.getDay()]}`;
-}
-
-interface Timed {
-  article: NewsArticle;
-  hour: number | null;
-  dateKey: string | null;
 }
 
 const COLOR: Record<number, string> = {
@@ -50,96 +35,28 @@ interface Cell {
 
 export const SentimentHeatmap24h: React.FC<ContentArrivalHeatmapProps> = ({
   articles,
+  arrivalHeat,
   onSelectArticleTitle,
 }) => {
-  const [mode, setMode] = useState<Mode>('hour');
-  const [groupBy, setGroupBy] = useState<GroupBy>('source');
-  const [selected, setSelected] = useState<Cell | null>(null);
+  const [mode, setMode] = useState<ArrivalMode>('hour');
+  const [groupBy, setGroupBy] = useState<ArrivalGroupBy>('source');
+  const [selected, setSelected] = useState<ArrivalCell | null>(null);
 
-  const { timed, rows, columns, cells } = useMemo(() => {
-    const timed: Timed[] = [];
-    const now = Date.now();
-    // 只统计近 30 天内带真实发布时刻的外部条目，避免历史旧文污染“24h/近7天”到达分布
-    for (const a of articles) {
-      if (!a.publishedAt) continue;
-      const t = new Date(a.publishedAt).getTime();
-      if (Number.isNaN(t)) continue;
-      if (now - t > 30 * 24 * 3600 * 1000) continue;
-      const hour = parseLocalHour(a.publishedAt);
-      timed.push({ article: a, hour, dateKey: localDateKey(t) });
-    }
-    if (timed.length === 0) return { timed, rows: [], columns: [], cells: [] };
-
-    // 行分组：来源站点 或 来源地区（配置表见 src/utils/sourceRegion.ts）
-    const groupKeyOf = (article: NewsArticle) =>
-      groupBy === 'region'
-        ? regionOf(article.sourceName)
-        : groupBy === 'mention'
-          ? primaryMentionRegion(`${article.title || ''} ${article.summary || ''}`) || '未标注'
-          : article.sourceName || '其他';
-    const byKey = new Map<string, number>();
-    for (const { article } of timed) {
-      const s = groupKeyOf(article);
-      byKey.set(s, (byKey.get(s) || 0) + 1);
-    }
-    const top = [...byKey.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k]) => k);
-    const rows = top.length < byKey.size ? [...top, '其他'] : top;
-    const rowOf = (s: string) => (top.includes(s) ? s : '其他');
-
-    let columns: string[] = [];
-    if (mode === 'hour') {
-      columns = SLOTS;
-    } else {
-      for (let i = 6; i >= 0; i -= 1) {
-        const d = new Date(Date.now() - i * 24 * 3600 * 1000);
-        columns.push(localDateKey(d.getTime()));
-      }
-    }
-    const colOf = (t: Timed): string | null => {
-      if (mode === 'hour') {
-        if (t.hour === null) return null;
-        const s = Math.floor(t.hour / 4) * 4;
-        return `${String(s).padStart(2, '0')}:00`;
-      }
-      return t.dateKey;
-    };
-
-    const counts = new Map<string, number>();
-    const samples = new Map<string, string[]>();
-    for (const t of timed) {
-      const c = colOf(t);
-      if (!c) continue;
-      const key = `${rowOf(groupKeyOf(t.article))}|${c}`;
-      counts.set(key, (counts.get(key) || 0) + 1);
-      const arr = samples.get(key) || [];
-      if (t.article.title && arr.length < 2) arr.push(t.article.title);
-      samples.set(key, arr);
-    }
-    const max = Math.max(...counts.values(), 1);
-
-    const cells: Cell[] = [];
-    for (const row of rows) {
-      for (const col of columns) {
-        const key = `${row}|${col}`;
-        const count = counts.get(key) || 0;
-        cells.push({
-          row,
-          colRaw: col,
-          colLabel: mode === 'hour' ? col : dayLabel(col),
-          count,
-          intensity: count === 0 ? 0 : Math.max(1, Math.round((count / max) * 5)),
-          samples: samples.get(key) || [],
-        });
-      }
-    }
-    return { timed, rows, columns, cells };
-  }, [articles, mode, groupBy]);
+  const bundle = useMemo(
+    () => arrivalHeat ?? deriveArrivalHeatBundle(articles),
+    [arrivalHeat, articles],
+  );
+  const view = arrivalHeatView(bundle, mode, groupBy);
+  const timedCount = view?.timedCount ?? 0;
+  const rows = view?.rows ?? [];
+  const columns = view?.columns ?? [];
+  const cells = view?.cells ?? [];
 
   const active = useMemo(() => {
     if (selected && cells.some((c) => c.row === selected.row && c.colRaw === selected.colRaw)) {
       return selected;
     }
-    const top = cells.reduce<Cell | null>((best, c) => (best === null || c.count > best.count ? c : best), null);
+    const top = cells.reduce<ArrivalCell | null>((best, c) => (best === null || c.count > best.count ? c : best), null);
     return top || null;
   }, [selected, cells]);
 
@@ -154,7 +71,8 @@ export const SentimentHeatmap24h: React.FC<ContentArrivalHeatmapProps> = ({
               内容到达热力（真实统计）
             </h3>
             <p className="text-xs text-stone-500">
-              基于近 30 天内带真实发布时刻的外部条目（{timed.length} 条，历史旧文已排除）；行=来源站点/来源地区/内容涉事地区，列=24h 时段或近 7 天，格内为真实“到达条数”的归一热度。
+              基于近 30 天内带真实发布时刻的外部条目（{timedCount} 条，历史旧文已排除）；行=来源站点/来源地区/内容涉事地区，列=24h 时段或近 7 天，格内为真实“到达条数”的归一热度。
+              {arrivalHeat ? '时段按服务端本地时区。' : '时段按本机时区。'}
             </p>
           </div>
         </div>
@@ -210,7 +128,7 @@ export const SentimentHeatmap24h: React.FC<ContentArrivalHeatmapProps> = ({
         </div>
       </div>
 
-      {timed.length === 0 ? (
+      {timedCount === 0 ? (
         <div className="py-8 text-center text-stone-400 text-xs">
           当前语料没有带发布时间戳的条目：请先在设置页配置 RSS 并执行“立即摄取”。
         </div>
@@ -225,8 +143,8 @@ export const SentimentHeatmap24h: React.FC<ContentArrivalHeatmapProps> = ({
                     来源 \ {mode === 'hour' ? '时段' : '日期'}
                   </th>
                   {columns.map((col) => (
-                    <th key={col} className="font-mono font-bold text-stone-500 px-1 py-1 whitespace-nowrap">
-                      {mode === 'hour' ? col : dayLabel(col)}
+                    <th key={col.raw} className="font-mono font-bold text-stone-500 px-1 py-1 whitespace-nowrap">
+                      {col.label}
                     </th>
                   ))}
                 </tr>

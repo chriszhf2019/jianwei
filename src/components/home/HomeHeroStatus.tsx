@@ -109,14 +109,14 @@ export const HomeHeroStatus: React.FC<HomeHeroStatusProps> = ({
   const meterLeft = net === null ? 50 : Math.max(0, Math.min(100, ((net + 100) / 200) * 100));
   const isTodayScope = scope === 'today';
   const gaugeTip =
-    '情绪值：词典统计 (正面-负面)/(正面+负面)×100，仅对“今日发布”条目（今日样本不足20条时自动放宽近30天）；热词/赛道/突发同为可复核的关键词计数，非 AI 判断。词表见 utils/corpusMetrics.ts 与 utils/sectorTaxonomy.ts。';
+    '情绪值：词典启发式 (正面-负面)/(正面+负面)×100，仅统计「今日」发布条目（含用户投递）。样本不足时如实显示暂无结论，不回退近 30 天。热词/赛道/突发同为可复核关键词计数，不是市场真值。';
 
   return (
     <div className="bg-white border-2 border-stone-900 rounded-2xl p-3.5 sm:p-4 shadow-sm font-sans mb-4">
       {/* 行1：徽标带（含口径说明，hover 可见） */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
         <span className="font-mono font-bold text-stone-500 uppercase tracking-wider bg-stone-100 px-2 py-0.5 rounded">
-          {todayShort()} · 今日速览
+          {todayShort()} · 当日看板
         </span>
         <span
           className={`inline-flex items-center font-bold px-1.5 py-0.5 rounded ${
@@ -135,7 +135,7 @@ export const HomeHeroStatus: React.FC<HomeHeroStatusProps> = ({
           title={gaugeTip}
         >
           <ShieldCheck className="w-3 h-3 mr-0.5" />
-          {isTodayScope ? `今日 ${todayCount} 条` : `近 30 天 ${scanned} 篇（今日样本不足）`}
+          {isTodayScope ? `今日 ${todayCount} 条` : `近 30 天 ${scanned} 篇（已弃用回退，应只看今日）`}
           <HelpTipIcon tip={gaugeTip} />
         </span>
         <span className="inline-flex items-center font-bold text-red-600 ml-auto">
@@ -147,7 +147,7 @@ export const HomeHeroStatus: React.FC<HomeHeroStatusProps> = ({
       {/* 行2：结论 + 好/坏/中性 + 迷你温度条（单行紧凑） */}
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <span className="text-[13px] font-serif font-black text-stone-950">
-          {isTodayScope ? '今天新闻整体' : '近 30 天新闻整体'}
+          {isTodayScope ? '今日新闻整体' : '（口径异常：非今日窗）'}
           <span
             className={`ml-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-serif font-black align-middle ${verdict.cls}`}
           >

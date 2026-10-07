@@ -25,8 +25,14 @@ import {
 } from 'lucide-react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { NEWS_INTEREST_GROUPS } from '../utils/sectorTaxonomy';
-import { RadarKeyword, NewsArticle, UserPersona } from '../types';
+import { RadarKeyword, NewsArticle, UserPersona, ReadingDensity, DefaultReadingRhythm } from '../types';
 import { monitorHits } from '../utils/monitorKeywords';
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_HINT,
+  passwordPolicyError,
+  passwordPolicyErrorMessage,
+} from '../shared/passwordPolicy';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -46,6 +52,10 @@ interface SettingsModalProps {
   /** 用于显示每个监控词在当前语料的命中数 */
   articles?: NewsArticle[];
   selectedPersona?: UserPersona;
+  readingDensity: ReadingDensity;
+  onReadingDensityChange: (value: ReadingDensity) => void;
+  defaultRhythm: DefaultReadingRhythm;
+  onDefaultRhythmChange: (value: DefaultReadingRhythm) => void;
 }
 
 type PersonalSection = 'profile' | 'interests' | 'radar' | 'subscription' | 'security';
@@ -64,14 +74,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onRemoveRadar,
   articles = [],
   selectedPersona,
+  readingDensity,
+  onReadingDensityChange,
+  defaultRhythm,
+  onDefaultRhythmChange,
 }) => {
   useEscapeClose(isOpen, onClose);
 
   const [activeSection, setActiveSection] = useState<PersonalSection>('profile');
   const [tempNickname, setTempNickname] = useState(nickname);
   const [newTagInput, setNewTagInput] = useState('');
-  const [readingDensity, setReadingDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [defaultRhythm, setDefaultRhythm] = useState<string>('classic');
+  const [draftDensity, setDraftDensity] = useState<ReadingDensity>(readingDensity);
+  const [draftRhythm, setDraftRhythm] = useState<DefaultReadingRhythm>(defaultRhythm);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -90,6 +104,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [subSuccessMsg, setSubSuccessMsg] = useState('');
   const [testingDispatch, setTestingDispatch] = useState(false);
   const [testSentMsg, setTestSentMsg] = useState('');
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setTempNickname(nickname);
+    setDraftDensity(readingDensity);
+    setDraftRhythm(defaultRhythm);
+  }, [isOpen, nickname, readingDensity, defaultRhythm]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -141,17 +162,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSendTestPush = () => {
     setTestingDispatch(true);
+    // 推送通道尚未接入真实邮件/Webhook 发送；不得伪装成功。
     setTimeout(() => {
       setTestingDispatch(false);
-      setTestSentMsg('测试推送已成功发送！请查收您的邮箱或群机器人通知。');
-      setTimeout(() => setTestSentMsg(''), 4000);
-    }, 700);
+      setTestSentMsg('推送通道尚未接入：订阅偏好仅保存在本机，测试推送不会真正发出。');
+      setTimeout(() => setTestSentMsg(''), 5000);
+    }, 300);
   };
 
   if (!isOpen) return null;
 
   const handleSaveProfile = () => {
     onNicknameChange(tempNickname.trim() || '资深分析师');
+    onReadingDensityChange(draftDensity);
+    onDefaultRhythmChange(draftRhythm);
     onClose();
   };
 
@@ -186,8 +210,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setPasswordFeedback({ ok: false, text: '两次输入的新密码不一致' });
       return;
     }
-    if (newPassword.length < 6) {
-      setPasswordFeedback({ ok: false, text: '新密码长度不能少于 6 位' });
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) {
+      setPasswordFeedback({ ok: false, text: passwordPolicyErrorMessage(policyError) });
       return;
     }
 
@@ -313,9 +338,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ].map((r) => (
                     <div
                       key={r.id}
-                      onClick={() => setDefaultRhythm(r.id)}
+                      onClick={() => setDraftRhythm(r.id as DefaultReadingRhythm)}
                       className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                        defaultRhythm === r.id
+                        draftRhythm === r.id
                           ? 'border-stone-900 bg-[#FAF8F5] shadow-xs'
                           : 'border-stone-200 hover:border-stone-400 bg-white'
                       }`}
@@ -340,14 +365,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <input
                         type="radio"
                         name="density"
-                        checked={readingDensity === d.id}
-                        onChange={() => setReadingDensity(d.id as any)}
+                        checked={draftDensity === d.id}
+                        onChange={() => setDraftDensity(d.id as ReadingDensity)}
                         className="text-stone-900 focus:ring-stone-900"
                       />
                       <span className="font-serif text-stone-800">{d.label}</span>
                     </label>
                   ))}
                 </div>
+                <p className="text-[11px] text-stone-400">
+                  点「保存偏好」后生效：紧凑会收紧首页标准卡片和详情页段落间距；默认节奏用于详情「五层通读」。
+                </p>
               </div>
             </div>
           )}
@@ -516,8 +544,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               )}
 
               {testSentMsg && (
-                <div className="p-3 bg-blue-50 border border-blue-300 text-blue-900 rounded-xl text-xs font-serif font-bold flex items-center space-x-2">
-                  <Send className="w-4 h-4 text-blue-600 shrink-0" />
+                <div className="p-3 bg-amber-50 border border-amber-300 text-amber-950 rounded-xl text-xs font-serif font-bold flex items-center space-x-2">
+                  <Send className="w-4 h-4 text-amber-700 shrink-0" />
                   <span>{testSentMsg}</span>
                 </div>
               )}
@@ -748,11 +776,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <input
                     type="password"
                     required
-                    placeholder="不少于 6 位字符"
+                    placeholder={`至少 ${PASSWORD_MIN_LENGTH} 位，含三类字符`}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900 font-mono"
                   />
+                  <p className="text-[10px] text-stone-400">{PASSWORD_POLICY_HINT}</p>
                 </div>
 
                 <div className="space-y-1">

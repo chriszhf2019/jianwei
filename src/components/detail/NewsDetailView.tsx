@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem } from '../../types';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem, ReadingDensity, DefaultReadingRhythm } from '../../types';
 import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
 import { SevenElementsTab } from './SevenElementsTab';
 const LogicTreeTab = React.lazy(() => import('./LogicTreeTab').then(m => ({ default: m.LogicTreeTab })));
@@ -25,17 +25,17 @@ import {
 } from 'recharts';
 
 import { KeyTermNote, KeyTermHighlight } from '../common/KeyTermHighlight';
-
-
-
 import { FeatureSummary } from '../common/FeatureSummary';
+import { EditorialNotice } from '../common/EditorialNotice';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 import { EvidenceBadge } from '../common/EvidenceBadge';
+import { MethodBadge } from '../common/MethodBadge';
 import { formatArticleTime } from '../../utils/articleTime';
 import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
 import { downloadMarkdownBriefing, exportBriefingAsPdf } from '../../utils/briefingReportExport';
 import { CERTIFICATION_STANDARDS } from '../../utils/methodRegistry';
+import { classifyAiClientError } from '../../utils/aiClientErrors';
 import { saveArticleOffline, removeArticleOffline, isArticleOffline } from '../../utils/offlineStorage';
 
 import { 
@@ -129,7 +129,17 @@ interface LogicWeightItem {
   verdict: string;
 }
 
-const getArticleLogicWeights = (id: string, title: string): LogicWeightItem[] => {
+const CURATED_LOGIC_WEIGHT_IDS = new Set([
+  'news-anthropic-claude37',
+  'news-tsmc-2nm-yield',
+  'news-pboc-liquidity-tool',
+  'news-catl-solid-state-pilot',
+  'news-deepseek-enterprise-deployment',
+  'news-quantum-topological-qubit',
+]);
+
+const getArticleLogicWeights = (id: string, _title: string): LogicWeightItem[] => {
+  if (!CURATED_LOGIC_WEIGHT_IDS.has(id)) return [];
   switch (id) {
     case 'news-anthropic-claude37':
       return [
@@ -174,12 +184,7 @@ const getArticleLogicWeights = (id: string, title: string): LogicWeightItem[] =>
         { name: '后量子密码重构与生物模拟', weight: 20, color: '#16a34a', verdict: '提速生物靶向药研发周期，倒逼全球抗量子安全加密改造' }
       ];
     default:
-      return [
-        { name: '事件首发核心事实触发', weight: 40, color: '#0284c7', verdict: '事件产生的主要原因与背景前置事实' },
-        { name: '产业链跟进与业务推进管线', weight: 30, color: '#4f46e5', verdict: '生态链上下游反应及直接承载的落实行动' },
-        { name: '成本、合规与落地博弈瓶颈', weight: 15, color: '#ca8a04', verdict: '决定落地快慢的限制条件及博弈变量摩擦' },
-        { name: '长周期微观红利与宏观重塑', weight: 15, color: '#16a34a', verdict: '产生的最终价值效益及宏观洗牌趋势' }
-      ];
+      return [];
   }
 };
 
@@ -240,6 +245,10 @@ interface NewsDetailViewProps {
   onOpenShareCard?: (article: NewsArticle) => void;
   isDepositedInKnowledge?: boolean;
   onDepositToKnowledge?: (item: KnowledgeItem) => void;
+  predictionContracts?: PredictionContract[];
+  onAppendActionMemo?: (entry: string) => void;
+  readingDensity?: ReadingDensity;
+  defaultRhythm?: DefaultReadingRhythm;
 }
 
 export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
@@ -261,6 +270,10 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   onOpenShareCard,
   isDepositedInKnowledge = false,
   onDepositToKnowledge,
+  predictionContracts = [],
+  onAppendActionMemo,
+  readingDensity = 'comfortable',
+  defaultRhythm = 'classic',
 }) => {
   const [activeTab, setActiveTab] = useState<CognitiveDetailTab>(initialTab);
 
@@ -390,10 +403,33 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   // —— 浅层外部信源条目：深层认知 AI 懒加载补全 ——
   const isShallow = !article.spectrumLayers || article.spectrumLayers.length === 0;
   const [enrichPhase, setEnrichPhase] = useState<'idle' | 'loading' | 'done' | 'unavailable' | 'error'>('idle');
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [enrichElapsed, setEnrichElapsed] = useState(0);
+  const enrichAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (enrichPhase !== 'loading') {
+      setEnrichElapsed(0);
+      return;
+    }
+    setEnrichElapsed(0);
+    const timer = window.setInterval(() => setEnrichElapsed((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [enrichPhase]);
+
+  const handleCancelEnrich = () => {
+    enrichAbortRef.current?.abort();
+    setEnrichPhase('idle');
+    setEnrichError('已取消深度分析请求。');
+  };
 
   const handleGenerateDeepAnalysis = async () => {
     if (!isShallow || enrichPhase === 'loading') return;
+    enrichAbortRef.current?.abort();
+    const controller = new AbortController();
+    enrichAbortRef.current = controller;
     setEnrichPhase('loading');
+    setEnrichError(null);
     try {
       const response = await fetch('/api/enrich', {
         method: 'POST',
@@ -407,30 +443,41 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           publishedAt: article.publishedAt || '',
           category: article.category,
         }),
+        signal: controller.signal,
       });
-      const json = await response.json();
+      const json = await response.json().catch(() => ({}));
       if (json?.enriched && json.overrides && onEnrichArticle) {
         onEnrichArticle(mergeDeep(article, json.overrides));
         setEnrichPhase('done');
       } else if (json?.reason === 'no_api_key') {
         setEnrichPhase('unavailable');
+        setEnrichError(classifyAiClientError({ status: response.status, payload: json }));
       } else {
         setEnrichPhase('error');
+        setEnrichError(classifyAiClientError({ status: response.status, payload: json }));
       }
-    } catch {
-      setEnrichPhase('error');
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        setEnrichPhase('idle');
+        setEnrichError('已取消深度分析请求。');
+      } else {
+        setEnrichPhase('error');
+        setEnrichError(classifyAiClientError({ error: err }));
+      }
     }
   };
 
   // 浅层占位提示文案随补全状态变化
   const deepNote =
     enrichPhase === 'loading'
-      ? '正在请求 AI 懒加载补全深度认知字段…（需服务端配置 Gemini 或 DeepSeek Key）'
+      ? `正在请求深度分析… 已等待 ${enrichElapsed}s / 约 45s`
       : enrichPhase === 'unavailable'
-        ? 'AI 懒加载补全暂不可用：服务端未配置 Gemini 或 DeepSeek Key；配置后重新打开本页即可。'
-      : enrichPhase === 'error'
-          ? '深度分析生成失败（网络、额度或服务异常），请稍后重试。'
-          : '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
+        ? enrichError ||
+          'AI 懒加载补全暂不可用：服务端未配置 Gemini 或 DeepSeek Key；配置后重新打开本页即可。'
+        : enrichPhase === 'error'
+          ? enrichError || '深度分析生成失败，请稍后重试。'
+          : enrichError ||
+            '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
 
   // Find related topic cluster if any
   const relatedTopic = TOPIC_CLUSTERS.find(t => 
@@ -498,7 +545,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans">
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans ${readingDensity === 'compact' ? 'py-4' : 'py-8'}`}>
       {/* 顶部与滚动同步的高精度渐变色阅读进度条 (Top Synchronous Gradient Progress Bar) */}
       <div className="fixed top-0 left-0 right-0 h-1 sm:h-1.5 bg-stone-200/60 backdrop-blur-xs z-[70] pointer-events-none">
         <div
@@ -833,7 +880,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                 <p className="text-sm sm:text-base font-serif font-bold text-stone-900 leading-relaxed">
                   {article.oneSentenceVerdict || article.summary}
                 </p>
-                <p className="text-[10px] text-stone-400 mt-1">打开详情会自动触发 AI 深度解读；完成后此卡将填充七要素模型。</p>
+                <p className="text-[10px] text-stone-400 mt-1">深度解读不会自动开始。点击「生成深度分析」后才会调用模型，完成后这里显示七要素。</p>
               </div>
             )}
 
@@ -933,7 +980,15 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           <span className="font-serif font-bold text-[#E3120B] bg-red-50 px-2.5 py-0.5 rounded border border-red-200">
             {article.category}
           </span>
-          {article.isExternal && article.sourceUrl && (
+          {article.isCustom && (
+            <span
+              className="font-mono text-[11px] px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-900"
+              title="由用户贴链接或贴正文投递，解读为模型推断"
+            >
+              用户投递 · 读懂新闻
+            </span>
+          )}
+          {article.sourceUrl && (
             <a
               href={article.sourceUrl}
               target="_blank"
@@ -943,10 +998,21 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               阅读原文 ↗
             </a>
           )}
+          {article.sourceUrl && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('deep_spectrum')}
+              className="font-mono text-[11px] px-2 py-0.5 rounded border border-stone-300 text-stone-700 hover:bg-stone-100 transition-colors"
+              title="在通读附录中核验来源页面与引句"
+            >
+              去复核原文
+            </button>
+          )}
           <span className="text-stone-300">·</span>
           <span className="font-mono text-stone-700">{formatArticleTime(article)}</span>
           <span className="text-stone-300">·</span>
           <EvidenceBadge article={article} corpus={contextArticles} />
+          <MethodBadge methodId="model_interpretation" />
           <span className="text-stone-300">·</span>
           <span
             className="inline-flex items-center gap-1 font-mono text-stone-700 bg-stone-100 px-2 py-0.5 rounded border border-stone-200"
@@ -1127,11 +1193,19 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                       <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                       <span>新闻事实 & 论点逻辑权重热力分布 (Weight Map)</span>
                     </h4>
-                    <p className="text-[10px] text-stone-500 font-sans">由见微认知引擎对新闻核心支撑材料进行的多维度语义比重分配模型（常态归一化）</p>
+                    <EditorialNotice title={CURATED_LOGIC_WEIGHT_IDS.has(article.id) ? '编辑预设权重' : '无预设权重'}>
+                      {CURATED_LOGIC_WEIGHT_IDS.has(article.id)
+                        ? '这组权重只写给少数示范稿，不是对本文的语义模型。'
+                        : '当前文章没有编辑预设权重，不绘制伪热力图。'}
+                    </EditorialNotice>
                   </div>
-                  <span className="text-[9px] font-mono bg-stone-100 text-stone-600 px-1.5 py-0.2 rounded shrink-0 self-start sm:self-center">归一化总重: 100%</span>
+                  {CURATED_LOGIC_WEIGHT_IDS.has(article.id) && (
+                    <span className="text-[9px] font-mono bg-stone-100 text-stone-600 px-1.5 py-0.2 rounded shrink-0 self-start sm:self-center">归一化总重: 100%</span>
+                  )}
                 </div>
 
+                {CURATED_LOGIC_WEIGHT_IDS.has(article.id) ? (
+                  <>
                 <div className="h-60 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -1192,6 +1266,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                     </div>
                   ))}
                 </div>
+                  </>
+                ) : null}
               </div>
             )}
           </div>
@@ -1254,19 +1330,30 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="text-sm font-serif font-bold text-stone-900">深度分析</div>
-            <p className="text-[11px] text-stone-500 mt-0.5">
-              当前为原文摘要，深层字段尚未生成。
+            <p className="text-xs text-stone-500 mt-0.5">
+              {deepNote}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleGenerateDeepAnalysis()}
-            disabled={enrichPhase === 'loading'}
-            className="shrink-0 px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
-          >
-            {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            {enrichPhase === 'loading' ? '正在生成…' : '生成深度分析'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleGenerateDeepAnalysis()}
+              disabled={enrichPhase === 'loading'}
+              className="px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
+            >
+              {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {enrichPhase === 'loading' ? `生成中 ${enrichElapsed}s` : '生成深度分析'}
+            </button>
+            {enrichPhase === 'loading' && (
+              <button
+                type="button"
+                onClick={handleCancelEnrich}
+                className="px-3 py-2.5 border border-red-300 bg-red-50 text-red-800 rounded-lg text-xs font-serif font-bold"
+              >
+                取消
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1403,6 +1490,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   article={article}
                   onSaveContract={onSaveContract}
                   onNavigateToMyFocus={() => onNavigateTab && onNavigateTab('my_focus')}
+                  predictionContracts={predictionContracts}
                 />
               </div>
             </div>
@@ -1416,13 +1504,14 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               activePersona={activePersona}
               onSelectPersona={onSelectPersona}
               onRunPersonaForecast={onRunPersonaForecast}
+              onAppendActionMemo={onAppendActionMemo}
             />
           )}
 
           {/* 附录：五层通读全览 */}
           {activeTab === 'deep_spectrum' &&
             ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
-              <DeepSpectrumTab article={article} />
+              <DeepSpectrumTab article={article} initialRhythm={defaultRhythm} />
             ) : (
               <MissingDeep feature="五层光谱深度全览" note={deepNote} />
             ))}

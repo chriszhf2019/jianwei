@@ -41,10 +41,12 @@ import {
   Minus
 } from 'lucide-react';
 import { localTrendModel } from '../../utils/localTrendModel';
+import { categoryBaseRate } from '../../utils/forecastReference';
 import { MethodBadge } from '../common/MethodBadge';
 
 interface ForecastArenaTabProps {
   article: NewsArticle;
+  predictionContracts?: PredictionContract[];
   onSaveContract?: (contract: PredictionContract) => Promise<boolean>;
   onNavigateToMyFocus?: () => void;
 }
@@ -122,6 +124,7 @@ function computeLocalPrediction(
 }
 export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
   article,
+  predictionContracts = [],
   onSaveContract,
   onNavigateToMyFocus
 }) => {
@@ -134,7 +137,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
         category: '行业基本面',
         horizonDays: 90,
         horizonLabel: '3 个月后验证',
-        baseRateHistory: '本地引擎无历史基准样本（先验不偏不倚）；建议您先按自身经验给出一个基准概率，再与引擎对照。',
+        baseRateHistory: '基准率只在该分类已确认回测达到 20 条时计算。',
         defaultOptions: {
           positive: '如期兑现 / 突破落地',
           negative: '不及预期 / 延期调整',
@@ -157,7 +160,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
         category: '自定义命题',
         horizonDays: 90,
         horizonLabel: '3 个月后验证',
-        baseRateHistory: '自定义事件请结合行业历史基准谨慎打分。',
+        baseRateHistory: '自定义命题沿用本文分类的已确认回测，不单独计算基准率。',
         defaultOptions: {
           positive: '是（事件将发生/指标将达标）',
           negative: '否（事件未发生/推迟/落空）',
@@ -167,6 +170,11 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
     }
     return presetQuestions.find(q => q.id === selectedQuestionId) || presetQuestions[0];
   }, [isCustomQuestion, customQuestionText, selectedQuestionId, presetQuestions]);
+
+  const reference = useMemo(
+    () => categoryBaseRate(predictionContracts, article.category || '未分类'),
+    [predictionContracts, article.category],
+  );
 
   // User's Proposition Inputs
   const [userDirection, setUserDirection] = useState<'positive' | 'negative' | 'neutral'>('positive');
@@ -365,7 +373,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
               methodId={aiPrediction.probabilityKind === 'direction_strength' ? 'local_sensitivity' : 'model_forecast'}
             />
             <p className="text-xs text-stone-400 max-w-3xl">
-              拒绝事后诸葛亮。在这里提出量化预测并锁定检验时间，见微本地加权引擎（透明公式，与『与我何干』主线模型同源）将输出可复核的对照研判，帮您识别过度自信并习得专业的预测方法论。
+              拒绝事后诸葛亮。在这里提出量化预测并锁定检验时间，见微本地加权启发式（透明公式，与『与我何干』主线模型同源；可复核但不是市场真值）将输出可对照的研判，帮您识别过度自信并习得专业的预测方法论。
             </p>
             <p className="text-[10px] text-stone-500 leading-relaxed border-l-2 border-stone-700 pl-2">
               与其它预测入口的分工：⑦「正反方博弈」= 事件多空论据的<b>定性梳理</b>；「与我何干 · 双向预测」= 把主线翻译成<b>对你（身份）的两条路径</b>；首页卡片「趋势」= 一段式 AI 文本观点；<b>本页是唯一支持“立约 + 到期回测”的事件概率页</b>（本地/在线双引擎 + 契约档案）。
@@ -473,8 +481,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
                       {q.question}
                     </h5>
                     <div className="mt-2 text-[11px] text-stone-500 font-sans">
-                      <strong className="text-stone-700">先验说明：</strong>{q.baseRateHistory}
-                      <span className="text-stone-400 block mt-0.5">模型口径，未接入本地历史样本库，不视为事实基准。</span>
+                      <strong className="text-stone-700">基准率：</strong>{reference.note}
                     </div>
                   </div>
                 );
@@ -488,6 +495,11 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
               placeholder="例如：未来 60 天内，该公司是否会在公开场合宣布下调产品售价？"
               className="w-full p-3.5 bg-[#FAF8F5] border border-stone-300 rounded-xl text-xs sm:text-sm text-stone-900 font-sans focus:outline-hidden focus:border-stone-900"
             />
+          )}
+          {isCustomQuestion && (
+            <p className="mt-2 text-[11px] text-stone-500">
+              <strong className="text-stone-700">基准率：</strong>{reference.note}
+            </p>
           )}
         </div>
 

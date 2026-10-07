@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NewsArticle, UserPersona, CognitiveDetailTab } from '../../types';
+import { NewsArticle, UserPersona, CognitiveDetailTab, ReadingDensity } from '../../types';
 import {
   ArrowRight,
   Bookmark,
@@ -9,7 +9,6 @@ import {
   Check,
   Headphones,
   MapPin,
-  Flame,
   Clock,
   Sparkles,
   TrendingUp,
@@ -22,7 +21,6 @@ import {
   BookOpen,
   ListFilter,
   Layers,
-  Scale,
   Briefcase,
   Rocket,
   Code2,
@@ -30,7 +28,7 @@ import {
 
 import { formatArticleTime, isStaleArticle } from '../../utils/articleTime';
 import { monitorHits } from '../../utils/monitorKeywords';
-import { POSITIVE_WORDS, NEGATIVE_WORDS } from '../../utils/corpusMetrics';
+import { SentimentPair } from '../common/SentimentPair';
 import { SECTOR_TAXONOMY, keywordMatches } from '../../utils/sectorTaxonomy';
 import { mediaProfile, tierBadge } from '../../utils/mediaAuthority';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
@@ -39,17 +37,6 @@ import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/catego
 import { useOfflineArticles } from '../../utils/offlineStorage';
 import type { RadarKeyword } from '../../types';
 import type { NewsSkill } from './HomeView';
-
-/** 逐篇情绪：对标题+摘要做财经情感词典命中判定 */
-function articleSentiment(article: { title?: string; summary?: string }): string {
-  const text = `${article.title || ''} ${article.summary || ''}`.toLowerCase();
-  let pos = 0;
-  let neg = 0;
-  for (const w of POSITIVE_WORDS) if (text.includes(w.toLowerCase())) pos += 1;
-  for (const w of NEGATIVE_WORDS) if (text.includes(w.toLowerCase())) neg += 1;
-  if (pos === 0 && neg === 0) return '⚪ 中性';
-  return pos > neg ? '🟢 偏正面' : neg > pos ? '🔴 偏负面' : '🟡 多空交织';
-}
 
 /** 派生涉事地点 */
 function deriveLocation(article: NewsArticle): string {
@@ -68,16 +55,6 @@ function deriveLocation(article: NewsArticle): string {
   return '全球';
 }
 
-/** 计算热度指数 70-98 */
-function deriveHeatIndex(article: NewsArticle): number {
-  let score = 80;
-  if (article.sourceCount && article.sourceCount > 1) {
-    score += Math.min(15, (article.sourceCount - 1) * 4);
-  }
-  const len = (article.title + (article.summary || '')).length;
-  if (len > 300) score += 3;
-  return Math.min(98, score);
-}
 
 /** 提炼反常与转折点 */
 function deriveCounterIntuitive(article: NewsArticle): string | null {
@@ -113,6 +90,8 @@ interface StandardModeFeedProps {
   onOpenShareCard?: (article: NewsArticle) => void;
   onOpenAudioBriefing?: () => void;
   onOpenTermExplain?: (term: string) => void;
+  onOpenAnalyze?: () => void;
+  readingDensity?: ReadingDensity;
 }
 
 const renderPersonaIcon = (iconName: string) => {
@@ -143,8 +122,11 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
   onOpenShareCard,
   onOpenAudioBriefing,
   onOpenTermExplain,
+  onOpenAnalyze,
+  readingDensity = 'comfortable',
 }) => {
   const { isOffline } = useOfflineArticles();
+  const compact = readingDensity === 'compact';
   const [expandedSummaries, setExpandedSummaries] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [trackToastId, setTrackToastId] = useState<string | null>(null);
@@ -185,8 +167,20 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
 
   if (articles.length === 0) {
     return (
-      <div className="bg-white border border-stone-300 rounded-xl p-12 text-center text-stone-500 font-sans">
-        当前筛选维度下暂无情报：请尝试其他分类或清除雷达关键词；也可以点击顶部「AI 提交分析」投递一篇新情报。
+      <div className="bg-white border border-stone-300 rounded-xl p-10 text-center font-sans space-y-4">
+        <p className="text-stone-600 text-sm leading-relaxed max-w-md mx-auto">
+          当前筛选下暂无情报。可换分类、清雷达词，或直接贴链接 / 贴正文开始解读。
+        </p>
+        {onOpenAnalyze && (
+          <button
+            type="button"
+            onClick={onOpenAnalyze}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#E3120B] hover:bg-red-700 text-white text-xs font-serif font-bold rounded-xl transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            读懂新闻
+          </button>
+        )}
       </div>
     );
   }
@@ -209,13 +203,12 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className={`grid grid-cols-1 lg:grid-cols-2 ${compact ? 'gap-3' : 'gap-5'}`}>
           {featuredArticles.map((article, idx) => {
             const isBookmarked = bookmarkedIds.includes(article.id);
             const hits = monitorHits(article, radarKeywords);
             const isSummaryExpanded = Boolean(expandedSummaries[article.id]);
             const location = deriveLocation(article);
-            const heatIndex = deriveHeatIndex(article);
             const counterIntuitive = deriveCounterIntuitive(article);
             const entities = (article.entityMentions || []).map((e) => e.name);
 
@@ -234,25 +227,25 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
               ? article.trendForecastText
               : (article.trendForecastText as any)?.shortTerm
               || article.rippleEffect?.stages?.[0]?.title
-              || '短期价格与产品博弈蔓延，中期加速行业渗透与标准重构';
+              || null;
 
             const riskText = typeof article.riskReviewText === 'string'
               ? article.riskReviewText
               : (article.riskReviewText as any)?.mainRisk
               || personaImpact?.threatRisk
-              || '警惕二线初创厂商现金流与算力超售风险，防范恶性竞争';
+              || null;
 
             // 媒体信息
             const prof = mediaProfile(article.sourceName, article.sourceUrl);
             const badge = prof ? tierBadge(prof.tier) : null;
             const mediaDisplayName = prof?.displayName
               || article.sourceName?.replace(/^www\./, '').replace(/\.(com|cn|net|org|gov)($|\.)/, '')
-              || '权威信源';
+              || '来源未标明';
 
             return (
               <article
                 key={article.id}
-                className="bg-white border border-stone-300/90 rounded-2xl p-5 shadow-xs hover:border-stone-800 hover:shadow-md transition-all flex flex-col justify-between space-y-4 relative"
+                className={`bg-white border border-stone-300/90 rounded-2xl shadow-xs hover:border-stone-800 hover:shadow-md transition-all flex flex-col justify-between relative ${compact ? 'p-3 space-y-2' : 'p-5 space-y-4'}`}
               >
                 {/* 1. 顶部多维元数据栏 */}
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs border-b border-stone-100 pb-3">
@@ -287,7 +280,6 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     </span>
 
                     <EvidenceBadge article={article} corpus={contextArticles} compact />
-
                     {isOffline(article.id) && (
                       <span
                         className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-1.5 py-0.5 rounded shadow-2xs"
@@ -300,10 +292,14 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-0.5 text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-mono font-bold text-[11px]">
-                      <Flame className="w-3 h-3 text-amber-600 fill-amber-500" />
-                      {heatIndex}
-                    </span>
+                    {typeof article.sourceCount === 'number' && article.sourceCount > 1 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 text-stone-700 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded font-mono font-bold text-[11px]"
+                        title="站内可见的交叉信源条数，不是市场热度指数"
+                      >
+                        信源 {article.sourceCount}
+                      </span>
+                    )}
 
                     {onOpenAudioBriefing && (
                       <button
@@ -331,6 +327,8 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     </button>
                   </div>
                 </div>
+
+                <SentimentPair title={article.title} summary={article.summary} />
 
                 {/* 2. 标题区 */}
                 <div className="cursor-pointer" onClick={() => onSelectArticle(article)}>
@@ -398,8 +396,10 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
                 )}
 
-                {/* 6. 三栏轻量分析胶囊 */}
+                {/* 6. 三栏轻量分析胶囊：无真实内容的格子直接隐藏 */}
+                {(aiCore || trendText || riskText) && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  {aiCore && (
                   <div className="bg-sky-50/60 border border-sky-200/80 rounded-xl p-2.5 space-y-1">
                     <div className="flex items-center gap-1 text-sky-900 font-serif font-bold text-[11px]">
                       <Sparkles className="w-3 h-3 text-sky-600" />
@@ -409,7 +409,9 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       {aiCore}
                     </p>
                   </div>
+                  )}
 
+                  {trendText && (
                   <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-2.5 space-y-1">
                     <div className="flex items-center gap-1 text-emerald-900 font-serif font-bold text-[11px]">
                       <TrendingUp className="w-3 h-3 text-emerald-600" />
@@ -419,7 +421,9 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       {trendText}
                     </p>
                   </div>
+                  )}
 
+                  {riskText && (
                   <div className="bg-rose-50/60 border border-rose-200/80 rounded-xl p-2.5 space-y-1">
                     <div className="flex items-center gap-1 text-rose-900 font-serif font-bold text-[11px]">
                       <ShieldAlert className="w-3 h-3 text-rose-600" />
@@ -429,41 +433,11 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       {riskText}
                     </p>
                   </div>
+                  )}
                 </div>
+                )}
 
-                {/* 7. 各方立场温差图示能量条 */}
-                <div className="bg-[#FAF8F5] border border-stone-200/90 rounded-xl p-3 text-xs space-y-2 font-sans">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-serif font-bold text-stone-800 flex items-center gap-1.5">
-                      <Scale className="w-3.5 h-3.5 text-stone-600" />
-                      <span>多方立场温差图示 (Consensus Spectrum)</span>
-                    </span>
-                    <span className="text-stone-400 font-mono text-[10px]">乐观 60% · 观望 25% · 承压 15%</span>
-                  </div>
-
-                  {/* 堆叠色彩能量条 */}
-                  <div className="h-2 w-full rounded-full bg-stone-200 overflow-hidden flex shadow-inner">
-                    <div className="h-full bg-emerald-500 transition-all hover:opacity-90" style={{ width: '60%' }} title="官方/当事方：极度乐观 (60%)" />
-                    <div className="h-full bg-amber-400 transition-all hover:opacity-90" style={{ width: '25%' }} title="独立智库：谨慎观望 (25%)" />
-                    <div className="h-full bg-rose-500 transition-all hover:opacity-90" style={{ width: '15%' }} title="同业/竞品：承压跟进 (15%)" />
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-stone-600 pt-0.5">
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                      <span>官方：技术普惠</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                      <span>智库：警惕算力超售</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                      <span>同业：毛利承压跟降</span>
-                    </span>
-                  </div>
-                </div>
-
+                {/* 7. 各方立场：无独立立场样本时整块隐藏，不留空框/伪比例 */}
 
                 {/* 8. 切身影响胶囊 */}
                 {personaImpactText && (
@@ -569,9 +543,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
             {remainingArticles.map((article) => {
               const isBookmarked = bookmarkedIds.includes(article.id);
               const location = deriveLocation(article);
-              const heatIndex = deriveHeatIndex(article);
-              const sentiment = articleSentiment(article);
-              const entities = (article.entityMentions || []).map((e) => e.name);
+                const entities = (article.entityMentions || []).map((e) => e.name);
 
               const prof = mediaProfile(article.sourceName, article.sourceUrl);
               const badge = prof ? tierBadge(prof.tier) : null;
@@ -610,11 +582,15 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       <span className="font-mono text-stone-500">
                         {formatArticleTime(article)}
                       </span>
-                      <span className="inline-flex items-center gap-0.5 text-amber-800 font-mono">
-                        <Flame className="w-3 h-3 text-amber-600 fill-amber-500" />
-                        {heatIndex}
-                      </span>
-                      <span className="font-mono text-stone-500">{sentiment}</span>
+                      {typeof article.sourceCount === 'number' && article.sourceCount > 1 && (
+                        <span
+                          className="inline-flex items-center gap-0.5 text-stone-600 font-mono"
+                          title="站内可见的交叉信源条数，不是市场热度指数"
+                        >
+                          信源 {article.sourceCount}
+                        </span>
+                      )}
+                      <SentimentPair title={article.title} summary={article.summary} compact />
                       <EvidenceBadge article={article} corpus={contextArticles} compact />
                       {isOffline(article.id) && (
                         <span

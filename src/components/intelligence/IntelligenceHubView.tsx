@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UserPersona, NewsArticle, SnapshotResponse } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { UserPersona, NewsArticle, SnapshotResponse, type PredictionContract } from '../../types';
 import { StrategicMetricsBar } from './StrategicMetricsBar';
 import { SituationReadoutPanel } from './SituationReadoutPanel';
 import { FrequentPatternPanel } from './FrequentPatternPanel';
@@ -8,6 +8,7 @@ import { IntelligenceDensityCurve } from './IntelligenceDensityCurve';
 import { DataSourceHealthPanel } from './DataSourceHealthPanel';
 import { EntityCoveragePanel } from './EntityCoveragePanel';
 import { SyndicationPanel } from './SyndicationPanel';
+import { SourceArchivePanel } from './SourceArchivePanel';
 import { MentionRegionAIPanel } from './MentionRegionAIPanel';
 import { RegionDependenceWidget } from './RegionDependenceWidget';
 import { RegionIntelligencePanel } from './RegionIntelligencePanel';
@@ -30,12 +31,15 @@ import { Flame, ShieldCheck, ShieldAlert, Compass, HelpCircle, Activity, Info, D
 
 
 import { useAIProvider } from '../../hooks/useAIProvider';
-import { articleSortTime } from '../../utils/articleTime';
+import { articleSortTime, filterRecentArticles } from '../../utils/articleTime';
 import { FeatureSummary } from '../common/FeatureSummary';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 
 type SnapshotStatus = 'loading' | 'ok' | 'error';
 type HubSection = 'overview' | 'supply_stress' | 'competitor_radar' | 'signals' | 'sources' | 'regions' | 'advisor';
+
+/** 情报中心默认「最近」窗口（含今天） */
+const HUB_RECENT_DAYS = 7;
 
 interface IntelligenceHubViewProps {
   selectedPersona: UserPersona;
@@ -46,6 +50,7 @@ interface IntelligenceHubViewProps {
   onOpenSettings?: () => void;
   onSelectArticleTitle?: (title: string) => void;
   onOpenArticleById?: (articleId: string) => void;
+  predictionContracts?: PredictionContract[];
   /** 跳转「地区情报」深潜工作台（主体×矩阵×三级下钻×组合） */
   onGoRegion?: () => void;
 }
@@ -59,15 +64,21 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   onOpenSettings,
   onSelectArticleTitle,
   onOpenArticleById,
+  predictionContracts = [],
   onGoRegion,
 }) => {
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
   const [section, setSection] = useState<HubSection>('overview');
+  const recentArticles = useMemo(
+    () => filterRecentArticles(contextArticles, HUB_RECENT_DAYS),
+    [contextArticles]
+  );
   const categoryCount = snapshot ? Object.keys(snapshot.derived.categoryCounts || {}).length : 0;
   const totalCorpusCount = snapshot?.meta?.corpusSize ?? contextArticles.length;
+  const recentCount = recentArticles.length;
   const traceableCount = snapshot?.derived?.traceableCount !== undefined
     ? snapshot.derived.traceableCount
-    : contextArticles.filter(
+    : recentArticles.filter(
         (article) => (Boolean(article.sourceUrl) || Boolean(article.sourceName && (article.sourceDate || article.date))) && articleSortTime(article) > 0
       ).length;
 
@@ -100,34 +111,28 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
               <span className="text-xs font-mono font-bold text-red-400 uppercase tracking-wider">
-                战略态势感知指挥室
+                最近态势 · 近 {HUB_RECENT_DAYS} 日
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
-              见微 · 全球情报中心与宏观脉冲
+              见微 · 情报中心
             </h1>
             <p className="text-xs sm:text-sm text-stone-300 font-sans max-w-2xl">
-              以运行时语料计数为基底，通过 24 小时到达热力、文本信号、来源完整度与可证伪预测工具，提供可追溯的认知导航；AI 输出不被包装成事实裁决。
+              看「最近」：默认近 {HUB_RECENT_DAYS} 日语料上的热力、信号与来源结构。当日总览请回首页看板；单条拆解用「读懂新闻」。
             </p>
           </div>
 
           <div className="bg-stone-800/80 p-4 rounded-xl border border-stone-700 space-y-1 shrink-0 text-right">
-            <div className="text-xs text-stone-400 font-mono">数据底座</div>
+            <div className="text-xs text-stone-400 font-mono">最近窗口</div>
             <div className="text-xl font-serif font-black text-emerald-400 font-mono">
-              {snapshot && snapshotStatus === 'ok'
-                ? snapshot.meta.corpusSize > 0
-                  ? `语料 ${snapshot.meta.corpusSize}`
-                  : '暂无真实语料'
+              {snapshotStatus === 'ok'
+                ? recentCount > 0
+                  ? `近${HUB_RECENT_DAYS}日 ${recentCount}`
+                  : '近窗暂无条目'
                 : '未连接'}
             </div>
             <div className="text-[10px] text-stone-400">
-              {snapshot && snapshotStatus === 'ok'
-                ? snapshot.meta.corpus === 'live'
-                  ? '实时 RSS · 在线快照'
-                  : snapshot.meta.corpus === 'runtime'
-                    ? '已加载真实运行时语料'
-                    : '配置 RSS 并摄取后生成'
-                : '等待服务端快照'}
+              全库 {totalCorpusCount} · 首页看板看当日
             </div>
           </div>
         </div>
@@ -139,7 +144,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
           数据口径
         </summary>
         <p className="mt-1.5 leading-relaxed">
-          所有统计基于当前运行时语料；共振、热力和密度是文本或时间信号；盲区是覆盖候选；明日关注不是概率预测。
+          情报中心默认统计近 {HUB_RECENT_DAYS} 日（含今天）运行时语料；共振、热力和密度是文本或时间信号。当日大盘请回首页看板。盲区是覆盖候选；明日关注不是概率预测。
         </p>
       </details>
 
@@ -295,7 +300,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {/* 1. 四大决策概览卡片 (Critical Alerts, Trending, Sectors, Sources) */}
       <StrategicMetricsBar
-        articles={contextArticles}
+        articles={recentArticles}
         onOpenAlerts={() => setSection('signals')}
         onOpenTrending={() => setSection('signals')}
         onOpenSectors={() => setSection('regions')}
@@ -304,41 +309,41 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {/* 2. 动态热度演变趋势图 (Recharts Dynamic Heat Curve) */}
       <DynamicHeatTrendChart
-        articles={contextArticles}
+        articles={recentArticles}
         onOpenArticleById={onOpenArticleById}
         onSelectArticleTitle={onSelectArticleTitle}
       />
 
       {/* 2.5 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
       <TopicBreakoutForecastChart
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
 
       {/* 2.8 新闻情绪指数动态时序趋势图 (Recharts Dynamic Sentiment Curve) */}
       <DynamicSentimentTrendChart
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
 
       {/* 2.9 全球供应链断供压力测试与卡脖子模拟器 */}
       <SupplyChainStressSimulator
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
       />
 
       {/* 2.95 跨国企业竞争对手异动雷达 */}
       <CompetitorDynamicRadar
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
       />
 
       {/* 3. 三层全球战略情报中心 (全景宏观 ➔ 行业垂类 ➔ 事件洞察) */}
 
       <StrategicThreeTierCenter
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
@@ -346,21 +351,21 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       {/* 3.5 全球战略决策行动指南 (分角色/分时效高价值决策建议清单) */}
       <StrategicActionPlaybook
         selectedPersona={selectedPersona}
-        contextArticles={contextArticles}
+        contextArticles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
 
       {/* 4. 今日态势解读与行动指引 */}
-      <SituationReadoutPanel articles={contextArticles} />
-      <FrequentPatternPanel articles={contextArticles} />
+      <SituationReadoutPanel articles={recentArticles} />
+      <FrequentPatternPanel articles={recentArticles} />
       </>
       )}
 
       {section === 'supply_stress' && (
         <div className="space-y-6">
           <SupplyChainStressSimulator
-            articles={contextArticles}
+            articles={recentArticles}
             onSelectArticleTitle={onSelectArticleTitle}
           />
         </div>
@@ -369,7 +374,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       {section === 'competitor_radar' && (
         <div className="space-y-6">
           <CompetitorDynamicRadar
-            articles={contextArticles}
+            articles={recentArticles}
             onSelectArticleTitle={onSelectArticleTitle}
           />
         </div>
@@ -380,21 +385,21 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       <>
       {/* 1.5 动态热度演变趋势图 (Recharts Dynamic Heat Curve) */}
       <DynamicHeatTrendChart
-        articles={contextArticles}
+        articles={recentArticles}
         onOpenArticleById={onOpenArticleById}
         onSelectArticleTitle={onSelectArticleTitle}
       />
 
       {/* 1.8 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
       <TopicBreakoutForecastChart
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
 
       {/* 1.9 新闻情绪指数动态时序趋势图 (Recharts Dynamic Sentiment Curve) */}
       <DynamicSentimentTrendChart
-        articles={contextArticles}
+        articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
@@ -403,29 +408,39 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
 
       <CrossEventNexusPanel
-        articles={contextArticles}
+        articles={recentArticles}
+        crossEvent={snapshot?.derived.crossEvent}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
 
 
       {/* 3. 24-Hour Content-Arrival Heatmap（真实时间统计） */}
-      <SentimentHeatmap24h articles={contextArticles} onSelectArticleTitle={onSelectArticleTitle} />
+      <SentimentHeatmap24h
+        articles={recentArticles}
+        arrivalHeat={snapshot?.derived.arrivalHeat}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
 
       {/* 4. Intelligence Density Curve（真实统计） */}
-      <IntelligenceDensityCurve articles={contextArticles} onSelectArticleTitle={onSelectArticleTitle} />
+      <IntelligenceDensityCurve
+        articles={recentArticles}
+        density={snapshot?.derived.density}
+        onSelectArticleTitle={onSelectArticleTitle}
+      />
       </>
       )}
 
       {section === 'sources' && (
       <>
       {/* 5. Data Source Health（语料派生真实统计） */}
-      <DataSourceHealthPanel articles={contextArticles} />
+      <DataSourceHealthPanel articles={contextArticles} sourceHealth={snapshot?.derived.sourceHealth} />
 
       {/* 5.0 实体覆盖：只统计已经写入语料的 entityMentions */}
       <EntityCoveragePanel articles={contextArticles} />
 
       <SyndicationPanel articles={contextArticles} onOpenArticleById={onOpenArticleById} />
+      <SourceArchivePanel />
       </>
       )}
 
@@ -449,18 +464,23 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       </div>
 
       {/* 5.1 内容涉事地区 · AI 标注（抽样） */}
-      <MentionRegionAIPanel articles={contextArticles} />
+      <MentionRegionAIPanel articles={recentArticles} />
 
       {/* 5.2 涉事地区聚焦：依赖预警 + 按地区浏览 */}
-      <RegionDependenceWidget articles={contextArticles} onOpenArticleById={onOpenArticleById} />
+      <RegionDependenceWidget articles={recentArticles} onOpenArticleById={onOpenArticleById} />
 
       {/* 5.3 地区情报：覆盖/去重度/近7天 */}
-      <RegionIntelligencePanel articles={contextArticles} />
+      <RegionIntelligencePanel articles={recentArticles} />
 
       {/* 6. 2-Columns: Today's Blindspots + Tomorrow's Watchlist */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <TodayBlindspotWidget articles={contextArticles} onOpenSettings={onOpenSettings} />
-        <TomorrowWatchlistWidget articles={contextArticles} />
+        <TodayBlindspotWidget articles={recentArticles} blindspots={snapshot?.derived.blindspots} onOpenSettings={onOpenSettings} />
+        <TomorrowWatchlistWidget
+          articles={recentArticles}
+          tomorrowWatch={snapshot?.derived.tomorrowWatch}
+          predictionContracts={predictionContracts}
+          onOpenArticleById={onOpenArticleById}
+        />
       </div>
       </>
       )}
@@ -470,7 +490,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       {/* 6.8 全球战略决策行动指南 (分角色/分时效高价值决策建议清单) */}
       <StrategicActionPlaybook
         selectedPersona={selectedPersona}
-        contextArticles={contextArticles}
+        contextArticles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
@@ -478,7 +498,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       {/* 7. AI Strategic Advisor (基于今天的新闻情报回答我) */}
       <AIStrategicAdvisor
         selectedPersona={selectedPersona}
-        contextArticles={contextArticles}
+        contextArticles={recentArticles}
       />
       </>
       )}

@@ -43,7 +43,10 @@ interface ChatMessage {
   sender: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  fallback?: boolean;
 }
+
+const BRIEFING_UNAVAILABLE = '这次没有生成回答。未配置可用模型，或请求失败。不会用模板数字代替结论。';
 
 export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
   isOpen,
@@ -102,15 +105,20 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
     }> = [];
 
     // Section 1: 宏观天气与全局脉搏
+    const breakingCount = breaking.length;
     items.push({
       timecode: '00:00',
       tag: '全局脉搏',
-      section: '今日宏观风向与全网异动脉搏',
-      spokenText: `早上好，见微晨间智库为您播报。今日是${todayStr}。全网监测到 ${articles.length} 篇严肃情报，多智能体已标记出 ${breaking.length || 3} 个核心反常信号。当前宏观偏好处于理性避险区间，科技产业链与地缘外贸流动呈现局部阻尼上升。`,
-      displaySummary: `全网扫描 ${articles.length} 篇情报 · 识别 ${breaking.length || 3} 项核心反常 · 情绪指数温和避险`,
+      section: '今日语料脉搏与突发候选',
+      spokenText: breakingCount > 0
+        ? `早上好，见微晨间简报。今日是${todayStr}。当前语料共 ${articles.length} 篇，其中按关键词规则标出 ${breakingCount} 条突发候选。以下只播报语料里已有的标题与摘要，不编造宏观指数。`
+        : `早上好，见微晨间简报。今日是${todayStr}。当前语料共 ${articles.length} 篇。按关键词规则未标出突发候选；以下只播报语料里已有的标题与摘要，不编造宏观指数。`,
+      displaySummary: breakingCount > 0
+        ? `语料 ${articles.length} 篇 · 突发候选 ${breakingCount} 条（关键词启发式，非核验）`
+        : `语料 ${articles.length} 篇 · 无突发候选（关键词启发式）`,
     });
 
-    // Section 2 ~ N: 核心要情深度反常点拆解
+    // Section 2 ~ N: 核心要情——只用文章已有字段，不补模板结论
     latest.forEach((article, idx) => {
       const minute = Math.floor((idx + 1) * 0.6);
       const second = (idx + 1) % 2 === 0 ? '00' : '30';
@@ -118,51 +126,59 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
         article.sevenElements?.aiVerdict?.verdictSummary ||
         article.aiInterpretation?.core ||
         article.oneSentenceVerdict ||
-        '财报附注披露的关键公差出现结构性收窄，驱动变量发生边际偏移';
-      const verdict = article.oneSentenceVerdict || '当前走势对行业二阶供应链交付具有前瞻风向标意义';
+        null;
+      const fact = article.summary || article.subtitle || article.title;
+      const spokenExtra = anomaly
+        ? `站内已有解读摘要：${anomaly}。该摘要若来自模型，仍是推断而非已核验事实。`
+        : '本条尚未生成深度解读，只播报标题与摘要。';
 
       items.push({
         timecode: `${String(minute).padStart(2, '0')}:${second}`,
-        tag: article.category || '核心战略',
+        tag: article.category || '语料条目',
         section: `${idx + 1}. ${article.title}`,
-        anomalyBadge: article.sevenElements?.aiVerdict?.actionLevel ? `研判: ${article.sevenElements.aiVerdict.actionLevel}` : '核心逻辑核验',
-        spokenText: `第${idx + 1}条关键要情：《${article.title}》。核心事实在于：${article.summary || article.subtitle || article.title}。见微反常核验指出：${anomaly}。这一事件的最敏感驱动变量是：${verdict}。`,
+        anomalyBadge: article.sevenElements?.aiVerdict?.actionLevel
+          ? `研判标签: ${article.sevenElements.aiVerdict.actionLevel}`
+          : anomaly
+            ? '有站内解读摘要'
+            : '仅原文摘要',
+        spokenText: `第${idx + 1}条：《${article.title}》。要点：${fact}。${spokenExtra}`,
         displaySummary: article.summary || article.subtitle || article.oneSentenceVerdict || article.title,
         originalArticle: article,
       });
     });
 
-    // Section N+1: 全球走廊与供应链阻尼预警
+    // Section N+1: 不再编造走廊摩擦系数；语料没有该指标就如实说明
     items.push({
       timecode: '02:30',
-      tag: '流动阻尼',
-      section: '全球走廊与供应链跨区摩擦指数预警',
-      spokenText: `全球流动阻尼扫描：东亚至北美战略电子走廊摩擦系数升至零点六八，主要港口与合规抽检备货缓冲周期已拉长至十八天；东南亚新能源产能承接走廊保持平稳。请相关企业提前排查双周安全库存红线。`,
-      displaySummary: `半导体东亚-北美走廊阻尼 0.68 · 备货周期预警延长 · 新能源出海通道平稳`,
+      tag: '数据边界',
+      section: '走廊摩擦与备货周期（未计量）',
+      spokenText:
+        '说明：当前语料没有可复核的走廊摩擦系数或港口备货天数。见微不会用模板数字冒充全球流动阻尼指数。若需要这类指标，请接入可追溯的外部数据源后再播报。',
+      displaySummary: '无走廊摩擦/备货周期真值 · 本节不编造数字',
     });
 
-    // Section N+2: 结合当前身份的开盘与工作日决策备忘
+    // Section N+2: 身份备忘——明确为编辑提示，不是实时情报
     const personaMemo =
       selectedPersona?.id === 'investor'
-        ? '针对科技投资人透镜：今日开盘建议紧盯产业链二阶标的的毛利容错率，防范预期计入过满带来的震荡。'
+        ? '针对科技投资人透镜的阅读提示：开盘前核对产业链相关标的的公开披露，不要把站内启发式情绪当成交易信号。'
         : selectedPersona?.id === 'manager'
-        ? '针对企业管理者透镜：建议法务与采购总监今日盘点外贸关税备用走廊，避免受制于单一通道时滞。'
+        ? '针对企业管理者透镜的阅读提示：对照公开关税与合规通告排查备用通道，本节不是实时监测警报。'
         : selectedPersona?.id === 'founder'
-        ? '针对创业者透镜：密切跟踪头部生态的商业化量产阈值，抢抓出海与国产替代的窗口红线。'
-        : `针对【${personaName}】透镜：建议今天开工前排查最敏感变量的最新公开披露，建立可证伪的前置跟踪红线。`;
+        ? '针对创业者透镜的阅读提示：跟踪头部生态的公开商业化进展，区分语料关键词命中与已核验事实。'
+        : `针对【${personaName}】透镜的阅读提示：开工前核对最敏感变量的最新公开披露；站内摘要不等于已核验结论。`;
 
     items.push({
       timecode: '03:10',
       tag: '身份备忘',
-      section: `【${personaName}】专属开盘与决策行动指南`,
-      spokenText: `${personaMemo} 今日晨间全景播报完毕。您可以点击“对话模式”按钮，通过麦克风或文字直接向我提问刚才播报的内容。`,
+      section: `【${personaName}】阅读提示（产品配置）`,
+      spokenText: `${personaMemo} 晨间简报结束。可点击“对话模式”提问；无可用模型时不会用模板数字代替回答。`,
       displaySummary: personaMemo,
     });
 
     return {
       date: todayStr,
       totalNewsCount: articles.length,
-      crucialSignalsCount: breaking.length || 3,
+      crucialSignalsCount: breakingCount,
       transcript: items,
     };
   }, [articles, selectedPersona]);
@@ -320,31 +336,31 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
       });
 
       const data = await res.json();
-      const assistantAnswer =
-        data.answer ||
-        '根据今日晨间情报，核心异动已在逻辑链中显现。建议您重点关注二阶供应链公差与政策窗口期的兑现节奏。';
+      const unavailable = !res.ok || data?.fallback || !data?.answer;
+      const assistantAnswer = unavailable
+        ? String(data?.answer || data?.fallbackNote || BRIEFING_UNAVAILABLE)
+        : String(data.answer);
 
       const assistantMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'assistant',
         content: assistantAnswer,
         timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        fallback: unavailable,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-
-      // Automatically speak the targeted AI voice answer!
       speakCustomText(assistantAnswer, assistantMsg.id);
     } catch {
-      const fallbackText = `从【${selectedPersona?.name || '资深决策者'}】视角研判，此问题涉及当前关键走廊的摩擦系数与边际溢价传导。建议建立双周敏感度跟踪红线，避免受短期情绪盘误导。`;
       const fallbackMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'assistant',
-        content: fallbackText,
+        content: BRIEFING_UNAVAILABLE,
         timestamp: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        fallback: true,
       };
       setMessages((prev) => [...prev, fallbackMsg]);
-      speakCustomText(fallbackText, fallbackMsg.id);
+      speakCustomText(BRIEFING_UNAVAILABLE, fallbackMsg.id);
     } finally {
       setIsAnswering(false);
     }
@@ -467,7 +483,7 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
                     见微 · 晨间智能简报
                   </h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-950 text-red-300 border border-red-800 font-mono font-bold">
-                    AI 语音 × 实时研讨
+                    浏览器朗读 × 研讨
                   </span>
                 </div>
                 <p className="text-xs text-stone-400 font-sans mt-0.5">
@@ -814,7 +830,9 @@ export const AudioBriefingModal: React.FC<AudioBriefingModalProps> = ({
                       className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                     >
                       <div className="flex items-center space-x-2 text-[10px] text-stone-400 mb-1 px-1">
-                        <span>{msg.sender === 'user' ? '我的提问' : '见微智库特约顾问'}</span>
+                        <span>
+                          {msg.sender === 'user' ? '我的提问' : msg.fallback ? '未生成' : '见微智库特约顾问'}
+                        </span>
                         <span>{msg.timestamp}</span>
                       </div>
 

@@ -89,10 +89,10 @@ export function registerAnalysisRoutes(app: Express, applyRateLimit: RateLimiter
       .sort((a, b) => b.heatIndex - a.heatIndex)
       .slice(0, 8);
 
-      const topKeywordsStr = trends.slice(0, 3).map((t) => `${t.keyword}(${t.status === 'surge' ? '爆发' : '活跃'})`).join('、');
+      const topKeywordsStr = trends.slice(0, 3).map((t) => `${t.keyword}(${t.status === 'surge' ? '词频上升' : '活跃'})`).join('、');
       const aiSynthesis = trends.length > 0
-        ? `当前 24 小时信息流热度高度聚焦于【${topKeywordsStr}】，在 30 天基线之上展现显著的短期结构性集聚。`
-        : '当前语料库样本分布平稳，暂无突增赛道。';
+        ? `近 24 小时站内词频相对突出：【${topKeywordsStr}】。以上为语料篇数启发式对照，不是全网热度或市场真值。`
+        : '当前语料库样本分布平稳，暂无突增赛道；不编造涨跌叙事。';
 
       res.json({
         ok: true,

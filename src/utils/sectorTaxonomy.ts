@@ -1,6 +1,6 @@
 // 语料主题/赛道覆盖扫描用的关键词表（词典级，无需 NLP 依赖）。
-// 用于“今日盲区（覆盖扫描）”“明日点名（热度跟踪）”与密度“按赛道堆叠”的真实派生。
-// 口径：结果仅反映“当前语料对这些赛道的覆盖情况”，不等于现实世界的覆盖盲区。
+// 属于产品配置的编辑种子：管理员可改词表；结果只反映「当前语料对这些赛道关键词的覆盖」，
+// 不是实时情报，也不等于现实世界的赛道热度或盲区真值。
 
 export interface SectorDef {
   id: string;
@@ -62,11 +62,14 @@ export function keywordMatches(text: string, keyword: string): boolean {
   return text.toLowerCase().includes(value.toLowerCase());
 }
 
-/** 对一篇新闻的标题+摘要统计其命中的赛道 */
-export function detectSectors(article: { title?: string; summary?: string; tags?: string[] }): string[] {
+/** 对一篇新闻的标题+摘要+标签统计其命中的赛道。taxonomy 缺省为当前生效词库。 */
+export function detectSectors(
+  article: { title?: string; summary?: string; tags?: string[] },
+  taxonomy: SectorDef[] = SECTOR_TAXONOMY,
+): string[] {
   const text = `${article.title || ''} ${article.summary || ''} ${(article.tags || []).join(' ')}`.toLowerCase();
   const hits: string[] = [];
-  for (const sector of SECTOR_TAXONOMY) {
+  for (const sector of taxonomy) {
     if (sector.keywords.some((kw) => kw.trim().length >= 2 && keywordMatches(text, kw))) {
       hits.push(sector.id);
     }
@@ -103,18 +106,21 @@ export function matchesNewsInterestGroups(
 }
 
 /** 多篇：返回每个赛道的覆盖计数与命中示例标题 */
-export function scanCoverage(articles: Array<{ title?: string; summary?: string; tags?: string[] }>) {
+export function scanCoverage(
+  articles: Array<{ title?: string; summary?: string; tags?: string[] }>,
+  taxonomy: SectorDef[] = SECTOR_TAXONOMY,
+) {
   const counts = new Map<string, number>();
   const samples = new Map<string, string[]>();
   for (const a of articles) {
-    for (const id of detectSectors(a)) {
+    for (const id of detectSectors(a, taxonomy)) {
       counts.set(id, (counts.get(id) || 0) + 1);
       const arr = samples.get(id) || [];
       if (a.title && arr.length < 3) arr.push(a.title);
       samples.set(id, arr);
     }
   }
-  return SECTOR_TAXONOMY.map((s) => ({
+  return taxonomy.map((s) => ({
     sector: s,
     count: counts.get(s.id) || 0,
     samples: samples.get(s.id) || [],

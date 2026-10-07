@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import {
+  PASSWORD_MIN_LENGTH,
+  passwordPolicyError,
+  passwordPolicyErrorMessage,
+} from '../shared/passwordPolicy';
 
 export type AuthMode = 'login' | 'register';
 
@@ -133,8 +138,8 @@ export function useAuthSession() {
         setAuthError(
           data?.error === 'username_exists'
             ? '用户名已存在。'
-            : data?.error === 'password_too_weak'
-              ? '密码至少 12 位，并需包含至少三类字符。'
+            : data?.error === 'password_too_short' || data?.error === 'password_too_weak'
+              ? passwordPolicyErrorMessage(data.error)
               : '注册失败，请检查用户名和密码。'
         );
         return;
@@ -161,8 +166,10 @@ export function useAuthSession() {
       const data = await response.json();
       if (!response.ok) {
         setAuthError(
-          data?.error === 'password_change_failed'
-            ? '密码不符合要求或当前密码错误。密码至少 12 位，并需包含至少三类字符。'
+          data?.error === 'password_change_failed' ||
+            data?.error === 'password_too_short' ||
+            data?.error === 'password_too_weak'
+            ? passwordPolicyErrorMessage(data.error === 'password_change_failed' ? passwordPolicyError(newPassword) : data.error)
             : '密码修改失败。'
         );
         return;

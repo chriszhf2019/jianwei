@@ -9,6 +9,7 @@ import { useAppStorage } from './hooks/useAppStorage';
 import { useAppRouter } from './hooks/useAppRouter';
 import { useModalStack } from './hooks/useModalStack';
 import { useSnapshot } from './hooks/useSnapshot';
+import { useAuth } from './state/AuthContext';
 import { Sparkles } from 'lucide-react';
 
 const IntelligenceHubView = lazy(() =>
@@ -94,6 +95,10 @@ export const App: React.FC = () => {
     knowledgeItems,
     nickname,
     setNickname,
+    readingDensity,
+    setReadingDensity,
+    defaultRhythm,
+    setDefaultRhythm,
     derived,
     activeRequests,
     handleAddKnowledge,
@@ -126,6 +131,14 @@ export const App: React.FC = () => {
   } = useAppRouter(articles, articlesRef);
 
   const modals = useModalStack();
+  const { authUser } = useAuth();
+  const isAdmin = authUser?.role === 'admin' && !authUser?.isGuest;
+
+  useEffect(() => {
+    if (activeTab === 'admin' && !isAdmin) {
+      goTab('home');
+    }
+  }, [activeTab, isAdmin, goTab]);
 
   useEffect(() => {
     const preloadLazyViews = () => {
@@ -184,6 +197,7 @@ export const App: React.FC = () => {
         nickname={nickname}
         onOpenSettings={modals.openSettings}
         onOpenAudioBriefing={modals.openAudioBriefing}
+        isAdmin={isAdmin}
       />
 
       <AuthGate />
@@ -210,6 +224,12 @@ export const App: React.FC = () => {
               onOpenShareCard={(art) => modals.setShareCardArticle(art)}
               isDepositedInKnowledge={knowledgeItems.some((k) => k.articleId === selectedArticle.id)}
               onDepositToKnowledge={handleAddKnowledge}
+              predictionContracts={predictionContracts}
+              readingDensity={readingDensity}
+              defaultRhythm={defaultRhythm}
+              onAppendActionMemo={(entry) =>
+                setPersonalNotes((prev) => (prev ? `${prev.trim()}\n${entry}` : entry))
+              }
             />
           )}
 
@@ -229,11 +249,13 @@ export const App: React.FC = () => {
               onToggleFollowTag={handleToggleFollowTag}
               onRunSkill={runNewsSkill}
               onOpenAudioBriefing={modals.openAudioBriefing}
+              onOpenAnalyze={modals.openAnalyze}
               onOpenAddRadar={modals.openAddRadar}
               onRemoveRadar={handleRemoveRadar}
               onOpenTermExplain={(term) => modals.setActiveTermExplain(term)}
               onOpenSettings={modals.openSettings}
               onOpenShareCard={(art) => modals.setShareCardArticle(art)}
+              readingDensity={readingDensity}
             />
           )}
 
@@ -302,7 +324,7 @@ export const App: React.FC = () => {
             />
           )}
 
-          {activeTab === 'admin' && <AdminConsoleView />}
+          {activeTab === 'admin' && isAdmin && <AdminConsoleView />}
         </Suspense>
       </main>
 
@@ -365,6 +387,10 @@ export const App: React.FC = () => {
             onRemoveRadar={handleRemoveRadar}
             onAddRadarOpen={modals.openAddRadar}
             selectedPersona={selectedPersona}
+            readingDensity={readingDensity}
+            onReadingDensityChange={setReadingDensity}
+            defaultRhythm={defaultRhythm}
+            onDefaultRhythmChange={setDefaultRhythm}
           />
         )}
 

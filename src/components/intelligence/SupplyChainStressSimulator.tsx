@@ -20,6 +20,8 @@ import {
   PackageCheck,
   FileSpreadsheet,
 } from 'lucide-react';
+import { MethodBadge } from '../common/MethodBadge';
+import { EditorialNotice } from '../common/EditorialNotice';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -228,15 +230,19 @@ export const SupplyChainStressSimulator: React.FC<SupplyChainStressSimulatorProp
             <h2 className="text-lg sm:text-xl font-serif font-black text-stone-950">
               全球供应链断供压力测试与卡脖子模拟器 (Chokepoint Simulator)
             </h2>
+            <MethodBadge methodId="editorial_template" compact />
           </div>
           <p className="text-xs text-stone-500">
-            假设地缘管制与物理断供极端场景 · 实时推演安全库存消耗倒计时、次生溢价与替代料号就绪度
+            份额、风险分和替代方案来自编辑情景表。下方曲线只按这些假设做本地推演，不是实时供应链数据。
           </p>
+          <EditorialNotice title="产品配置 · 编辑情景">
+            全球份额等整数（含 92）是情景假设输入，不是实时供应链监测结果。
+          </EditorialNotice>
         </div>
 
         <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-mono font-bold">
           <Flame className="w-3.5 h-3.5 text-rose-600" />
-          <span>动态应力测试模式</span>
+          <span>编辑情景</span>
         </div>
       </div>
 

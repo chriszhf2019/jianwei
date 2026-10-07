@@ -8,7 +8,6 @@ import type { NewsSkill } from '../home/HomeView';
 import { findRelatedArticles } from '../../utils/relatedArticles';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { composeModel } from '../../utils/sevenElementsBrief';
-import { InteractiveLogicAnnotation } from './InteractiveLogicAnnotation';
 
 interface SevenElementsTabProps {
   article: NewsArticle;
@@ -166,57 +165,59 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
     | Array<{ sourceName: string; tier: string; stance: string; verified?: boolean; excerpt?: string }>
     | undefined;
 
-  const effectiveMultiSources = React.useMemo(() => {
+  const sourceMatrix = React.useMemo(() => {
     if (Array.isArray(multiSourcesRaw) && multiSourcesRaw.length > 0) {
-      return multiSourcesRaw;
+      return {
+        synthesized: false,
+        items: multiSourcesRaw.map((item) => ({ ...item, verified: item.verified === true })),
+      };
     }
 
     const list: Array<{ sourceName: string; tier: string; stance: string; verified?: boolean; excerpt?: string }> = [];
 
-    // 1. Primary Source
     if (article.sourceName) {
       list.push({
         sourceName: article.sourceName,
-        tier: 'Tier 1 基础信源',
-        stance: '中性',
-        verified: true,
-        excerpt: article.oneSentenceVerdict || article.summary || article.subtitle || article.title,
+        tier: '本文来源',
+        stance: '未判断',
+        verified: false,
+        excerpt: article.summary || article.title,
       });
     }
 
-    // 2. Evidence Chain Sources
     if (Array.isArray(article.evidenceChain) && article.evidenceChain.length > 0) {
       for (const ev of article.evidenceChain) {
         if (ev.sourceName && !list.some((item) => item.sourceName === ev.sourceName)) {
           list.push({
             sourceName: ev.sourceName,
-            tier: 'Tier 2 验证引用',
-            stance: ev.relation === 'supports' ? '正面' : ev.relation === 'contradicts' ? '负面' : '中性',
-            verified: true,
+            tier: '证据链',
+            stance: '未判断',
+            verified: ev.verificationStatus === 'linked',
             excerpt: ev.quote || ev.claim || ev.sourceFact,
           });
         }
       }
     }
 
-    // 3. Station Cross-Articles
     if (localRelated && localRelated.length > 0) {
       for (const rel of localRelated) {
-        const sName = rel.sourceName || '站内交叉语料';
+        const sName = rel.sourceName || '站内相关稿';
         if (!list.some((item) => item.sourceName === sName)) {
           list.push({
             sourceName: sName,
-            tier: 'Tier 2 站内交叉报道',
-            stance: '中性',
-            verified: true,
+            tier: '站内相关',
+            stance: '未判断',
+            verified: false,
             excerpt: rel.title,
           });
         }
       }
     }
 
-    return list;
+    return { synthesized: true, items: list };
   }, [multiSourcesRaw, article, localRelated]);
+  const effectiveMultiSources = sourceMatrix.items;
+  const sourcesSynthesized = sourceMatrix.synthesized;
 
   const [enrichBusy, setEnrichBusy] = React.useState(false);
   const handleTriggerEnrich = async () => {
@@ -270,121 +271,6 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
             {allOpen ? '全部收起' : '全部展开'}
           </button>
         </div>
-      </div>
-
-      {/* 顶部通俗速懂卡 · 零认知门槛 30 秒大白话拆解 */}
-      <div className="bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-amber-100/30 border-2 border-amber-400/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-amber-200/80 pb-3 gap-2">
-          <div className="flex items-center space-x-2">
-            <span className="p-1.5 rounded-lg bg-amber-500 text-stone-950">
-              <Lightbulb className="w-4 h-4" />
-            </span>
-            <div>
-              <h3 className="text-base font-serif font-black text-amber-950 flex items-center gap-1.5">
-                <span>通俗速懂 · 30秒大白话降维解析</span>
-                <span className="text-[10px] font-sans font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
-                  小白友好
-                </span>
-              </h3>
-              <p className="text-[11px] text-amber-800/90">
-                去除行业黑话与复杂公式，用日常生活比喻与清晰逻辑讲清前因后果
-              </p>
-            </div>
-          </div>
-          {onRunSkill && !article.tongsuSummary?.simpleSay && (
-            <button
-              onClick={() => onRunSkill('plain', article)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-serif font-bold shadow-2xs transition-all cursor-pointer shrink-0"
-              title="请求 AI 用通俗生活化语言重讲一遍"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI 生成大白话解读</span>
-            </button>
-          )}
-        </div>
-
-        {/* 3步大白话极简卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {/* 1. 说人话 */}
-          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
-            <div className="flex items-center space-x-1.5 text-xs font-serif font-black text-amber-900">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span>1. 用大白话说 (发生了什么)</span>
-            </div>
-            <p className="text-xs sm:text-[13px] text-stone-800 leading-relaxed font-sans">
-              <KeyTermHighlight
-                text={
-                  article.tongsuSummary?.simpleSay ||
-                  article.oneSentenceVerdict ||
-                  article.summary ||
-                  '正在提取生活化通俗比喻…'
-                }
-                entities={(article.entityMentions || []).map((e) => e.name)}
-                onOpenTermExplain={onOpenTermExplain}
-              />
-            </p>
-          </div>
-
-          {/* 2. 为什么 */}
-          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
-            <div className="flex items-center space-x-1.5 text-xs font-serif font-black text-amber-900">
-              <span className="w-2 h-2 rounded-full bg-orange-500" />
-              <span>2. 为什么会这样 (根本原因)</span>
-            </div>
-            <p className="text-xs sm:text-[13px] text-stone-800 leading-relaxed font-sans">
-              <KeyTermHighlight
-                text={
-                  article.tongsuSummary?.whyExplanation ||
-                  article.sevenElements?.why ||
-                  article.coreLogic?.essence ||
-                  '各方在产业周期与供需博弈下的必然演进。'
-                }
-                entities={(article.entityMentions || []).map((e) => e.name)}
-                onOpenTermExplain={onOpenTermExplain}
-              />
-            </p>
-          </div>
-
-          {/* 3. 对我意味着什么 */}
-          <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-1.5 shadow-2xs">
-            <div className="flex items-center space-x-1.5 text-xs font-serif font-black text-amber-900">
-              <span className="w-2 h-2 rounded-full bg-emerald-600" />
-              <span>3. 对普通人意味着什么</span>
-            </div>
-            <p className="text-xs sm:text-[13px] text-stone-800 leading-relaxed font-sans">
-              <KeyTermHighlight
-                text={
-                  article.tongsuSummary?.whatItMeans ||
-                  (Array.isArray(article.personaImpacts) && article.personaImpacts.length > 0
-                    ? article.personaImpacts[0]?.coreImpact || article.personaImpacts[0]?.recommendedAction
-                    : article.sevenElements?.soWhat) ||
-                  '影响产业链下游定价与相关岗位技术需求，建议保持关注。'
-                }
-                entities={(article.entityMentions || []).map((e) => e.name)}
-                onOpenTermExplain={onOpenTermExplain}
-              />
-            </p>
-          </div>
-        </div>
-
-        {/* 核心行话速查 */}
-        {Array.isArray(article.tongsuSummary?.jargonTerms) && article.tongsuSummary.jargonTerms.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/60 text-xs">
-            <span className="font-serif font-bold text-amber-950 flex items-center gap-1 text-[11px]">
-              <BookOpen className="w-3.5 h-3.5 text-amber-700" />
-              <span>涉及专业名词（点击查释义）：</span>
-            </span>
-            {article.tongsuSummary.jargonTerms.map((term, i) => (
-              <button
-                key={i}
-                onClick={() => onOpenTermExplain && onOpenTermExplain(term)}
-                className="px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 font-mono text-[11px] transition-colors cursor-pointer"
-              >
-                {term} ↗
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* 组一：核心结论（默认展开）—— 事件模型 + 底层逻辑 */}
@@ -462,12 +348,6 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
         )}
 
       </div>
-
-      {/* 交互式逻辑标注组件（事实与观点解构 + 专业术语悬停通俗释义） */}
-      <InteractiveLogicAnnotation
-        article={article}
-        onOpenTermExplain={onOpenTermExplain}
-      />
 
       {/* ② 多源验证：哪些媒体也报道了同一事件 */}
       <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 shadow-xs space-y-4">
@@ -622,7 +502,13 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
             const hasDissent = c.dissent.length > 0;
             return (
               <div className="space-y-3">
-                {/* 家数 + 权威概览 */}
+                {sourcesSynthesized && (
+                  <p className="text-[11px] leading-relaxed text-amber-950 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    这些条目来自本文来源、证据链和站内相关稿。这里不做媒体一致性判断，引句也只有核验通过才算已核对。
+                  </p>
+                )}
+                {!sourcesSynthesized && (
+                <>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-center">
                     <div className="text-xl font-serif font-black text-stone-950 font-mono">{c.total}</div>
@@ -659,6 +545,8 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                   </span>
                   {c.verdict}
                 </div>
+                </>
+                )}
 
                 {/* 来源明细一览 */}
                 <div className="space-y-1.5 pt-1">
@@ -690,7 +578,11 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                 {/* 底部一键 AI 深度挖掘触发按钮 */}
                 {onRunSkill && (
                   <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-500">
-                    <span>已通过语料与证据链自动合成 {effectiveMultiSources.length} 条交叉佐证线索</span>
+                    <span>
+                      {sourcesSynthesized
+                        ? `已列出 ${effectiveMultiSources.length} 条线索，不是多源核验结论`
+                        : `模型列出 ${effectiveMultiSources.length} 条来源线索`}
+                    </span>
                     <button
                       onClick={handleTriggerEnrich}
                       disabled={enrichBusy}

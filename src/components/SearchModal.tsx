@@ -740,7 +740,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                         未检索到与「<strong>{query}</strong>」直接匹配的情报或 AI 解读
                       </p>
                       <p className="text-xs text-stone-400">
-                        您可以尝试更宽泛的关键词、切换搜索标签，或在顶部点击「AI 提交分析」摄取新内容。
+                        您可以尝试更宽泛的关键词、切换搜索标签，或在顶部点击「读懂新闻」贴链接 / 贴正文。
                       </p>
                     </div>
                   )}

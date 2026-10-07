@@ -11,10 +11,12 @@ import {
   loadSourceCheck,
   loadSourcePageText,
   persistSourceCheck,
+  listSourceArchives,
 } from "../database";
 import { NO_PERSIST } from "../settings";
 import {
   evaluateQuoteMatch,
+  extractPageMetadata,
   findQuoteContext,
   inspectSourceDeduplicated,
   revalidateCachedQuote,
@@ -25,6 +27,7 @@ import { buildSyndicationGraph } from "../../utils/syndication";
 export type RateLimiter = (req: import("express").Request, res: import("express").Response, next: () => void) => void;
 
 const SOURCE_CHECK_TTL_MS = Number(process.env.SOURCE_CHECK_TTL_MS || 24 * 60 * 60 * 1000);
+const FETCH_ARTICLE_TEXT_CAP = Number(process.env.FETCH_ARTICLE_TEXT_CAP || 40_000);
 
 /** 来源核验、证据重提取、转载传播图 */
 export function registerSourceRoutes(app: import("express").Express, applyRateLimit: RateLimiter): void {
@@ -178,6 +181,111 @@ export function registerSourceRoutes(app: import("express").Express, applyRateLi
     } catch (error: any) {
       res.json({ ok: false, error: String(error?.message || error) });
     }
+  });
+
+  // —— 来源页面档案（已保存正文的抓取记录） ——
+  app.get("/api/source/archive", (_req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    if (NO_PERSIST) return res.json({ entries: [], note: "当前不保存来源页面。" });
+    try {
+      const entries = listSourceArchives(40);
+      res.json({
+        entries,
+        note: entries.length
+          ? "档案只包含已经抓取并保存正文的页面。ClaimReview 只在页面自带 schema.org 标记时记入。"
+          : "还没有已保存的来源页面。核验证据链接后，页面指纹和正文会留在这里。",
+      });
+    } catch (error) {
+      console.error("source archive error:", error);
+      res.status(503).json({ entries: [], note: "来源页面档案暂时读不出来。" });
+    }
+  });
+
+  // —— 读懂新闻：贴链接抓取正文（复用 source inspect 的 SSRF 防护） ——
+  app.post("/api/fetch-article", applyRateLimit, async (req, res) => {
+    const url = String(req.body?.url || "").trim();
+    const force = req.body?.force === true;
+    if (!url) return res.status(400).json({ error: "url is required" });
+
+    const checkKey = sourceCheckKey(url, "");
+    if (!force && !NO_PERSIST) {
+      const cached = loadSourceCheck(checkKey, SOURCE_CHECK_TTL_MS);
+      const pageText = loadSourcePageText(checkKey);
+      if (cached && pageText) {
+        let sourceName = "";
+        try {
+          sourceName = new URL(cached.finalUrl || cached.requestedUrl || url).hostname.replace(/^www\./, "");
+        } catch {
+          /* keep empty */
+        }
+        res.setHeader("Cache-Control", "no-store");
+        return res.json({
+          ok: true,
+          cached: true,
+          status: cached.status,
+          requestedUrl: url,
+          finalUrl: cached.finalUrl || url,
+          httpStatus: cached.httpStatus,
+          title: cached.title || extractPageMetadata(pageText).title || "",
+          excerpt: cached.excerpt || pageText.slice(0, 500),
+          pageText: String(pageText).slice(0, FETCH_ARTICLE_TEXT_CAP),
+          sourceName,
+          contentHash: cached.contentHash,
+          fetchedAt: cached.fetchedAt,
+          truncated: String(pageText).length > FETCH_ARTICLE_TEXT_CAP,
+          note: "已使用本地缓存的页面正文。内容来自目标站点，不是平台核验过的事实摘要。",
+        });
+      }
+    }
+
+    const result = await inspectSourceDeduplicated(url, "");
+    if (result.status === "blocked") {
+      return res.status(403).json({
+        ok: false,
+        status: result.status,
+        reason: result.reason,
+        note: "该链接被 SSRF 防护拦截（本机、内网或非公网地址）。",
+      });
+    }
+    if (!NO_PERSIST) persistSourceCheck(checkKey, result);
+    const pageText = String(result.pageText || "").trim();
+    let sourceName = "";
+    try {
+      sourceName = new URL(result.finalUrl || url).hostname.replace(/^www\./, "");
+    } catch {
+      /* keep empty */
+    }
+
+    res.setHeader("Cache-Control", "no-store");
+    if (!pageText || pageText.length < 40) {
+      return res.json({
+        ok: false,
+        status: result.status,
+        requestedUrl: url,
+        finalUrl: result.finalUrl,
+        httpStatus: result.httpStatus,
+        reason: result.reason,
+        fetchedAt: result.fetchedAt,
+        note: "未能抓取可用正文。常见原因：站点拦截、超时、非 HTML，或链接不可达。请改贴正文，或换可公开访问的链接。",
+      });
+    }
+
+    return res.json({
+      ok: true,
+      cached: false,
+      status: result.status,
+      requestedUrl: url,
+      finalUrl: result.finalUrl || url,
+      httpStatus: result.httpStatus,
+      title: result.title || extractPageMetadata(pageText).title || "",
+      excerpt: result.excerpt || pageText.slice(0, 500),
+      pageText: pageText.slice(0, FETCH_ARTICLE_TEXT_CAP),
+      sourceName,
+      contentHash: result.contentHash,
+      fetchedAt: result.fetchedAt,
+      truncated: pageText.length > FETCH_ARTICLE_TEXT_CAP,
+      note: "已抓取页面正文。内容来自目标站点，不是平台核验过的事实摘要。",
+    });
   });
 
 }

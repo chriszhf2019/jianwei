@@ -6,6 +6,8 @@ import {
   RadarKeyword,
   PredictionContract,
   KnowledgeItem,
+  ReadingDensity,
+  DefaultReadingRhythm,
 } from '../types';
 import {
   USER_PERSONAS,
@@ -68,6 +70,16 @@ export function useUserPrefsStore() {
     { version: 1 }
   );
   const [nickname, setNickname] = useLocalState<string>('user-nickname', '');
+  const [readingDensity, setReadingDensity] = useLocalState<ReadingDensity>(
+    'reading-density',
+    'comfortable',
+    { version: 1 }
+  );
+  const [defaultRhythm, setDefaultRhythm] = useLocalState<DefaultReadingRhythm>(
+    'default-rhythm',
+    'classic',
+    { version: 1 }
+  );
 
   const handleAddKnowledge = useCallback(
     (item: KnowledgeItem) => {
@@ -318,6 +330,16 @@ export function useUserPrefsStore() {
       if (Array.isArray(payload.interestGroups)) setInterestGroups(payload.interestGroups.map(String));
       if (typeof payload.nickname === 'string') setNickname(payload.nickname.slice(0, 80));
       if (typeof payload.personalNotes === 'string') setPersonalNotes(payload.personalNotes.slice(0, 20_000));
+      if (payload.readingDensity === 'comfortable' || payload.readingDensity === 'compact') {
+        setReadingDensity(payload.readingDensity);
+      }
+      if (
+        payload.defaultRhythm === 'classic' ||
+        payload.defaultRhythm === 'fast_dialogue' ||
+        payload.defaultRhythm === 'data_driven'
+      ) {
+        setDefaultRhythm(payload.defaultRhythm);
+      }
     };
 
     fetch('/api/preferences')
@@ -349,6 +371,8 @@ export function useUserPrefsStore() {
         nickname,
         personalNotes,
         knowledgeItems,
+        readingDensity,
+        defaultRhythm,
       };
       try {
         const response = await fetch('/api/preferences', {
@@ -379,6 +403,8 @@ export function useUserPrefsStore() {
     nickname,
     personalNotes,
     knowledgeItems,
+    readingDensity,
+    defaultRhythm,
   ]);
 
   return {
@@ -403,6 +429,10 @@ export function useUserPrefsStore() {
     setKnowledgeItems,
     nickname,
     setNickname,
+    readingDensity,
+    setReadingDensity,
+    defaultRhythm,
+    setDefaultRhythm,
     preferencesHydrated,
     handleAddKnowledge,
     handleUpdateKnowledge,

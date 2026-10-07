@@ -40,4 +40,4 @@ export function localTrendModel(article: NewsArticle): LocalTrendResult {
 }
 
 export const LOCAL_TREND_NOTE =
-  '口径：本地线性加权引擎——由「逻辑树驱动变量」利好/利空权重换算方向强度（非 AI、不是概率）；事件也可能走中性路径。';
+  '口径：本地线性加权启发式——由「逻辑树驱动变量」利好/利空权重换算方向强度（非 AI、不是概率、不是市场真值）；事件也可能走中性路径。';

@@ -989,4 +989,240 @@ test('isDemoDataEnabled: 仅显式 =1 开启，默认零演示', async () => {
   assert.equal(isDemoDataEnabled('yes'), false);
 });
 
+test('passwordPolicy: 至少 10 位且三类字符', async () => {
+  const {
+    passwordPolicyError,
+    meetsPasswordPolicy,
+    PASSWORD_MIN_LENGTH,
+  } = await import('../src/shared/passwordPolicy');
+  assert.equal(PASSWORD_MIN_LENGTH, 10);
+  assert.equal(passwordPolicyError('Short1!'), 'password_too_short');
+  assert.equal(passwordPolicyError('onlylowercase'), 'password_too_weak');
+  assert.equal(passwordPolicyError('ONLYUPPERCASE'), 'password_too_weak');
+  assert.equal(passwordPolicyError('OnlyLettersHere'), 'password_too_weak');
+  assert.equal(passwordPolicyError('lowercaseand12345'), 'password_too_weak');
+  assert.equal(meetsPasswordPolicy('BootstrapAdmin-789'), true);
+  assert.equal(passwordPolicyError('BootstrapAdmin-789'), null);
+});
+
+test('publicExposure: 本机不强制令牌，对外缺少条件就拒绝', async () => {
+  const { assessPublicExposure, resolveBindHost } = await import('../src/server/publicExposure');
+  assert.equal(resolveBindHost(undefined), '127.0.0.1');
+  assert.equal(resolveBindHost(''), '127.0.0.1');
+  assert.equal(resolveBindHost('0.0.0.0'), '0.0.0.0');
+  const local = assessPublicExposure({ bindHost: '127.0.0.1' });
+  assert.equal(local.exposed, false);
+  assert.equal(local.ok, true);
+  assert.equal(local.tls, 'none');
+  assert.equal(local.missing.length, 0);
+
+  const open = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    behindTls: 'true',
+  });
+  assert.equal(open.ok, false);
+  assert.equal(open.tls, 'none');
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_SECRET')), true);
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_BEHIND_TLS')), true);
+  assert.equal(open.missing.some((item) => item.includes('JIANWEI_ADMIN_USER')), true);
+
+  const proxied = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    encryptionSecret: 'secret',
+    adminUser: 'admin',
+    adminPassword: 'long-password',
+    behindTls: '1',
+  });
+  assert.equal(proxied.ok, true);
+  assert.equal(proxied.tls, 'upstream');
+  assert.equal(proxied.note.includes('进程本身仍是 HTTP'), true);
+
+  const certified = assessPublicExposure({
+    bindHost: '0.0.0.0',
+    authToken: 'token',
+    encryptionSecret: 'secret',
+    adminUser: 'admin',
+    adminPassword: 'long-password',
+    tlsCertPath: '/tmp/cert.pem',
+    tlsKeyPath: '/tmp/key.pem',
+    tlsMaterialReadable: true,
+  });
+  assert.equal(certified.ok, true);
+  assert.equal(certified.tls, 'node');
+});
+
+test('API 密钥：占位串不当成可用', async () => {
+  const { isPlaceholderApiKey } = await import('../src/server/ai');
+  assert.equal(isPlaceholderApiKey(''), true);
+  assert.equal(isPlaceholderApiKey('sk-test-placeholder'), true);
+  assert.equal(isPlaceholderApiKey('sk-short'), true);
+  assert.equal(isPlaceholderApiKey('sk-abcdefghijklmnopqrstuvwxyz012345'), false);
+});
+
+test('预设管理员：须由环境变量显式配置，无写死凭据', async () => {
+  const presetSrc = fs.readFileSync(path.join(process.cwd(), 'src/server/presetAdmin.ts'), 'utf8');
+  assert.equal(presetSrc.includes('18611010281'), false);
+  assert.equal(presetSrc.includes('123456'), false);
+  assert.match(presetSrc, /resolvePresetAdmin/);
+  assert.match(presetSrc, /JIANWEI_ADMIN_USER/);
+  assert.match(presetSrc, /JIANWEI_ADMIN_PASSWORD/);
+
+  const previousUser = process.env.JIANWEI_ADMIN_USER;
+  const previousPassword = process.env.JIANWEI_ADMIN_PASSWORD;
+  try {
+    delete process.env.JIANWEI_ADMIN_USER;
+    delete process.env.JIANWEI_ADMIN_PASSWORD;
+    const { resolvePresetAdmin } = await import('../src/server/presetAdmin');
+    assert.equal(resolvePresetAdmin().ok, false);
+
+    process.env.JIANWEI_ADMIN_USER = 'bootstrap-admin@example.com';
+    process.env.JIANWEI_ADMIN_PASSWORD = 'ab';
+    assert.equal(resolvePresetAdmin().ok, false);
+
+    process.env.JIANWEI_ADMIN_PASSWORD = 'BootstrapAdmin-789';
+    const ready = resolvePresetAdmin();
+    assert.equal(ready.ok, true);
+    if (!ready.ok) throw new Error('expected preset admin');
+    assert.equal(ready.username, 'bootstrap-admin@example.com');
+  } finally {
+    if (previousUser == null) delete process.env.JIANWEI_ADMIN_USER;
+    else process.env.JIANWEI_ADMIN_USER = previousUser;
+    if (previousPassword == null) delete process.env.JIANWEI_ADMIN_PASSWORD;
+    else process.env.JIANWEI_ADMIN_PASSWORD = previousPassword;
+  }
+
+  const envExample = fs.readFileSync(path.join(process.cwd(), '.env.example'), 'utf8');
+  assert.match(envExample, /JIANWEI_ADMIN_USER=/);
+  assert.match(envExample, /JIANWEI_ADMIN_PASSWORD=/);
+  assert.equal(envExample.includes('18611010281'), false);
+  assert.equal(envExample.includes('123456'), false);
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
+  assert.match(serverSrc, /import "dotenv\/config"/);
+  assert.match(serverSrc, /resolvePresetAdmin/);
+  assert.match(serverSrc, /ensureBootstrapUser\(preset\.username/);
+  assert.match(serverSrc, /未同时设置 JIANWEI_ADMIN_USER/);
+
+  const scheduler = fs.readFileSync(path.join(process.cwd(), 'src/server/scheduler.ts'), 'utf8');
+  assert.match(scheduler, /boot ingest|runScheduledIngest\(\)/);
+
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  assert.match(detail, /用户投递 · 读懂新闻/);
+  assert.match(detail, /methodId="model_interpretation"/);
+  assert.match(detail, /去复核原文/);
+  assert.match(detail, /RelatedNewsGraph/);
+  assert.match(detail, /ArticleCompareView/);
+  assert.match(detail, /offlineStorage/);
+
+  const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
+  assert.match(header, /isAdmin/);
+  assert.match(header, /管理端/);
+
+  const feed = fs.readFileSync(path.join(process.cwd(), 'src/components/home/StandardModeFeed.tsx'), 'utf8');
+  assert.equal(feed.includes('乐观 60%'), false);
+  assert.equal(feed.includes('观望 25%'), false);
+  assert.equal(feed.includes('承压 15%'), false);
+});
+
+test('游客：大白话不计入深度解读额度', async () => {
+  const { isGuestDeepRoute, isGuestLightSkillRoute } = await import('../src/server/authMiddleware');
+  assert.equal(isGuestLightSkillRoute('/skill/plain'), true);
+  assert.equal(isGuestDeepRoute('/skill/plain'), false);
+  assert.equal(isGuestDeepRoute('/skill/sevenw'), true);
+  assert.equal(isGuestDeepRoute('/fetch-article'), true);
+  assert.equal(isGuestDeepRoute('/analyze'), true);
+
+  const authGate = fs.readFileSync(path.join(process.cwd(), 'src/components/AuthGate.tsx'), 'utf8');
+  assert.match(authGate, /大白话/);
+  assert.match(authGate, /不占用/);
+});
+
+test('classifyAiClientError: 区分无 Key / 游客限额 / 超时', async () => {
+  const { classifyAiClientError } = await import('../src/utils/aiClientErrors');
+  assert.match(classifyAiClientError({ payload: { reason: 'no_api_key' } }), /Key/);
+  assert.match(
+    classifyAiClientError({ payload: { error: 'guest_deep_read_limit' } }),
+    /游客/
+  );
+  assert.match(
+    classifyAiClientError({ error: new Error('AbortError: timed out'), fallbackMs: 45_000 }),
+    /超时/
+  );
+});
+
+test('信任余项：推送不伪装成功、首页先贴链接、因果图无假 92%', () => {
+  const settings = fs.readFileSync(path.join(process.cwd(), 'src/components/SettingsModal.tsx'), 'utf8');
+  assert.match(settings, /推送通道尚未接入/);
+  assert.equal(settings.includes('测试推送已成功发送'), false);
+
+  const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
+  assert.match(home, /贴链接，读懂一条新闻/);
+  assert.match(home, /今日词典摘要与词频（可展开）/);
+  assert.match(home, /浏览器朗读/);
+
+  const app = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.match(app, /onOpenAnalyze=\{modals\.openAnalyze\}/);
+
+  const modal = fs.readFileSync(path.join(process.cwd(), 'src/components/AnalyzeModal.tsx'), 'utf8');
+  assert.match(modal, /classifyAiClientError/);
+  assert.match(modal, /已等待/);
+  assert.match(modal, /取消请求/);
+  assert.match(modal, /AbortController/);
+
+  const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
+  assert.match(header, /shortLabel/);
+  assert.match(header, /MoreHorizontal/);
+  assert.match(header, /浏览器朗读/);
+
+  const causal = fs.readFileSync(path.join(process.cwd(), 'src/components/topics/TopicCausalGraph.tsx'), 'utf8');
+  assert.equal(causal.includes('传导置信度：92%'), false);
+  assert.match(causal, /编辑因果示意/);
+
+  const audio = fs.readFileSync(path.join(process.cwd(), 'src/components/AudioBriefingModal.tsx'), 'utf8');
+  assert.match(audio, /浏览器朗读/);
+  assert.equal(audio.includes('AI 语音 × 实时研讨'), false);
+
+  const arch = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/ArchitectureDiagramTab.tsx'), 'utf8');
+  assert.equal(arch.includes('集中度达到 92%'), false);
+  assert.equal(arch.includes('前所未有的 92%'), false);
+  assert.equal(arch.includes('92% 的成功率'), false);
+  assert.equal(arch.includes('最终落地概率'), false);
+  assert.equal(arch.includes('见微量化模型引擎'), false);
+  assert.match(arch, /情景顺畅相对分/);
+  assert.match(arch, /EditorialNotice/);
+
+  const trend = fs.readFileSync(path.join(process.cwd(), 'src/components/home/TrendComparisonCard.tsx'), 'utf8');
+  assert.match(trend, /词频相对分/);
+  assert.equal(trend.includes('热度指数 {item.heatIndex}'), false);
+
+  const heatChart = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/DynamicHeatTrendChart.tsx'), 'utf8');
+  assert.match(heatChart, /篇数相对分/);
+  assert.equal(heatChart.includes('全球热度演变与多维态势曲线'), false);
+  assert.equal(heatChart.includes('>热度指数<'), false);
+
+  const deepTrend = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  assert.equal(deepTrend.includes('/api/trend-comparison'), false);
+  assert.equal(deepTrend.includes('heatIndex: Math.max(30, 85 - idx * 8)'), false);
+
+  const threeTier = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/StrategicThreeTierCenter.tsx'), 'utf8');
+  assert.equal(threeTier.includes('整体偏积极 (62/100)'), false);
+  assert.equal(threeTier.includes('+320%'), false);
+  assert.equal(threeTier.includes('全球情绪指数温度计'), false);
+  assert.match(threeTier, /站内词典情绪对照/);
+  assert.match(threeTier, /站内地域提及榜/);
+
+  const metricsBar = fs.readFileSync(path.join(process.cwd(), 'src/components/intelligence/StrategicMetricsBar.tsx'), 'utf8');
+  assert.equal(metricsBar.includes('市场信心加速修复'), false);
+  assert.match(metricsBar, /站内词典情绪对照/);
+
+  const biasRadar = fs.readFileSync(path.join(process.cwd(), 'src/components/focus/CognitiveBiasRadarPanel.tsx'), 'utf8');
+  assert.equal(biasRadar.includes('偏高 (+14%)'), false);
+  assert.equal(biasRadar.includes('超级预测者风范'), false);
+  assert.equal(biasRadar.includes('群体平均基准'), false);
+  assert.match(biasRadar, /不伪造能力雷达分/);
+  assert.match(biasRadar, /样本不足|需 ≥3|尚无带主观概率/);
+});
+
 

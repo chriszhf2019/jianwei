@@ -1,31 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { NewsArticle } from '../../types';
 import { EyeOff, AlertTriangle, Sparkles, ArrowRight, ChevronDown, ChevronUp, Rss } from 'lucide-react';
-import { scanCoverage, SUGGESTED_SOURCES } from '../../utils/sectorTaxonomy';
+import { SUGGESTED_SOURCES } from '../../utils/sectorTaxonomy';
+import { deriveBlindspots, type BlindspotSnapshot } from '../../utils/corpusSnapshot';
 
 interface TodayBlindspotWidgetProps {
   articles: NewsArticle[];
+  blindspots?: BlindspotSnapshot | null;
   onOpenSettings?: () => void;
 }
 
 export const TodayBlindspotWidget: React.FC<TodayBlindspotWidgetProps> = ({
   articles,
+  blindspots,
   onOpenSettings,
 }) => {
   const [expandedSector, setExpandedSector] = useState<string | null>(null);
-  const { coverage, total, matchedTotal, maxCount } = useMemo(() => {
-    const total = articles.length;
-    const coverage = scanCoverage(articles);
-    const maxCount = Math.max(...coverage.map((c) => c.count), 1);
-    const matchedTotal = coverage.reduce((s, c) => s + c.count, 0);
-    return { coverage, total, matchedTotal, maxCount };
-  }, [articles]);
-
-  // 相对最高覆盖赛道 < 35% 视为“低覆盖候选”（口径可复核）
-  const lowCoverage = coverage
-    .filter((c) => c.count / maxCount < 0.35)
-    .sort((a, b) => a.count - b.count)
-    .slice(0, 3);
+  const scan = useMemo(() => blindspots ?? deriveBlindspots(articles), [articles, blindspots]);
+  const { total, matchedTotal, maxCount, coveredSectorCount, lowCoverage } = scan;
 
   return (
     <div className="bg-white border-2 border-stone-800 rounded-xl p-6 shadow-xs font-sans space-y-4">
@@ -43,7 +35,7 @@ export const TodayBlindspotWidget: React.FC<TodayBlindspotWidgetProps> = ({
           </div>
         </div>
         <span className="text-xs font-mono text-stone-400 shrink-0">
-          {matchedTotal} 篇次 / {coverage.filter((c) => c.count > 0).length} 赛道有覆盖
+          {matchedTotal} 篇次 / {coveredSectorCount} 赛道有覆盖
         </span>
       </div>
 
@@ -55,11 +47,11 @@ export const TodayBlindspotWidget: React.FC<TodayBlindspotWidgetProps> = ({
             相对低覆盖赛道（与最高覆盖赛道 {maxCount} 篇相比低于 35%）：建议为该赛道增配信源
           </div>
           {lowCoverage.map((c) => (
-            <div key={c.sector.id} className="bg-stone-50 p-3.5 rounded-lg border border-stone-200 space-y-1.5">
+              <div key={c.sectorId} className="bg-stone-50 p-3.5 rounded-lg border border-stone-200 space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-serif font-bold text-stone-900 flex items-center space-x-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
-                  <span>{c.sector.name}</span>
+                  <span>{c.name}</span>
                 </span>
                 <span className="font-mono font-bold text-red-600">覆盖 {c.count} 篇</span>
               </div>
@@ -78,20 +70,20 @@ export const TodayBlindspotWidget: React.FC<TodayBlindspotWidgetProps> = ({
 
               {/* 一键补源建议 */}
               <button
-                onClick={() => setExpandedSector(expandedSector === c.sector.id ? null : c.sector.id)}
+                onClick={() => setExpandedSector(expandedSector === c.sectorId ? null : c.sectorId)}
                 className="mt-1 text-[11px] font-serif font-bold text-stone-600 hover:text-[#E3120B] flex items-center space-x-1 transition-colors"
               >
                 <Rss className="w-3.5 h-3.5" />
                 <span>补源建议</span>
-                {expandedSector === c.sector.id ? (
+                {expandedSector === c.sectorId ? (
                   <ChevronUp className="w-3 h-3" />
                 ) : (
                   <ChevronDown className="w-3 h-3" />
                 )}
               </button>
-              {expandedSector === c.sector.id && (
+              {expandedSector === c.sectorId && (
                 <div className="pt-1.5 space-y-2">
-                  {(SUGGESTED_SOURCES[c.sector.id] || []).map((sugg) => (
+                  {(SUGGESTED_SOURCES[c.sectorId] || []).map((sugg) => (
                     <div
                       key={sugg.name}
                       className="p-2.5 bg-white border border-stone-200 rounded-lg text-[11px]"

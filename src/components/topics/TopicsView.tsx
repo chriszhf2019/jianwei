@@ -283,20 +283,23 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
       const dynamicTimeline = uniqueArticles.slice(0, 8).map((a) => ({
         date: formatArticleTime(a),
         milestone: a.title,
-        impact: a.oneSentenceVerdict || a.summary || '关键行业异动与事实突破',
-        timestamp: articleSortTime(a) || (now - Math.random() * 86400000 * 30),
+        impact: a.oneSentenceVerdict || a.summary || '（本条暂无解读摘要）',
+        timestamp: articleSortTime(a) || 0,
         articleId: a.id,
-      }));
+      })).filter((item) => item.timestamp > 0);
 
-      const heatSparkline = [
-        { day: 'T-6', count: Math.max(1, Math.round(uniqueArticles.length * 0.2)) },
-        { day: 'T-5', count: Math.max(1, Math.round(uniqueArticles.length * 0.3)) },
-        { day: 'T-4', count: Math.max(2, Math.round(uniqueArticles.length * 0.5)) },
-        { day: 'T-3', count: Math.max(2, Math.round(uniqueArticles.length * 0.7)) },
-        { day: 'T-2', count: Math.max(3, Math.round(uniqueArticles.length * 0.8)) },
-        { day: 'T-1', count: Math.max(3, uniqueArticles.length - 1) },
-        { day: 'T0', count: Math.max(4, uniqueArticles.length) },
-      ];
+      // 热度火花线：近 7 日真实命中篇数，不按总数比例编造轨迹
+      const dayMs = 24 * 3600 * 1000;
+      const heatSparkline = Array.from({ length: 7 }, (_, idx) => {
+        const offset = 6 - idx;
+        const dayStart = now - (offset + 1) * dayMs;
+        const dayEnd = now - offset * dayMs;
+        const count = uniqueArticles.filter((a) => {
+          const t = articleSortTime(a);
+          return t > dayStart && t <= dayEnd;
+        }).length;
+        return { day: offset === 0 ? 'T0' : `T-${offset}`, count };
+      });
 
       const stageInfo = STAGE_CONFIG[seed.stage];
 
@@ -306,9 +309,14 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
         stageBadgeClass: stageInfo.badgeClass,
         summary: seed.subtitle,
         articles: uniqueArticles,
-        timeline: dynamicTimeline.length > 0 ? dynamicTimeline : [
-          { date: '近期', milestone: '产业链技术与政策前期酝酿', impact: '行业领军企业启动联合攻坚', timestamp: now },
-        ],
+        timeline: dynamicTimeline.length > 0
+          ? dynamicTimeline
+          : [{
+              date: '—',
+              milestone: '当前语料未匹配到可入时间线的文章',
+              impact: '编辑种子仍在；下方文章列表为空时不编造里程碑',
+              timestamp: now,
+            }],
         heatSparkline,
       };
     });
@@ -353,8 +361,8 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
     const days = ['T-6', 'T-5', 'T-4', 'T-3', 'T-2', 'T-1', 'T0'];
     return days.map((day, idx) => ({
       day,
-      topicAVal: topicA.heatSparkline[idx]?.count || 2,
-      topicBVal: topicB.heatSparkline[idx]?.count || 2,
+      topicAVal: topicA.heatSparkline[idx]?.count || 0,
+      topicBVal: topicB.heatSparkline[idx]?.count || 0,
     }));
   }, [topicA, topicB]);
 
@@ -405,7 +413,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
     md += `- 🛑 **假设证伪条件**：${topic.invalidationTrigger}\n\n`;
     md += `## 📚 专题收录的深度解读报告列表\n\n`;
     topic.articles.forEach((art, idx) => {
-      md += `${idx + 1}. **《${art.title}》** (${formatArticleTime(art)} · ${art.sourceName || '权威信源'})\n   - 核心定性：${art.oneSentenceVerdict || art.summary || '详见站内报告'}\n\n`;
+      md += `${idx + 1}. **《${art.title}》** (${formatArticleTime(art)} · ${art.sourceName || '来源未标明'})\n   - 核心定性：${art.oneSentenceVerdict || art.summary || '详见站内报告'}\n\n`;
     });
     md += `---\n*见微 Genway · 内部深度专题决策档案*\n`;
 
@@ -442,12 +450,13 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
               <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
                 长周期战略专题档案库
               </span>
+              <MethodBadge methodId="editorial_template" compact />
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white">
               见微 · 深度专题脉络与结构性博弈
             </h1>
             <p className="text-xs sm:text-sm text-stone-300 font-sans max-w-2xl">
-              摆脱碎片化单点新闻干扰，将跨周期的底层技术跃迁、地缘关税博弈与产业链重构编织为完整的全景演化图景。
+              专题里的博弈、利益方、阶段和证伪条件是产品配置的编辑种子，不是实时情报；下方文章列表才来自当前语料的关键词匹配。
             </p>
           </div>
 
@@ -845,7 +854,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
                         </p>
                         <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-200/60">
                           <span className="text-stone-400 font-mono text-[10px]">
-                            {art.sourceName || '权威信源'}
+                            {art.sourceName || '来源未标明'}
                           </span>
                           <span className="font-serif font-bold text-stone-800 group-hover:text-[#E3120B] flex items-center gap-1">
                             <span>阅读深度拆解</span>

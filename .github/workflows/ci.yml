@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests
+        run: pnpm test:unit
+        env:
+          # 无 Key：测试以缺省状态为准，不注入任何 API Key
+          GEMINI_API_KEY: ""
+          DEEPSEEK_API_KEY: ""
+          JIANWEI_AUTH_TOKEN: ""
+          JIANWEI_SECRET: ""
+          JIANWEI_ENABLE_DEMO_DATA: ""
+
+      - name: Release check
+        run: pnpm release-check
+        env:
+          GEMINI_API_KEY: ""
+          DEEPSEEK_API_KEY: ""
+          JIANWEI_AUTH_TOKEN: ""
+          JIANWEI_SECRET: ""
+          JIANWEI_ENABLE_DEMO_DATA: ""
+          BIND_HOST: 127.0.0.1
+
+      - name: Upload release logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-logs
+          path: /tmp/release-*.log
+          if-no-files-found: ignore
