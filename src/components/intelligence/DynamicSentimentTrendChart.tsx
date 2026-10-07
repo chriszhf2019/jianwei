@@ -202,11 +202,11 @@ export const DynamicSentimentTrendChart: React.FC<DynamicSentimentTrendChartProp
               <Activity className="w-4 h-4" />
             </span>
             <h3 className="text-base sm:text-lg font-serif font-black text-stone-950">
-              全球新闻情绪指数动态时序曲线 (Global Sentiment Pulse Curve)
+              站内词典情绪时序曲线
             </h3>
           </div>
           <p className="text-xs text-stone-500">
-            集成 Recharts 多空能量图谱 · 实时捕捉舆论转折、情绪波峰与非理性过热预警
+            按时间槽统计标题/摘要词典倾向占比；空槽记 0，相对分不是市场情绪或全网舆论真值
           </p>
         </div>
 

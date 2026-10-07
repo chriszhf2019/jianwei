@@ -242,7 +242,7 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
             <span>{data.timeLabel} 态势采样</span>
             <span className="text-amber-400 font-bold flex items-center gap-0.5">
               <Flame className="w-3 h-3 text-amber-500 fill-amber-500" />
-              热度 {data.heatIndex}
+              相对分 {data.heatIndex}
             </span>
           </div>
 
@@ -282,11 +282,11 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#E3120B] animate-pulse" />
             <h3 className="text-base sm:text-lg font-serif font-black text-stone-950">
-              全球热度演变与多维态势曲线 (Dynamic Strategic Heat Curve)
+              站内篇数相对分与多维态势曲线
             </h3>
           </div>
           <p className="text-xs text-stone-500">
-            集成 Recharts 动态时序引擎 · 实时追踪事件发酵波峰、情绪多空转折与关键节点
+            按时槽统计站内发稿篇数与词典情绪占比；相对分不是全网热度或市场真值
           </p>
         </div>
 
@@ -316,7 +316,7 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
               className={`px-2 py-1 rounded-md transition-all ${
                 metric === 'composite' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-600 hover:text-stone-950'
               }`}
-              title="同时展示热度指数与情绪脉冲"
+              title="同时展示篇数相对分与情绪脉冲"
             >
               综合多维
             </button>
@@ -325,9 +325,9 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
               className={`px-2 py-1 rounded-md transition-all ${
                 metric === 'heat' ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-600 hover:text-stone-950'
               }`}
-              title="仅展示热度指数曲线"
+              title="仅展示篇数相对分曲线"
             >
-              热度指数
+              篇数相对分
             </button>
             <button
               onClick={() => setMetric('sentiment')}
@@ -417,8 +417,8 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
             <Legend
               wrapperStyle={{ fontSize: '11px', fontFamily: 'serif', paddingTop: '10px' }}
               formatter={(value) => {
-                if (value === 'heatIndex') return '热度指数曲线 (Heat Index)';
-                if (value === 'sentimentScore') return '多空情绪指数 (Sentiment)';
+                if (value === 'heatIndex') return '篇数相对分曲线';
+                if (value === 'sentimentScore') return '多空情绪相对分';
                 return value;
               }}
             />
@@ -429,7 +429,7 @@ export const DynamicHeatTrendChart: React.FC<DynamicHeatTrendChartProps> = ({
               stroke="#E3120B"
               strokeDasharray="4 4"
               label={{
-                value: '高热度阈值 (85)',
+                value: '高相对分对照线 (85)',
                 fill: '#DC2626',
                 fontSize: 10,
                 position: 'insideTopRight',

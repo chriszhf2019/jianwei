@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import { motion, AnimatePresence } from 'motion/react';
@@ -6,6 +6,7 @@ import { X, Sparkles, RefreshCw, Link2, FileText, Download } from 'lucide-react'
 import { NewsArticle } from '../types';
 import { todayFullZh, isoToday, nowHHmm } from '../utils/dateUtils';
 import { MethodBadge } from './common/MethodBadge';
+import { classifyAiClientError } from '../utils/aiClientErrors';
 
 interface AnalyzeModalProps {
   isOpen: boolean;
@@ -91,6 +92,9 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fetchNote, setFetchNote] = useState<string | null>(null);
   const [fetchedPreview, setFetchedPreview] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -99,7 +103,34 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
     }
   }, [isOpen]);
 
-  useEscapeClose(isOpen, onClose);
+  useEffect(() => {
+    if (!loading && !fetching) {
+      setElapsedSec(0);
+      return;
+    }
+    setElapsedSec(0);
+    const timer = window.setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [loading, fetching]);
+
+  useEffect(() => {
+    return () => {
+      analyzeAbortRef.current?.abort();
+      fetchAbortRef.current?.abort();
+    };
+  }, []);
+
+  const handleClose = () => {
+    if (loading || fetching) {
+      analyzeAbortRef.current?.abort();
+      fetchAbortRef.current?.abort();
+      setLoading(false);
+      setFetching(false);
+    }
+    onClose();
+  };
+
+  useEscapeClose(isOpen, handleClose);
 
   const canAnalyze =
     mode === 'link'
@@ -112,6 +143,9 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
       setSubmitError('请先粘贴新闻链接。');
       return;
     }
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     setFetching(true);
     setSubmitError(null);
     setFetchNote(null);
@@ -120,12 +154,12 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
+        signal: controller.signal,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
         setSubmitError(
-          data?.note ||
-            data?.reason ||
+          classifyAiClientError({ status: res.status, payload: data }) ||
             '未能抓取可用正文。请改用「贴正文」模式，或换可公开访问的链接。'
         );
         setFetchedPreview(false);
@@ -142,12 +176,24 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
           '已抓取页面正文。内容来自目标站点，不是平台核验过的事实摘要。'
       );
     } catch (err) {
-      console.error('fetch-article failed', err);
-      setSubmitError('抓取请求失败（网络或服务异常），请稍后重试或改贴正文。');
+      if ((err as Error)?.name === 'AbortError') {
+        setSubmitError('已取消抓取。');
+      } else {
+        console.error('fetch-article failed', err);
+        setSubmitError(classifyAiClientError({ error: err }));
+      }
       setFetchedPreview(false);
     } finally {
       setFetching(false);
     }
+  };
+
+  const handleCancelInFlight = () => {
+    analyzeAbortRef.current?.abort();
+    fetchAbortRef.current?.abort();
+    setLoading(false);
+    setFetching(false);
+    setSubmitError('已取消请求。输入内容仍保留，可稍后再试。');
   };
 
   const handleAnalyze = async (e: React.FormEvent) => {
@@ -159,6 +205,9 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
       return;
     }
 
+    analyzeAbortRef.current?.abort();
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
     setLoading(true);
     setSubmitError(null);
     try {
@@ -173,13 +222,11 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
           content,
           persist: true,
         }),
+        signal: controller.signal,
       });
-      const resData = await res.json();
-      if (resData?.fallback) {
-        setSubmitError(
-          resData.fallbackNote ||
-            '服务端未配置可用 AI Key，本次没有生成分析，也未加入情报流。请配置模型后重试。'
-        );
+      const resData = await res.json().catch(() => ({}));
+      if (resData?.fallback || !res.ok) {
+        setSubmitError(classifyAiClientError({ status: res.status, payload: resData }));
         return;
       }
       if (!resData?.data) {
@@ -199,8 +246,12 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
       onAnalysisComplete(newArticle);
       onClose();
     } catch (err) {
-      console.error('Analysis submission failed', err);
-      setSubmitError('分析请求失败（网络或服务异常），输入内容已保留，请稍后重试。');
+      if ((err as Error)?.name === 'AbortError') {
+        setSubmitError('已取消解读。输入内容仍保留。');
+      } else {
+        console.error('Analysis submission failed', err);
+        setSubmitError(classifyAiClientError({ error: err }));
+      }
     } finally {
       setLoading(false);
     }
@@ -227,7 +278,7 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1 rounded text-stone-400 hover:text-white shrink-0"
               type="button"
             >
@@ -419,14 +470,41 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
               </div>
             )}
 
+            {(loading || fetching) && (
+              <div className="bg-stone-100 border border-stone-300 rounded-lg px-3 py-2.5 text-xs text-stone-700 space-y-1">
+                <div className="font-serif font-bold text-stone-900 flex items-center gap-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#E3120B]" />
+                  {fetching ? '正在抓取正文…' : '正在解读…'}
+                  <span className="font-mono text-stone-500 font-normal">已等待 {elapsedSec}s / 约 45s</span>
+                </div>
+                <p className="text-stone-500">
+                  {elapsedSec < 15
+                    ? '模型推理中，请稍候。'
+                    : elapsedSec < 35
+                      ? '仍在生成；复杂稿件可能接近超时上限。'
+                      : '接近超时。可取消后重试，或改贴更短正文。'}
+                </p>
+              </div>
+            )}
+
             <div className="pt-2 flex items-center justify-end space-x-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-medium text-stone-600 hover:text-stone-900"
-              >
-                取消
-              </button>
+              {(loading || fetching) ? (
+                <button
+                  type="button"
+                  onClick={handleCancelInFlight}
+                  className="px-4 py-2 text-xs font-serif font-bold text-red-700 hover:text-red-900 border border-red-300 rounded-lg bg-red-50"
+                >
+                  取消请求
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="px-4 py-2 text-xs font-medium text-stone-600 hover:text-stone-900"
+                >
+                  关闭
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={loading || fetching || !canAnalyze}
@@ -437,7 +515,7 @@ export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                <span>{loading ? '正在解读…' : '开始解读'}</span>
+                <span>{loading ? `解读中 ${elapsedSec}s` : '开始解读'}</span>
               </button>
             </div>
           </form>
