@@ -90,9 +90,15 @@ export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
             点击任意时间节点即可直接滚动至可视区域，并高亮该节点的上下文因果链
           </p>
           {data?.fallback && (
-            <EditorialNotice title="模板时间线">
-              {data.fallbackNote || '本次不是模型判断。'}
-            </EditorialNotice>
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 font-sans flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">⚠️ 未生成专属因果演变时间轴</p>
+                <p className="text-amber-800 mt-0.5">
+                  {data.fallbackNote || '未配置 AI 模型密钥或分析失败。系统已拒绝生成套话故事，仅展示本文基本节点，请勿将通用框架作为事实。'}
+                </p>
+              </div>
+            </div>
           )}
         </div>
 
@@ -102,7 +108,7 @@ export const EventEvolutionTimeline: React.FC<EventEvolutionTimelineProps> = ({
           className="px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-serif font-bold text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer border border-stone-300 shrink-0"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#E3120B]' : ''}`} />
-          <span>{loading ? 'AI 正在梳理…' : '重新梳理脉络'}</span>
+          <span>{loading ? '正在分析时序…' : data?.fallback ? '尝试生成专属脉络' : '重新梳理脉络'}</span>
         </button>
       </div>
 

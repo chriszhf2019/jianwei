@@ -492,42 +492,5 @@ const LEGACY_INITIAL_PREDICTION_CONTRACTS: PredictionContract[] = [
   }
 ];
 
-export const INITIAL_KNOWLEDGE_ITEMS: import('../types').KnowledgeItem[] = [
-  {
-    id: 'kb-ai-power-nexus',
-    articleId: 'news-ai-agent-breakthrough',
-    title: '数字智能扩张与特种电网交付荒的物理共振机制',
-    category: 'AI 与半导体',
-    tags: ['算力瓶颈', '电网变压器', 'CPO光电共封装', '能源重资产'],
-    sourceName: '见微深度研判',
-    createdAt: '2026-09-18',
-    oneSentenceVerdict: '纯算法与套壳 SaaS 的估值溢价正在见顶，AI 产业真正的超额垄断利润正在向「能源基础设施 + 2.5D/3D先进封装」加速转移。',
-    keyTakeaways: [
-      '长程自主 Agent 反思规划带来 3.4x Token 推理消耗激增，单芯片功率逼近 1200W 热极限。',
-      '风冷彻底失效，液冷与 CPO 光电共封装成为数据中心刚性标配。',
-      '欧美特种变压器交付周期被拉长至 120 周，电网直供配额成为比 GPU 更加卡脖子的稀缺实体资源。'
-    ],
-    coreMechanisms: '软件复杂度上升 ➔ 推理能耗非线性扩张 ➔ 变电与散热物理天花板 ➔ 基础设施定价权强化。',
-    decisionImplication: '在资产配置与供应链采购中，优先锁定具备绿电直供配额与特种变电站交付能力的重资产标的；企业端加速推进端侧小模型分流。',
-    personalNote: '重点观察明年 Q1 头部云厂商资本开支中电力配套与网络交换机比重的变化。'
-  },
-  {
-    id: 'kb-ev-nearshoring-tariffs',
-    articleId: 'news-ev-supply-chain',
-    title: '中国制造业「逆向本土化」出海与关税规避模型',
-    category: '新能源与出海',
-    tags: ['逆向本土化', 'CKD散件', 'USMCA', '反补贴关税'],
-    sourceName: '见微战略智库',
-    createdAt: '2026-09-22',
-    oneSentenceVerdict: '整车高关税阻断了单纯贸易出口，但借力 CKD 散件与海外本土合资建厂，可将原产地规则壁垒转化为属地政策保护。',
-    keyTakeaways: [
-      '在匈牙利德布勒森与墨西哥蒙特雷建厂，满足 USMCA 75% 或欧盟 45% 本土原产地价值门槛。',
-      '从单机产品出海进化为「设备、工艺母机、管理体系与跨境银团」全要素出海。',
-      '出海车企盈利核心从价格战转向对当地劳工合规与绿色供应链碳足迹认证的驾驭能力。'
-    ],
-    coreMechanisms: '贸易关税壁垒 ➔ 散件出海与直接投资 (FDI) ➔ 规避整车高关税 ➔ 享受当地政府基建与税收补贴。',
-    decisionImplication: '零部件企业必须跟随主机厂抱团出海，单打独斗面临极高属地劳工与地缘合规成本。',
-    personalNote: '已在 Q3 研报中引用此逻辑，验证了匈牙利基地对欧洲车企直供的毛利韧性。'
-  }
-];
+export const INITIAL_KNOWLEDGE_ITEMS: import('../types').KnowledgeItem[] = [];
 

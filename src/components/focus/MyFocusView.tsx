@@ -8,6 +8,7 @@ import { CognitiveBiasRadarPanel } from './CognitiveBiasRadarPanel';
 import { EvaluationLabPanel } from './EvaluationLabPanel';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
 import { KnowledgeGraphView } from './KnowledgeGraphView';
+import { ButterflyRoundtablePanel } from './ButterflyRoundtablePanel';
 import { KnowledgeItem } from '../../types';
 
 import { predictionDueInfo } from '../../utils/predictionLedger';
@@ -33,10 +34,11 @@ import {
   LayoutDashboard,
   FlaskConical,
   BookOpen,
-  Network
+  Network,
+  GitMerge
 } from 'lucide-react';
 
-type FocusSection = 'overview' | 'knowledge' | 'graph' | 'contracts' | 'watchlist' | 'evaluation';
+type FocusSection = 'overview' | 'butterfly' | 'knowledge' | 'graph' | 'contracts' | 'watchlist' | 'evaluation';
 
 
 interface MyFocusViewProps {
@@ -123,6 +125,7 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
 
   const sections: Array<{ id: FocusSection; label: string; icon: React.ReactNode }> = [
     { id: 'overview', label: '个人概览', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'butterfly', label: '蝴蝶效应与演进会商', icon: <GitMerge className="w-4 h-4 text-amber-500" /> },
     { id: 'knowledge', label: '战略知识库', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'graph', label: '知识图谱', icon: <Network className="w-4 h-4" /> },
     { id: 'contracts', label: '预测契约', icon: <Crosshair className="w-4 h-4" /> },
@@ -131,6 +134,7 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
   ];
   const sectionFeatureId: Record<FocusSection, FeatureSummaryId> = {
     overview: 'focus-overview',
+    butterfly: 'focus-watchlist',
     knowledge: 'focus-watchlist',
     graph: 'focus-watchlist',
     contracts: 'focus-contracts',
@@ -1009,6 +1013,17 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
         )}
       </div>
       </>
+      )}
+
+      {section === 'butterfly' && (
+        <ButterflyRoundtablePanel
+          knowledgeItems={knowledgeItems}
+          bookmarkedArticles={bookmarkedArticles}
+          articles={articles}
+          onOpenArticleById={onOpenArticleById}
+          onOpenTermExplain={onOpenTermExplain}
+          onUpdateKnowledge={onUpdateKnowledge}
+        />
       )}
 
       {section === 'knowledge' && (

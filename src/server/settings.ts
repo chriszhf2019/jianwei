@@ -69,14 +69,12 @@ function defaultSettings(): RuntimeSettings {
       .filter(Boolean).length > 0
       ? (process.env.NEWS_FEED_URLS || "").split(",").map((u) => u.trim()).filter(Boolean)
       : [
-          "https://feed.36kr.com/feed",
-          "https://rss.cls.cn/rss/feed",
-          "https://www.thepaper.cn/rss/news",
-          "https://www.jiqizhixin.com/rss",
-          "https://www.eefocus.com/rss/news.xml",
-          "https://www.zaobao.com/rss/world",
+          "https://36kr.com/feed",
+          "https://www.solidot.org/index.rss",
+          "https://sspai.com/feed",
           "https://www.ftchinese.com/rss/feed",
-          "https://www.latepost.com/rss",
+          "https://rss.sciencedaily.com/education_learning.xml",
+          "https://rss.arxiv.org/rss/cs.AI",
         ],
     userName: "",
     sectorOverrides: {},

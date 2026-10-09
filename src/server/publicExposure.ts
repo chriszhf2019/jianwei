@@ -70,10 +70,10 @@ export function assessPublicExposure(input: PublicExposureInput): PublicExposure
   const note = !ok
     ? `拒绝对外监听 ${bindHost}。`
     : exposed && tls === 'node'
-      ? `对外监听 ${bindHost}。进程使用 TLS 证书。访问令牌、密钥加密和管理员账号已设置。`
+      ? `对外监听 ${bindHost}。进程已加载 TLS 证书并以 HTTPS 启动。访问令牌、密钥加密和管理员账号已就绪。`
       : exposed && tls === 'upstream'
-        ? `对外监听 ${bindHost}。进程本身仍是 HTTP，TLS 由前置代理终止。访问令牌、密钥加密和管理员账号已设置。`
-        : `本机监听 ${bindHost}。未对外，所以不强制访问令牌和 HTTPS。`;
+        ? `对外监听 ${bindHost}。进程本身仍是 HTTP，TLS 由前置反向代理终止。访问令牌、密钥加密和管理员账号已就绪。`
+        : `环境监听 ${bindHost} (HTTP)。未配置进程 TLS 证书，传输层保持明文 HTTP。`;
 
   return { bindHost, exposed, ok, tls, missing, note };
 }

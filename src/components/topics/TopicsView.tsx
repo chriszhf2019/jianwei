@@ -260,6 +260,66 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
         ],
         invalidationTrigger: '若专用工业自动化机械臂通过多视角视觉算法以 1/5 成本完成 95% 搬运任务，通用双足机器人需求或将推迟。',
       },
+      {
+        id: 'dossier_ai_agent_software',
+        title: '开源生态与自主智能体 (AI Agent) 架构重构',
+        subtitle: '从大语言模型推演到上下文工程、自主工具调用与企业级工作流重构',
+        category: '软件工程与开源智能',
+        keywords: ['agent', '智能体', '开源', '大模型', 'llm', '架构', '代码', '开发者', '软件', 'github', 'arxiv', '推理', '微服务', '操作系统', '模型'],
+        tags: ['自主智能体', '开源生态', '代码大模型', '企业级交付'],
+        stage: 'breakout' as TopicLifecycleStage,
+        coreConflict: '大语言模型自主规划与推理吞吐速度 vs 真实生产系统对确定性工程契约与安全可控边界的要求。',
+        stakeholders: [
+          { camp: '开源模型社区与开发者', stance: '快速迭代', coreDemand: '基于开源权重实现私有化微调部署，推进行业定制工作流', color: 'border-purple-300 bg-purple-50 text-purple-950' },
+          { camp: '企业级 IT 架构决策者', stance: '审慎评估', coreDemand: '建立严格的模型幻觉评测基准与网络安全访问权限沙箱', color: 'border-blue-300 bg-blue-50 text-blue-950' },
+          { camp: '算力与云服务商', stance: '服务整合', coreDemand: '将大模型推理与向量存储打包为弹性 Serverless API 基础设施', color: 'border-emerald-300 bg-emerald-50 text-emerald-950' },
+        ],
+        keyWatchpoints: [
+          '多智能体协同框架在复杂多步任务中的任务成功率与 Token 成本收敛',
+          '代码大模型在生产环境自动化补全与评审的实际采纳率',
+        ],
+        invalidationTrigger: '若大模型幻觉率与安全攻击漏洞无法在工程层面有效收敛，企业核心业务将限制其自主执行权限。',
+      },
+      {
+        id: 'dossier_macro_liquidity',
+        title: '全球央行流动性周期与主权债务定价博弈',
+        subtitle: '从美联储降息路径、国债收益率异动到跨国贸易摩擦与跨境资产避险',
+        category: '宏观金融与全球资本',
+        keywords: ['国债', '债券', '债务', '加息', '降息', '央行', '美联储', '房贷', '流动性', '汇率', '利率', '通胀', '股市', '上市', '融资', '资本', '信用', '评级', '财经', '货币', 'ftchinese'],
+        tags: ['美联储政策', '国债收益率', '主权信用', '全球流动性'],
+        stage: 'debate' as TopicLifecycleStage,
+        coreConflict: '全球财政赤字持续攀升与主权债券天量发行，与私人资本市场对长期通胀再抬头风险的定价分歧。',
+        stakeholders: [
+          { camp: '主要经济体央行', stance: '数据驱动', coreDemand: '在抗击二次通胀与防范劳动力市场恶化之间权衡降息节奏', color: 'border-emerald-300 bg-emerald-50 text-emerald-950' },
+          { camp: '跨国主权基金与固收机构', stance: '防守反击', coreDemand: '通过短端国债对冲久期风险，并在全球寻找抗通胀高息实物资产', color: 'border-amber-300 bg-amber-50 text-amber-950' },
+          { camp: '实体外向型进出口企业', stance: '成本承压', coreDemand: '锁定外汇远期合约以规避汇率剧烈波动及关税变数带来的结算风险', color: 'border-stone-400 bg-stone-100 text-stone-950' },
+        ],
+        keyWatchpoints: [
+          '全球主要经济体核心 CPI/PCE 与就业市场高频指标读数',
+          '美债与欧债 10 年期收益率波动及全球主权信用评级调整',
+        ],
+        invalidationTrigger: '若主要央行因经济硬着陆被迫重启无上限量化宽松，长期收益率曲线定价逻辑将出现根本性扭曲。',
+      },
+      {
+        id: 'dossier_education_transformation',
+        title: '认知科学范式跃迁与全球高等教育重构',
+        subtitle: '从早期认知机制、神经语言科研到高校前沿育人与智慧教育科技 (EdTech)',
+        category: '教育科研与认知科学',
+        keywords: ['教育', '大学', '高校', '科研', '学生', '教师', '教学', '认知', '学习', '论文', '学科', 'edtech', 'education', 'learning', 'cognitive', 'university', 'curriculum', 'school', 'sciencedaily'],
+        tags: ['高等教育', '认知科学', '神经发育', '教育科技'],
+        stage: 'early' as TopicLifecycleStage,
+        coreConflict: '传统标准化分科考评与学分体制，与跨学科人工智能科研、脑科学实证突破对创新创造力的培养要求之间的脱节。',
+        stakeholders: [
+          { camp: '顶尖研究型大学与实验室', stance: '科教融汇', coreDemand: '打通交叉学科壁垒，将前沿认知工具引入本科与研究生基础科研训练', color: 'border-sky-300 bg-sky-50 text-sky-950' },
+          { camp: '智慧教育科技研发方', stance: '数据赋能', coreDemand: '利用自适应学习算法与多模态交互实现因材施教与规模化个性化答疑', color: 'border-purple-300 bg-purple-50 text-purple-950' },
+          { camp: '教育行政与认证机构', stance: '质量底线', coreDemand: '防范学术不端与算法依赖偏见，守住教育公平与学术严谨性评价红线', color: 'border-amber-300 bg-amber-50 text-amber-950' },
+        ],
+        keyWatchpoints: [
+          '脑机接口与认知神经科学在语言学习与记忆强化领域的同行评议临床成果',
+          '全球顶尖高校针对生成式智能教学规范与跨学科通识课程改革落地情况',
+        ],
+        invalidationTrigger: '若权威实证研究表明过早依赖算法辅助工具会导致学生深层思辨能力显著退化，教育科技进课堂政策或将面临严格限制。',
+      },
     ];
 
     return topicSeeds.map((seed) => {
@@ -272,8 +332,11 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
         const sectors = detectSectors(a);
         return (
           (seed.id.includes('compute') && sectors.includes('ai_hardware')) ||
+          (seed.id.includes('agent') && (sectors.includes('ai_hardware') || a.category === 'IT')) ||
           (seed.id.includes('battery') && sectors.includes('energy_manufacturing')) ||
-          (seed.id.includes('tariff') && (sectors.includes('macro_finance') || sectors.includes('energy_manufacturing')))
+          (seed.id.includes('tariff') && (sectors.includes('macro_finance') || sectors.includes('energy_manufacturing'))) ||
+          (seed.id.includes('macro') && (sectors.includes('macro_finance') || a.category === '财经')) ||
+          (seed.id.includes('education') && a.category === '教育')
         );
       });
 
@@ -383,8 +446,10 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
 
       const matchCategory =
         selectedCategory === 'all' ||
-        (selectedCategory === 'ai' && (d.category.includes('算力') || d.category.includes('智能'))) ||
+        (selectedCategory === 'ai' && (d.category.includes('算力') || d.category.includes('智能') || d.category.includes('软件'))) ||
         (selectedCategory === 'energy' && d.category.includes('新能源')) ||
+        (selectedCategory === 'macro' && (d.category.includes('宏观') || d.category.includes('金融') || d.category.includes('资本'))) ||
+        (selectedCategory === 'education' && (d.category.includes('教育') || d.category.includes('认知'))) ||
         (selectedCategory === 'geopolitics' && d.category.includes('地缘'));
 
       return matchSearch && matchCategory;
@@ -512,8 +577,10 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
               {[
                 { id: 'all', label: '全部专题档案' },
                 { id: 'followed', label: `⭐ 我的关注 (${followedTopicIds.length})` },
-                { id: 'ai', label: '🤖 AI与半导体' },
+                { id: 'ai', label: '🤖 AI与软件智能' },
                 { id: 'energy', label: '⚡ 新能源与制造' },
+                { id: 'macro', label: '📈 宏观与资本' },
+                { id: 'education', label: '🎓 教育与认知' },
                 { id: 'geopolitics', label: '🌐 地缘出海关税' },
               ].map((tab) => (
                 <button

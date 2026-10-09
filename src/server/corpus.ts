@@ -8,6 +8,7 @@ import { parseArticleDate } from "../utils/articleTime";
 import { sourceGroupKey } from "../utils/sourceGrouping";
 import { normalizeEntityMentions } from "../utils/entityGraph";
 import { normalizeRegionMentions, inferDefaultRegionMentions, inferDefaultEntityMentions } from "../utils/regionSemantics";
+import { getArticleCanonicalCategory } from "../utils/categoryClassifier";
 import {
   backupDatabase,
   databaseFile,
@@ -238,7 +239,8 @@ function loadCorpus(): any[] {
     const deduped = dedupeCanonicalUrls(cleaned);
     const regions = withCanonicalRegionMentions(deduped.items);
     const entities = withCanonicalEntityMentions(regions.items);
-    const migrated = withLegacyAiMetadata(entities.items);
+    const categorized = withCanonicalCategory(entities.items);
+    const migrated = withLegacyAiMetadata(categorized);
     if (!NO_PERSIST) {
       persistArticlesToDatabase(migrated.items);
       fs.writeFileSync(CORPUS_FILE, JSON.stringify(migrated.items), "utf-8");
@@ -253,7 +255,8 @@ function loadCorpus(): any[] {
         const deduped = dedupeCanonicalUrls(cleaned);
         const regions = withCanonicalRegionMentions(deduped.items);
         const entities = withCanonicalEntityMentions(regions.items);
-        const migrated = withLegacyAiMetadata(entities.items);
+        const categorized = withCanonicalCategory(entities.items);
+        const migrated = withLegacyAiMetadata(categorized);
         if (!NO_PERSIST && (cleaned.length !== arr.length || deduped.changed > 0)) {
           backupCorpus("remove-legacy-demo");
         }
@@ -273,6 +276,21 @@ function loadCorpus(): any[] {
   return [];
 }
 
+function withCanonicalCategory(items: any[]): any[] {
+  return items.map((article) => {
+    const canonical = getArticleCanonicalCategory(article);
+    if (
+      !article.category ||
+      article.category === "外部信源" ||
+      (article.category === "科技" && (canonical === "教育" || canonical === "IT")) ||
+      (article.category === "IT" && canonical === "教育")
+    ) {
+      return { ...article, category: canonical };
+    }
+    return article;
+  });
+}
+
 export let serverCorpus: any[] = loadCorpus();
 export let lastIngest: any = null;
 let corpusRevision = 0;
@@ -289,12 +307,18 @@ export function toFeedArticle(raw: RawFeedItem, index: number): any {
     /* 保持默认 */
   }
   const summary = raw.description || raw.title;
+  const inferredCategory = getArticleCanonicalCategory({
+    title: raw.title,
+    summary,
+    sourceUrl: raw.link,
+    sourceName,
+  });
   return {
     id: `feed-${Date.now()}-${index}`,
     title: raw.title,
     subtitle: "",
     oneSentenceVerdict: "",
-    category: "外部信源",
+    category: inferredCategory || "外部信源",
     tags: [],
     date: zhFullDate(new Date()),
     timeAgo: "刚刚",

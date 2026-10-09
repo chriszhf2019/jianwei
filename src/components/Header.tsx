@@ -17,6 +17,10 @@ import {
   MapPin,
   ShieldCheck,
   MoreHorizontal,
+  Cpu,
+  ShieldAlert,
+  GitFork,
+  BookOpen,
 } from 'lucide-react';
 import { USER_PERSONAS } from '../data/intelligenceData';
 import { FEATURE_SUMMARIES } from '../utils/featureSummaries';
@@ -32,6 +36,9 @@ interface HeaderProps {
   onOpenCognitiveModel?: () => void;
   onOpenSettings: () => void;
   onOpenAudioBriefing?: () => void;
+  onOpenSupplyChainSimulator?: () => void;
+  onOpenCompetitorRadar?: () => void;
+  onOpenArchitectureDiagram?: () => void;
   nickname?: string;
   optimistic?: number | null;
   negative?: number | null;
@@ -49,10 +56,27 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAnalyzeModal,
   onOpenSettings,
   onOpenAudioBriefing,
+  onOpenSupplyChainSimulator,
+  onOpenCompetitorRadar,
+  onOpenArchitectureDiagram,
   isAdmin = false,
 }) => {
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const toolsMenuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close tools dropdown on click outside
+  React.useEffect(() => {
+    if (!showToolsMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(e.target as Node)) {
+        setShowToolsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showToolsMenu]);
 
   const navItems: Array<{
     id: PrimaryNavTab;
@@ -62,10 +86,18 @@ export const Header: React.FC<HeaderProps> = ({
   }> = [
     {
       id: 'home',
-      label: '首页',
-      shortLabel: '首页',
+      label: '今日条目',
+      shortLabel: '今日',
       renderIcon: (isActive) => (
         <Compass className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-[#E3120B]'}`} />
+      ),
+    },
+    {
+      id: 'topics',
+      label: '深度阅读',
+      shortLabel: '深读',
+      renderIcon: (isActive) => (
+        <BookOpen className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-stone-700'}`} />
       ),
     },
     {
@@ -74,14 +106,6 @@ export const Header: React.FC<HeaderProps> = ({
       shortLabel: '情报',
       renderIcon: (isActive) => (
         <Flame className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-red-500'}`} />
-      ),
-    },
-    {
-      id: 'topics',
-      label: '专题档案',
-      shortLabel: '专题',
-      renderIcon: (isActive) => (
-        <Layers className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-stone-700'}`} />
       ),
     },
     {
@@ -191,6 +215,43 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     认知透镜 · {selectedPersona.name}
                   </button>
+
+                  <div className="border-t border-stone-200 my-1 pt-1">
+                    <div className="text-[10px] font-mono text-stone-400 px-3 py-1 uppercase">情报工具</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onOpenSupplyChainSimulator?.();
+                      }}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-serif font-bold hover:bg-stone-100 text-stone-800 flex items-center gap-2"
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                      <span>断供模拟器</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onOpenCompetitorRadar?.();
+                      }}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-serif font-bold hover:bg-stone-100 text-stone-800 flex items-center gap-2"
+                    >
+                      <Radio className="w-3.5 h-3.5 text-purple-600" />
+                      <span>竞对雷达</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        onOpenArchitectureDiagram?.();
+                      }}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs font-serif font-bold hover:bg-stone-100 text-stone-800 flex items-center gap-2"
+                    >
+                      <GitFork className="w-3.5 h-3.5 text-sky-600" />
+                      <span>架构全景图</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -343,6 +404,101 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               );
             })}
+
+            {/* 新增「情报工具」下拉二级菜单 */}
+            <div className="relative" ref={toolsMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowToolsMenu((v) => !v)}
+                className={`flex flex-col items-center justify-center py-1 px-1.5 sm:px-5 rounded-lg transition-colors cursor-pointer group min-w-[48px] sm:min-w-[88px] ${
+                  showToolsMenu ? 'text-[#E3120B] bg-red-50/50' : 'text-stone-700 hover:text-stone-950'
+                }`}
+                title="情报专项工具箱（断供模拟器、竞对雷达、架构全景图）"
+              >
+                <span className="flex items-center space-x-0.5 mb-0.5 group-hover:scale-110 transition-transform">
+                  <Cpu className={`w-4 h-4 ${showToolsMenu ? 'text-[#E3120B]' : 'text-stone-700'}`} />
+                  <ChevronDown className={`w-3 h-3 transition-transform ${showToolsMenu ? 'rotate-180 text-[#E3120B]' : 'text-stone-500'}`} />
+                </span>
+                <span className={`text-xs font-serif tracking-tight whitespace-nowrap ${
+                  showToolsMenu ? 'font-black text-[#E3120B]' : 'font-medium text-stone-700 group-hover:text-stone-950'
+                }`}>
+                  <span className="sm:hidden">工具</span>
+                  <span className="hidden sm:inline">情报工具</span>
+                </span>
+              </button>
+
+              {showToolsMenu && (
+                <div className="absolute right-0 sm:left-1/2 sm:-translate-x-1/2 mt-1.5 w-72 bg-[#FAF8F5] border-2 border-stone-900 rounded-xl shadow-xl p-2 z-50 font-sans animate-in fade-in zoom-in-95 duration-150">
+                  <div className="text-[11px] font-serif font-bold text-stone-500 px-3 py-1.5 uppercase border-b border-stone-200 mb-1 flex items-center justify-between">
+                    <span>情报专项工具箱</span>
+                    <span className="text-[10px] font-mono text-[#E3120B] bg-red-50 border border-red-200 px-1.5 py-0.2 rounded font-bold">二级菜单</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowToolsMenu(false);
+                      onOpenSupplyChainSimulator?.();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-stone-200/80 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <div className="p-1.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 mt-0.5 shrink-0 group-hover:scale-110 transition-transform">
+                      <ShieldAlert className="w-4 h-4 text-amber-700" />
+                    </div>
+                    <div>
+                      <div className="font-serif font-bold text-xs text-stone-900 group-hover:text-[#E3120B] transition-colors">
+                        断供模拟器
+                      </div>
+                      <div className="text-[11px] text-stone-500 leading-tight">
+                        全球产业链极限断供与卡脖子压力测试
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowToolsMenu(false);
+                      onOpenCompetitorRadar?.();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-stone-200/80 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <div className="p-1.5 rounded-lg bg-purple-100 border border-purple-300 text-purple-900 mt-0.5 shrink-0 group-hover:scale-110 transition-transform">
+                      <Radio className="w-4 h-4 text-purple-700" />
+                    </div>
+                    <div>
+                      <div className="font-serif font-bold text-xs text-stone-900 group-hover:text-[#E3120B] transition-colors">
+                        竞对雷达
+                      </div>
+                      <div className="text-[11px] text-stone-500 leading-tight">
+                        跨国核心竞对战略动作与能力矩阵监测
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowToolsMenu(false);
+                      onOpenArchitectureDiagram?.();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-stone-200/80 transition-colors flex items-start gap-2.5 group cursor-pointer"
+                  >
+                    <div className="p-1.5 rounded-lg bg-sky-100 border border-sky-300 text-sky-900 mt-0.5 shrink-0 group-hover:scale-110 transition-transform">
+                      <GitFork className="w-4 h-4 text-sky-700" />
+                    </div>
+                    <div>
+                      <div className="font-serif font-bold text-xs text-stone-900 group-hover:text-[#E3120B] transition-colors">
+                        架构全景图
+                      </div>
+                      <div className="text-[11px] text-stone-500 leading-tight">
+                        AI 架构全景图与技术因果拓扑可视化
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </nav>
         </div>
       </div>

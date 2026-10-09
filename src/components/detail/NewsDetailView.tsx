@@ -13,6 +13,7 @@ import { EventEvolutionTimeline } from './EventEvolutionTimeline';
 import { SidebarEvolutionNav } from './SidebarEvolutionNav';
 import { ArticleBodyParserSection } from './ArticleBodyParserSection';
 import { RelatedNewsGraph } from './RelatedNewsGraph';
+import { ButterflyEffectGraph } from './ButterflyEffectGraph';
 import { ArticleCompareView } from './ArticleCompareView';
 import { 
   ResponsiveContainer, 
@@ -294,6 +295,10 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const [isCompareMode, setIsCompareMode] = useState(false);
   const [deposited, setDeposited] = useState(isDepositedInKnowledge);
 
+  useEffect(() => {
+    setDeposited(isDepositedInKnowledge);
+  }, [isDepositedInKnowledge, article.id]);
+
   const handleDeposit = () => {
     if (!onDepositToKnowledge) return;
     const item: KnowledgeItem = {
@@ -487,21 +492,21 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const latestAiMeta = Object.entries(article.aiFieldMeta || {})
     .sort((a, b) => String(b[1]?.generatedAt || '').localeCompare(String(a[1]?.generatedAt || '')))[0];
 
-  // 详情认知路径（4大严谨逻辑篇章 + 1通读附录）：
-  // 第一篇：事实全貌与溯源 ➔ 第二篇：底层逻辑与博弈 ➔ 第三篇：未来推演与预测 ➔ 第四篇：切身决策与行动
+  // 详情核心认知路径（4大严谨逻辑篇章）：
+  // 第一篇：事实全貌与溯源 ➔ 第二篇：底层逻辑与因果 ➔ 第三篇：未来推演与预测 ➔ 第四篇：切身决策与行动
   const tabsList: Array<{ id: CognitiveDetailTab; label: string; icon: React.ReactNode; step: string }> = [
     { id: 'seven_elements', label: '事实全貌与溯源', icon: <Sparkles className="w-4 h-4 text-[#E3120B]" />, step: '第一篇 · 事实' },
-    { id: 'logic_tree', label: '底层逻辑与博弈', icon: <GitFork className="w-4 h-4 text-purple-600" />, step: '第二篇 · 博弈' },
-    { id: 'architecture_diagram', label: 'AI 架构全景图', icon: <Layers className="w-4 h-4 text-blue-600" />, step: '生成 · 架构' },
-    { id: 'forecast_arena', label: '未来推演与预测', icon: <Crosshair className="w-4 h-4 text-red-600" />, step: '第三篇 · 推演' },
-    { id: 'relevance_identity', label: '切身决策与行动', icon: <UserCheck className="w-4 h-4 text-emerald-600" />, step: '第四篇 · 决策' },
-    { id: 'deep_spectrum', label: '五层通读全览', icon: <Layers className="w-4 h-4 text-amber-600" />, step: '附录 · 通读' },
+    { id: 'logic_tree', label: '底层逻辑与因果', icon: <GitFork className="w-4 h-4 text-purple-600" />, step: '第二篇 · 逻辑' },
+    { id: 'butterfly_effect', label: '蝴蝶效应关联网', icon: <GitMerge className="w-4 h-4 text-amber-500" />, step: '深度 · 拓扑' },
+    { id: 'forecast_arena', label: '未来推演与预测', icon: <Crosshair className="w-4 h-4 text-red-600" />, step: '第三篇 · 预测' },
+    { id: 'relevance_identity', label: '切身决策与行动', icon: <UserCheck className="w-4 h-4 text-emerald-600" />, step: '第四篇 · 行动' },
   ];
 
   const tabFeatureId: Record<CognitiveDetailTab, FeatureSummaryId> = {
     seven_elements: 'detail-seven',
     logic_tree: 'detail-logic',
     architecture_diagram: 'detail-logic',
+    butterfly_effect: 'detail-logic',
     relevance_identity: 'detail-identity',
     forecast_arena: 'detail-forecast',
     deep_spectrum: 'detail-spectrum',
@@ -1402,6 +1407,21 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               </button>
             );
           })}
+
+          {/* 附录快捷入口：五层阅读光谱 */}
+          <button
+            key="deep_spectrum"
+            type="button"
+            onClick={() => setActiveTab('deep_spectrum')}
+            className={`px-3 py-2 rounded-xl text-xs font-serif font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ml-auto cursor-pointer ${
+              activeTab === 'deep_spectrum'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-white text-stone-600 border border-stone-300 hover:border-stone-500 hover:bg-stone-50'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>五层阅读光谱</span>
+          </button>
         </div>
       </div>
 
@@ -1437,10 +1457,35 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           )}
 
 
-          {/* 第二篇：底层逻辑与多方博弈 */}
-          {activeTab === 'logic_tree' && (
+          {/* 第二篇：底层逻辑与因果推演（含可选架构全景视图） */}
+          {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') && (
             <div className="space-y-6">
-              {article.logicTree ? (
+              <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                <span className="text-xs font-serif font-bold text-stone-600">逻辑呈现模式：</span>
+                <div className="inline-flex rounded-lg border border-stone-300 p-0.5 bg-stone-100 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('logic_tree')}
+                    className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      activeTab === 'logic_tree' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
+                    }`}
+                  >
+                    因果树分析
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('architecture_diagram')}
+                    className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      activeTab === 'architecture_diagram' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-500 hover:text-stone-800'
+                    }`}
+                  >
+                    AI 架构全景图
+                  </button>
+                </div>
+              </div>
+              {activeTab === 'architecture_diagram' ? (
+                <ArchitectureDiagramTab article={article} />
+              ) : article.logicTree ? (
                 <LogicTreeTab logicTree={article.logicTree} />
               ) : (
                 <MissingDeep feature="底层逻辑与因果树" note={deepNote} />
@@ -1448,11 +1493,16 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             </div>
           )}
 
-          {/* 🎨 架构全景与因果传导图 */}
-          {activeTab === 'architecture_diagram' && (
-            <div className="space-y-6">
-              <ArchitectureDiagramTab article={article} />
-            </div>
+          {/* 🦋 蝴蝶效应：D3.js 连带认知关联网 */}
+          {activeTab === 'butterfly_effect' && (
+            <ButterflyEffectGraph
+              article={article}
+              contextArticles={contextArticles}
+              onOpenArticle={onOpenArticle}
+              onOpenTermExplain={onOpenTermExplain}
+              onNavigateTab={onNavigateTab}
+              onSelectTab={(tab) => setActiveTab(tab)}
+            />
           )}
 
           {/* 第三篇：未来推推演与走势研判（宏观三阶涟漪 + 人机走势预测对赌） */}
@@ -1523,23 +1573,24 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       <div className="py-3.5 px-4 bg-white border-2 border-stone-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans shadow-xs">
         <div className="space-y-0.5">
           <div className="text-xs font-serif font-bold text-stone-900">
-            {activeTab === 'seven_elements' && '第一篇 事实已结构化拆解完毕 ➔ 下一步：进入「第二篇 · 底层逻辑与博弈」，剖析始发根因与利益格局'}
-            {activeTab === 'logic_tree' && '第二篇 因果链与博弈格局已摸清 ➔ 下一步：生成「AI 架构全景图」，研读技术传导路径、博弈变量与终局效应'}
-            {activeTab === 'architecture_diagram' && '生成架构全景图并锁定临界变量 ➔ 下一步：进入「第三篇 · 未来推演与预测」，立项存证并进行对账擂台'}
+            {activeTab === 'seven_elements' && '第一篇 事实已结构化拆解完毕 ➔ 下一步：进入「第二篇 · 底层逻辑与因果」，剖析始发根因与变量关系'}
+            {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') && '第二篇 因果链与博弈格局已摸清 ➔ 下一步：查阅「蝴蝶效应关联网」或「第三篇 · 未来推演与预测」'}
+            {activeTab === 'butterfly_effect' && '蝴蝶效应关联网为您拆解了多阶连锁影响与连带认知网 ➔ 下一步：进入「第三篇 · 未来推演与预测」'}
             {activeTab === 'forecast_arena' && '第三篇 走势研判与预测对赌已确立 ➔ 下一步：进入「第四篇 · 切身决策与行动」，生成您的专属行动清单'}
-            {activeTab === 'relevance_identity' && '第四篇 决策行动清单已生成 ➔ 下一步：查阅「附录 · 五层通读全览」或沉淀至个人备忘录'}
-            {activeTab === 'deep_spectrum' && '您已完整掌握该事件的全部深度认知 ➔ 可前往「我的关注」查阅历史预测台账与备忘录'}
+            {activeTab === 'relevance_identity' && '第四篇 决策行动清单已生成 ➔ 您已完成全部核心认知阶段拆解，可沉淀至「我的关注」'}
+            {activeTab === 'deep_spectrum' && '您正在查阅五层通读全览 ➔ 可随时切回核心逻辑拆解或前往「我的关注」'}
           </div>
         </div>
 
         <button
           onClick={() => {
             if (activeTab === 'seven_elements') setActiveTab('logic_tree');
-            else if (activeTab === 'logic_tree') setActiveTab('architecture_diagram');
-            else if (activeTab === 'architecture_diagram') setActiveTab('forecast_arena');
+            else if (activeTab === 'logic_tree' || activeTab === 'architecture_diagram') setActiveTab('butterfly_effect');
+            else if (activeTab === 'butterfly_effect') setActiveTab('forecast_arena');
             else if (activeTab === 'forecast_arena') setActiveTab('relevance_identity');
-            else if (activeTab === 'relevance_identity') setActiveTab('deep_spectrum');
-            else if (activeTab === 'deep_spectrum' && onNavigateTab) {
+            else if (activeTab === 'relevance_identity' && onNavigateTab) {
+              onNavigateTab('my_focus');
+            } else if (activeTab === 'deep_spectrum' && onNavigateTab) {
               onNavigateTab('my_focus');
             }
             window.scrollTo({ top: 400, behavior: 'smooth' });
@@ -1547,11 +1598,11 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           className="px-3.5 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
         >
           <span>
-            {activeTab === 'seven_elements' && '进入第二篇：底层逻辑与博弈 ➔'}
-            {activeTab === 'logic_tree' && '生成 AI 架构全景图 ➔'}
-            {activeTab === 'architecture_diagram' && '进入第三篇：未来推演与预测 ➔'}
+            {activeTab === 'seven_elements' && '进入第二篇：底层逻辑与因果 ➔'}
+            {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') && '进入蝴蝶效应认知关联网 ➔'}
+            {activeTab === 'butterfly_effect' && '进入第三篇：未来推演与预测 ➔'}
             {activeTab === 'forecast_arena' && '进入第四篇：切身决策与行动 ➔'}
-            {activeTab === 'relevance_identity' && '查阅附录：五层通读全览 ➔'}
+            {activeTab === 'relevance_identity' && '完成认知拆解 · 沉淀至我的关注 ➔'}
             {activeTab === 'deep_spectrum' && '前往决策与对账台账 ➔'}
           </span>
           <ArrowRight className="w-4 h-4" />

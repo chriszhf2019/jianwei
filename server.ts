@@ -127,4 +127,10 @@ registerSourceRoutes(app, applyRateLimit);
 registerArticleTimelineRoutes(app, applyRateLimit);
 registerConflictsRoutes(app, applyRateLimit);
 
-void startServer({ app, port: PORT, bindHost: BIND_HOST });
+void startServer({
+  app,
+  port: PORT,
+  bindHost: BIND_HOST,
+  tlsCertPath: TLS_CERT_PATH,
+  tlsKeyPath: TLS_KEY_PATH,
+});

@@ -4,6 +4,7 @@ import {
   changeUserPassword,
   createUser,
   createUserSession,
+  createTokenAdminSession,
   getUserPreferences,
   listUsers,
   recordAuditEvent,
@@ -89,9 +90,10 @@ export function registerAuthRoutes(
     if (accessToken && safeTokenEqual(accessToken, authToken)) {
       loginFailures.delete(limitKey);
       recordAuditEvent({ actor: "token-admin", action: "auth.login", status: "success" });
+      const { token: sessionToken } = createTokenAdminSession();
       return res.json({
         ok: true,
-        token: authToken,
+        token: sessionToken,
         user: { id: "legacy-token", username: "token-admin", role: "admin" },
         legacy: true,
       });

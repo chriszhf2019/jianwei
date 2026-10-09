@@ -246,6 +246,29 @@ export function listUsers(): Array<{
   }
 }
 
+export function createTokenAdminSession(ttlMs = 30 * 24 * 3600 * 1000): { token: string; expiresAt: string } {
+  const db = openDatabase();
+  try {
+    const existing = db.prepare("SELECT id FROM users WHERE id = 'legacy-token'").get() as any;
+    const now = new Date().toISOString();
+    if (!existing) {
+      db.prepare(`
+        INSERT INTO users (id, username, password_hash, role, active, must_change_password, approval_status, created_at, updated_at)
+        VALUES ('legacy-token', 'token-admin', 'none', 'admin', 1, 0, 'approved', ?, ?)
+      `).run(now, now);
+    }
+    const token = `jw_adm_${crypto.randomBytes(32).toString("base64url")}`;
+    const expiresAt = new Date(Date.now() + ttlMs).toISOString();
+    db.prepare(`
+      INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at, last_seen_at)
+      VALUES (?, 'legacy-token', ?, ?, ?)
+    `).run(sessionTokenHash(token), expiresAt, now, now);
+    return { token, expiresAt };
+  } finally {
+    db.close();
+  }
+}
+
 export function createUserSession(input: {
   username: string;
   password: string;

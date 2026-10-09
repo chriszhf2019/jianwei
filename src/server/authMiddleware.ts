@@ -29,13 +29,22 @@ function cookieValue(req: Request, name: string): string {
 }
 
 function ensureGuestId(req: Request, res: Response): string {
+  const headerGuestId = String(req.header("x-jianwei-guest-id") || "").trim();
+  if (/^guest_[a-f0-9]{24}$/.test(headerGuestId)) {
+    res.setHeader("x-jianwei-guest-id", headerGuestId);
+    return headerGuestId;
+  }
   const existing = cookieValue(req, GUEST_COOKIE_NAME);
-  if (/^guest_[a-f0-9]{24}$/.test(existing)) return existing;
+  if (/^guest_[a-f0-9]{24}$/.test(existing)) {
+    res.setHeader("x-jianwei-guest-id", existing);
+    return existing;
+  }
   const guestId = `guest_${crypto.randomBytes(12).toString("hex")}`;
   res.append(
     "Set-Cookie",
     `${GUEST_COOKIE_NAME}=${encodeURIComponent(guestId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
   );
+  res.setHeader("x-jianwei-guest-id", guestId);
   return guestId;
 }
 

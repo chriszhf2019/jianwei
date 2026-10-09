@@ -133,8 +133,19 @@ export const DehydratedModeFeed: React.FC<DehydratedModeFeedProps> = ({
                     className="border-t border-stone-200 bg-[#FAF8F5] p-5 sm:p-6 space-y-4"
                   >
                     {/* Full headline reference */}
-                    <div className="text-sm font-serif font-bold text-stone-900 border-b border-stone-200 pb-2">
-                      原报告：{article.title}
+                    <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                      <div className="text-sm font-serif font-bold text-stone-900">
+                        原报告：{article.title}
+                      </div>
+                      {article.contentBasis === 'rss_summary_only' || (!article.content && (article.isExternal || !hasDehydrated)) ? (
+                        <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-mono" title="未抓取到完整正文，AI基于RSS简报/摘要压缩">
+                          仅根据 RSS 摘要
+                        </span>
+                      ) : (article.contentBasis === 'full_article' || Boolean(article.content)) ? (
+                        <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono" title="基于抓取到的原文正文压缩">
+                          基于原文全文
+                        </span>
+                      ) : null}
                     </div>
 
                     {/* 未生成脱水要点：提供技能按钮直接生成 */}

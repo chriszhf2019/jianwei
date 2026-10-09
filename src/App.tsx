@@ -57,6 +57,10 @@ const ShareCardModal = lazy(() =>
 const AdminConsoleView = lazy(() =>
   import('./components/admin/AdminConsoleView').then((module) => ({ default: module.AdminConsoleView }))
 );
+const IntelligenceToolModal = lazy(() =>
+  import('./components/modals/IntelligenceToolModal').then((module) => ({ default: module.IntelligenceToolModal }))
+);
+import type { IntelligenceToolType } from './components/modals/IntelligenceToolModal';
 
 const ViewLoading = () => (
   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-xs text-stone-400">
@@ -133,6 +137,7 @@ export const App: React.FC = () => {
   const modals = useModalStack();
   const { authUser } = useAuth();
   const isAdmin = authUser?.role === 'admin' && !authUser?.isGuest;
+  const [activeIntelligenceTool, setActiveIntelligenceTool] = React.useState<IntelligenceToolType | null>(null);
 
   useEffect(() => {
     if (activeTab === 'admin' && !isAdmin) {
@@ -197,6 +202,9 @@ export const App: React.FC = () => {
         nickname={nickname}
         onOpenSettings={modals.openSettings}
         onOpenAudioBriefing={modals.openAudioBriefing}
+        onOpenSupplyChainSimulator={() => setActiveIntelligenceTool('simulator')}
+        onOpenCompetitorRadar={() => setActiveIntelligenceTool('radar')}
+        onOpenArchitectureDiagram={() => setActiveIntelligenceTool('architecture')}
         isAdmin={isAdmin}
       />
 
@@ -458,6 +466,21 @@ export const App: React.FC = () => {
             onClose={() => modals.setShareCardArticle(null)}
             article={modals.shareCardArticle}
             selectedPersona={selectedPersona}
+          />
+        )}
+
+        {activeIntelligenceTool !== null && (
+          <IntelligenceToolModal
+            isOpen={activeIntelligenceTool !== null}
+            activeTool={activeIntelligenceTool}
+            onClose={() => setActiveIntelligenceTool(null)}
+            onChangeTool={(tool) => setActiveIntelligenceTool(tool)}
+            articles={articles}
+            selectedArticle={selectedArticle}
+            onSelectArticle={(art) => {
+              handleSelectArticle(art);
+              setActiveIntelligenceTool(null);
+            }}
           />
         )}
       </Suspense>

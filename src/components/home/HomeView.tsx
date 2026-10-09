@@ -295,6 +295,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // 分页后的列表（三模式共用，底部“再看 20 条”）
   const displayFeed = useMemo(() => filteredArticles.slice(0, visibleCount), [filteredArticles, visibleCount]);
 
+  const categoryCountsMap = useMemo(() => {
+    const counts: Record<string, number> = {
+      '全部': basePool.length,
+      '多源印证': basePool.filter((a) => buildEvidenceProfile(a, articles).status === 'corroborated').length,
+    };
+    for (const c of ['财经', '科技', 'IT', '教育']) {
+      counts[c] = basePool.filter((a) => getArticleCanonicalCategory(a) === c).length;
+    }
+    if (interestGroups.length > 0) {
+      counts['我的领域'] = basePool.filter((a) => matchesNewsInterestGroups(a, interestGroups)).length;
+    }
+    counts['关注'] = basePool.filter((a) => {
+      if (bookmarkedIds.includes(a.id)) return true;
+      const fields = [a.category, ...(a.tags || [])].filter(Boolean).map((v) => String(v).toLowerCase());
+      return followedTags.some((tag) => {
+        const norm = tag.trim().toLowerCase();
+        return norm && fields.some((f) => f === norm || f.includes(norm) || norm.includes(f));
+      });
+    }).length;
+    return counts;
+  }, [basePool, articles, interestGroups, bookmarkedIds, followedTags]);
+
   const renderFilterButton = (cat: string) => {
     const isSelected = selectedCategory === cat;
     const isAffectMe = cat === '影响我';
@@ -353,6 +375,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
             isSelected ? 'bg-red-500 text-white' : 'bg-red-100 text-[#E3120B]'
           }`}>
             {selectedPersona.name.slice(0, 2)}
+          </span>
+        )}
+
+        {!isMonitor && !isAffectMe && categoryCountsMap[cat] !== undefined && (
+          <span
+            className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md ${
+              isSelected ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'
+            }`}
+          >
+            {categoryCountsMap[cat]}
           </span>
         )}
       </button>
@@ -640,26 +672,42 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           )}
 
-          {/* 当所选赛道在当前时间窗口暂无新增时，提供一键切换至全部/近3日查看历史沉淀 */}
-          {filteredArticles.length === 0 && selectedCategory in CATEGORY_THEMES && (
+          {/* 当筛选后列表为空时，清晰提示原因并支持一键切换时间窗口或清空筛选 */}
+          {filteredArticles.length === 0 && (
             <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 text-xs text-stone-700 flex flex-wrap items-center justify-between gap-3 font-sans">
               <div className="flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-stone-400" />
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
                 <span>
-                  当前【<strong>{selectedCategory}</strong>】在【{timeHorizon === 'today' ? '今日' : timeHorizon === '3d' ? '近 3 日' : '当前范围'}】暂无新增条目
-                  {articles.filter(a => getArticleCanonicalCategory(a) === selectedCategory).length > 0 && (
-                    <>（历史语料库中有 <strong>{articles.filter(a => getArticleCanonicalCategory(a) === selectedCategory).length}</strong> 篇深度沉淀档案）</>
-                  )}。
+                  当前【<strong>{selectedRadarFilter ? `雷达词: ${selectedRadarFilter}` : selectedCategory}</strong>】在【{timeHorizon === 'today' ? '今日' : timeHorizon === '3d' ? '近 3 日' : '当前时间范围'}】暂无条目。
+                  {selectedCategory in CATEGORY_THEMES && articles.filter((a) => getArticleCanonicalCategory(a) === selectedCategory).length > 0 && (
+                    <>（历史语料库中有 <strong>{articles.filter((a) => getArticleCanonicalCategory(a) === selectedCategory).length}</strong> 篇沉淀档案）</>
+                  )}
                 </span>
               </div>
-              {timeHorizon !== 'all' && articles.filter(a => getArticleCanonicalCategory(a) === selectedCategory).length > 0 && (
-                <button
-                  onClick={() => setTimeHorizon('all')}
-                  className="px-3 py-1.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-lg font-serif font-bold text-xs transition-colors cursor-pointer"
-                >
-                  切换至全部范围查看档案 ➔
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {timeHorizon !== 'all' && (
+                  <button
+                    onClick={() => {
+                      setTimeHorizon('all');
+                      setVisibleCount(PAGE_SIZE);
+                    }}
+                    className="px-3 py-1.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-lg font-serif font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    切换至全部范围查看档案 ➔
+                  </button>
+                )}
+                {(selectedCategory !== '全部' || selectedRadarFilter) && (
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('全部');
+                      setSelectedRadarFilter(null);
+                    }}
+                    className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg font-serif font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    重置为全部资讯
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

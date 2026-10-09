@@ -6,6 +6,7 @@ export type HomeReadingMode = 'standard' | 'tongsu' | 'dehydrated';
 export type CognitiveDetailTab = 
   | 'seven_elements'       // 事实：七要素 + AI 裁决
   | 'logic_tree'           // 推演：因果树 + 涟漪传导（两段合并）
+  | 'butterfly_effect'     // 🦋 蝴蝶效应：D3 连带认知关联网 (Butterfly Effect Network)
   | 'relevance_identity'   // 身份：与我何干 (6大身份)
   | 'deep_spectrum'        // 通读：五层光谱深度全览
   | 'forecast_arena'       // 前瞻：人机预测擂台 (约定时间验证与方法论比对)
@@ -356,6 +357,10 @@ export interface NewsArticle {
   isExternal?: boolean;
   /** 外部信源原文链接（ingest 时写入） */
   sourceUrl?: string;
+  /** 文章正文全文（若已通过页面抓取或入库获取） */
+  content?: string;
+  /** 认知生成的内容基准：full_article (基于正文全文) | rss_summary_only (仅根据 RSS 摘要) */
+  contentBasis?: 'full_article' | 'rss_summary_only' | string;
   /** 同一事件的真实发布记录；用于识别跨媒体转载而不重复渲染文章。 */
   sourceOccurrences?: Array<{
     sourceName: string;

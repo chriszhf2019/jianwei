@@ -98,9 +98,20 @@ export const TongsuModeFeed: React.FC<TongsuModeFeedProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-xs text-stone-500 font-mono">
-                {hasPlain ? '30秒速通 · 大白话版 ✓' : isBusy ? 'AI 讲解生成中…' : '待生成大白话'}
-              </span>
+              <div className="flex items-center space-x-2">
+                {article.contentBasis === 'rss_summary_only' || (!article.content && (article.isExternal || !isDeepParsed)) ? (
+                  <span className="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-mono" title="该条目未抓取到完整正文，AI基于RSS简报/摘要推演">
+                    仅根据 RSS 摘要
+                  </span>
+                ) : (article.contentBasis === 'full_article' || Boolean(article.content)) ? (
+                  <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono" title="已拉取正文原文进行完整解析">
+                    基于原文全文
+                  </span>
+                ) : null}
+                <span className="text-xs text-stone-500 font-mono">
+                  {hasPlain ? '30秒速通 · 大白话版 ✓' : isBusy ? 'AI 讲解生成中…' : '待生成大白话'}
+                </span>
+              </div>
             </div>
 
             {/* Title */}

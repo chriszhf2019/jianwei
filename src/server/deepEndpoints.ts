@@ -4,6 +4,7 @@ import { activeProvider, callAI, callAIWithReasoning, providerModel } from "./ai
 import { serverCorpus, persistCorpus, findCorpusArticle } from "./corpus";
 import { djb2 } from "./cache";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
+import { inspectSource } from "./sourceVerification";
 import {
   PROMPT_VERSIONS,
   attachFieldMeta,
@@ -283,10 +284,36 @@ async function runSingleSkill(
   const provider = activeProvider();
   if (!provider) return res.json({ ok: false, reason: "no_api_key" });
   const model = providerModel(provider);
+
+  const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
+  let effectiveContent = String(content || "").trim();
+  let contentBasis: "full_article" | "rss_summary_only" = "rss_summary_only";
+
+  // 尝试优先使用正文原文：1. 语料库自身已有的正文；2. 抓取 sourceUrl 提取全文
+  if (target?.content && target.content.length > 400) {
+    effectiveContent = target.content;
+    contentBasis = "full_article";
+  } else if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
+    try {
+      const inspected = await inspectSource(sourceUrl);
+      if (inspected?.pageText && inspected.pageText.length > 300) {
+        effectiveContent = inspected.pageText.slice(0, 6000);
+        contentBasis = "full_article";
+        if (target && !target.content) {
+          target.content = inspected.pageText.slice(0, 50000);
+          persistCorpus();
+        }
+      }
+    } catch {
+      // 网络抓取不可用或超时，保持 rss_summary_only
+    }
+  }
+
   const cacheKey = `${opts.skillKey}:${djb2([
     String(articleId || "").trim(),
     String(title || "").trim(),
-    String(content || "").trim(),
+    effectiveContent.slice(0, 500),
+    contentBasis,
     provider,
     model,
     PROMPT_VERSIONS.skill,
@@ -298,7 +325,7 @@ async function runSingleSkill(
     sourceUrl: String(sourceUrl || ""),
     publishedAt: String(publishedAt || ""),
     category: String(category || "外部信源"),
-    content: String(content || ""),
+    content: effectiveContent || "请基于标题讲解",
   });
   try {
     const generated = await getOrCreateCached(cacheKey, async () => {
@@ -318,7 +345,6 @@ async function runSingleSkill(
     });
     const value = generated.data;
     const wasCached = generated.cached || generated.deduped;
-    const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
     const fieldMeta = createFieldMeta(
       provider,
       model,
@@ -327,14 +353,17 @@ async function runSingleSkill(
     );
     if (target) {
       target[opts.field] = value;
+      target.contentBasis = contentBasis;
       attachFieldMeta(target, [opts.field], fieldMeta);
       persistCorpus();
     }
     res.json({
       ok: true,
       cached: wasCached,
+      contentBasis,
       overrides: {
         [opts.field]: value,
+        contentBasis,
         ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}),
       },
       fieldMeta,

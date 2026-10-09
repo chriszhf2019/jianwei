@@ -212,7 +212,7 @@ export function registerCorpusRoutes(app: Express, applyRateLimit: RateLimiter):
     }
     try {
       const { items, result } = await ingestAllFeeds(feedUrls());
-      const maxAgeDays = Number(process.env.FEED_MAX_AGE_DAYS || 30);
+      const maxAgeDays = Number(process.env.FEED_MAX_AGE_DAYS || 730);
       appendFeedItems(items, maxAgeDays, {
         urls: result.urls,
         errors: result.errors,

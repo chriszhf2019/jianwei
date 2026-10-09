@@ -1,8 +1,8 @@
-const { getBaseUrl, getToken, clearSession } = require('./storage');
+const { getBaseUrl, getToken, clearSession, getGuestId, setGuestId } = require('./storage');
 
 /**
  * 统一请求。小程序必须走 HTTPS 合法域名（开发时可在开发者工具关闭域名校验）。
- * 认证只走 header，不依赖浏览器 Cookie（游客 jw_guest_id 在小程序侧不可靠）。
+ * 认证只走 header，同时传递 x-jianwei-guest-id 维护未登录态深度解读额度。
  */
 function request({ path, method = 'GET', data, auth = true, timeout = 45000 }) {
   const baseUrl = getBaseUrl();
@@ -12,6 +12,7 @@ function request({ path, method = 'GET', data, auth = true, timeout = 45000 }) {
 
   const header = {
     'Content-Type': 'application/json',
+    'x-jianwei-guest-id': getGuestId(),
   };
   if (auth) {
     const token = getToken();
@@ -29,6 +30,9 @@ function request({ path, method = 'GET', data, auth = true, timeout = 45000 }) {
       header,
       timeout,
       success(res) {
+        if (res.header && res.header['x-jianwei-guest-id']) {
+          setGuestId(res.header['x-jianwei-guest-id']);
+        }
         const status = res.statusCode || 0;
         const body = res.data;
         if (status === 401) {

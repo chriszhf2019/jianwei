@@ -147,7 +147,7 @@ export function useCorpusStore() {
           const body: Record<string, string> = {
             articleId: article.id,
             title: article.title,
-            content: (article.summary || article.subtitle || article.title).slice(0, 600),
+            content: (article.content || article.summary || article.subtitle || article.title).slice(0, 4000),
             source: article.sourceName || '',
             sourceUrl: article.sourceUrl || '',
             publishedAt: article.publishedAt || '',
@@ -201,7 +201,7 @@ export function useCorpusStore() {
           const body = {
             articleId: article.id,
             title: article.title,
-            content: (article.summary || article.subtitle || article.title).slice(0, 600),
+            content: (article.content || article.summary || article.subtitle || article.title).slice(0, 4000),
             source: article.sourceName || '',
             sourceUrl: article.sourceUrl || '',
             publishedAt: article.publishedAt || '',

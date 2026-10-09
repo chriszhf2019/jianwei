@@ -1,173 +1,168 @@
 # 见微 Genway · 程序设计与数据架构（DESIGN / ARCHITECTURE）
 
-> 2026-09-04　初版｜2026-09-12　按 `FUNCTION_LOGIC_AUDIT_V2.md` 同步：移除内置演示文章/综合健康分/静态星级/共振加权公式等已作废表述，反映 SQLite 主存储 + 真实语料派生 + 不可外推边界现状。
-> 配套：`PROJECT_STATUS.md`（状态/运维）、`README.md`（使用）、`FUNCTION_LOGIC_AUDIT_V2.md`（功能逻辑与可信度审计）、`FUNCTION_SCIENTIFIC_REVIEW.md`（逐功能科学性判定）、`SCIENCE_EVALUATION_PROTOCOL.md`（评测协议）、`DATA_PIPELINE_DESIGN.md`（演进蓝图）
-> 本文回答三件事：**为什么这样设计**（设计思路）、**做了什么**（功能）、**数据怎么组织与流动**（数据架构）。
+> 2026-09-04 初版 ｜ 2026-10-08 架构重构与逻辑梳理同步：
+> 全面确立「IT、科技、财经、教育」四大核心领域支柱体系；彻底清除全部预置假数据与静态占位（Zero Mock Data）；落实 SQLite 主存储 + 真实 RSS 摄取 + 确定性算法派生 + 科学降级边界；全功能闭环贯通。
+> 配套文档：`ARCHITECTURE_RELATIONS.md`（功能流转与触发关系）、`FUNCTION_LOGIC_AUDIT_V2.md`（功能逻辑与可信度审计）、`UI_CONTROLS.md`（控件与交互规范）。
 
-***
+---
 
-## 1. 程序设计思路
+## 1. 系统核心设计理念
 
-### 1.1 产品理念
-
+### 1.1 产品愿景
 “于细微处，读懂新闻背后；报刊为骨，数据为翼，光谱拆解为记。”
+- **目标用户**：严肃决策者、产业研究员、量化/宏观投资者与科技专业人士——拒绝浮躁的标题流与二手编译噪声，专注**可复核的认知增量**。
+- **全链路认知闭环**：
+  $$\text{信源验真} \longrightarrow \text{事实解构（七要素/光谱）} \longrightarrow \text{因果拓扑（逻辑树/涟漪/共振）} \longrightarrow \text{决策行动（身份透镜/预测契约/知识沉淀）}$$
 
-- 目标用户：严肃决策者/投资/产业人士——需要的是**可复核的认知增量**，而非标题流。
+### 1.2 四大核心领域支柱（Canonical Pillars）
+系统建立了规范化互斥归类引擎（`categoryClassifier.ts`），贯穿首页信息流、情报中心、专题档案与全文检索：
+1. **IT（信息技术与智能工程）**：涵盖 AI 基础模型架构、智能体 (Agent)、开源生态、软件工程、云计算、Linux 与网络安全（信源：arXiv cs.AI/cs.CL、Solidot、36Kr 前沿）。
+2. **科技（硬核科技与先进制造）**：涵盖半导体晶圆制造、先进封测 (CoWoS/CPO)、光刻机、量子物理、新能源动力电池、航天军工与新材料。
+3. **财经（全球宏观与资本市场）**：涵盖美联储与全球央行货币政策、主权债务收益率、离岸流动性、汇率、外汇、大宗商品与投融资（信源：FT中文网、央行与全球财经快讯）。
+4. **教育（高等教育与认知科学）**：涵盖全球大学前沿科研、脑科学与认知神经学、师资教改、智慧教育科技 (EdTech) 与人才培养（信源：ScienceDaily Education & Learning、教育部与高校学报）。
 
-- 认知闭环：**信源验真 → 事实解构（七要素/光谱）→ 因果拓扑（逻辑树/涟漪/共振）→ 决策行动（身份影响/预测契约/雷达）**。
+### 1.3 三大工程铁律
+1. **真实数据零伪造（Zero Mock Data）**：
+   - 彻底废弃所有静态预置新闻、假造预测和虚构知识笔记（`INITIAL_KNOWLEDGE_ITEMS = []`）。
+   - 运行时语料 100% 由用户真实导入或后端真实 RSS/Atom 抓取，经 SQLite 事务持久化。
+2. **可解释算法与公式公开**：
+   - 净情绪（词典法）、文本共振（字符二元组相似度）、赛道盲区等一律提供公开算法，禁止生成黑盒“虚假综合分”。
+3. **AI 诚实标注与确定性降级**：
+   - 模型自评分统一标示为“模型自评 · 未校准”；
+   - 在线 AI 服务不可用或无 Key 时，全自动平滑降级为本地确定性规则与启发式算法，严禁幻觉编造。
 
-- 阅读节奏光谱：同一内容提供 报刊/对话/数据/杂志/沉浸 五种排版范式（现统一收敛在详情页 DeepSpectrum 内联实现）。
+---
 
-### 1.2 三条设计原则（贯穿全部实现）
-
-1. **数据真实优先**：能由语料派生的指标一律派生并展示公式；无法派生的要么移除、要么明确标注“示例/编辑口径”。
-2. **AI 诚实标注**：所有在线模型输出带“AI 判断，非事实结论”与置信度/引句；无 Key/离线自动降级为**确定性本地算法**并标注；绝不编造内容。
-3. **可复核优于炫技**：共振、净情绪、覆盖率等派生指标均公开算法与词表；地区/主体标注落库可回查原文；不再合成单一“综合健康分”或“可信度分数”。
-
-### 1.3 渐进式真实化（本仓库的演化主线）
-
-真实 RSS 摄取（382 篇运行时语料）→ 面板逐项真实化（快照/热力/密度/可追溯性/盲区/明日关注）→ AI 全量标注（涉事地区/主体，断点续跑写回 SQLite）→ 组合下钻与导出。默认零演示数据；`JIANWEI_ENABLE_DEMO_DATA=1` 才允许加载历史演示语料供开发回归。
-
-***
-
-## 2. 技术架构
-
-```
-[浏览器] React19 + Vite + Tailwind4(motion)
-   │  fetch(/api/*)                     [服务端] Node + Express（server.ts）
-   │                                    ├─ 静态托管（dist/，生产）
-   │                                    ├─ AI Provider 抽象（Gemini / DeepSeek 双通道）
-   │                                    ├─ 运行时设置（settings.json，热更新）
-   │                                    ├─ 运行时语料（SQLite 主存储，摄取+标注+核验持久化）
-   │                                    └─ 通用注解器（分页/断点/取消/写回）
-[本地数据] data/settings.json · data/corpus.db（SQLite 主存储）+ data/corpus.json（兼容快照）· 浏览器 localStorage（用户态）
-[调度/常驻] launchd com.user.news-jianwei（KeepAlive）或 scripts/start-server.sh
-```
-
-- **前后端一仓**：`server.ts` = Express + Vite 中间件/静态；`src/` = React 前端；`src/server/feeds.ts` = RSS 摄取；服务端可 import 前端纯工具（赛道词库/时间解析）保持口径一致。
-
-- **AI 通道层**（`server.ts: activeProvider/runAI/callAI(WithReasoning)`）：Gemini（@google/genai）与 DeepSeek（OpenAI 兼容，支持 `deepseek-reasoner` 思考链）；默认 Gemini→DeepSeek，`AI_PROVIDER` 可强制；未配置 Key → 全站本地兜底。
-
-- **持久化**：运行时语料以 `data/corpus.db`（SQLite）为主存储，事务写入、自动迁移；`corpus.json` 仅作兼容快照；用户态偏好/契约/备忘录经 `useLocalState`（`jianwei:*` 前缀 + 版本化）写入浏览器 localStorage；服务端设置存 `data/settings.json`（Key 脱敏，不入库）。
-
-- **抗外部依赖**：RSS 解析（正则）、中文时间解析、字符二元组相似度、词典情感均为零第三方依赖实现，可离线运行。
-
-***
-
-## 3. 主要功能模块（导航视角）
-
-| 模块        | 主要功能                                                                               | 关键组件/端点                                      |
-| --------- | ---------------------------------------------------------------------------------- | -------------------------------------------- |
-| 全局壳       | 顶栏（ticker/搜索/身份/设置/AI分析）、页脚、模态（Esc/退场动画）                                           | Header/App/SettingsModal/hooks               |
-| 首页        | 三态阅读（标准/通俗/脱水）、分类+雷达+内容口径筛选、监控词真实命中、词典净情绪                                          | HomeView/\*Feed/MyRadarWidget/HomeHeroStatus |
-| 新闻详情      | 六页签认知路径、五节奏排版、人机预测擂台、契约、微观探针、浅层条目懒补全                                               | NewsDetailView/六 Tab/ForecastArenaTab        |
-| 情报中心      | 语料快照、跨事件共振、到达热力（来源/地区/涉事地区×时段/7天）、密度曲线（总量/来源/赛道）、信源健康、盲区扫描、明日热度点名、冲突仲裁、地区/主体 AI 标注 | intelligence/\*（9+ 面板）                       |
-| 地区情报（Tab） | 涉事地区依赖预警、覆盖/去重/趋势、地区×赛道矩阵下钻、地区×主体×赛道三级下钻、组合聚合、CSV 导出                               | RegionIntelligencePage + 面板群                 |
-| 专题档案      | 长周期专题与时间轴                                                                          | TopicsView                                   |
-| 我的关注      | 契约档案与回测（Brier）、监控雷达、收藏、行动备忘录                                                       | MyFocusView + useLocalState                  |
-| 搜索        | 文章/专题/雷达 客户端检索（150ms 防抖）                                                           | SearchModal                                  |
-
-**标志性交互链路**：RSS 设置摄取 → 语料快照/热力真实化 → 浅层条目详情自动 DeepSeek 补全 → 全量地区/主体标注 → 三级下钻到原文 → CSV 导出。
-
-***
-
-## 4. 数据架构
-
-### 4.1 核心数据契约（src/types.ts）
-
-- `NewsArticle`：标题/摘要/定性 + `tongsuSummary` + `dehydratedItems` + `sevenElements` + `logicTree` + `personaImpacts`(6) + `rippleEffect` + `spectrumLayers`(5) + `evidenceChain`；外部摄取增强字段：`sourceUrl/publishedAt/isExternal/regionMentions/entityMentions`。
-
-- 聚合响应：`SnapshotResponse`（派生统计+地区标注）、`PairAnalysis`（共振）、`PredictionContract`（人机契约）、`Settings`（脱敏）等。
-
-- 用户态（浏览器）：收藏/关注/雷达/契约/备忘录/身份/引擎偏好 —— 经 `useLocalState`（`jianwei:` 前缀 + 版本化）持久化。
-
-### 4.2 数据流
+## 2. 总体技术架构
 
 ```
-外部 RSS(NEWS_FEED_URLS) ──POST /api/feeds/ingest──▶ 运行时语料 serverCorpus
-      │ parseRSS(零依赖)                              │ 规范 URL + 规范标题双键去重；同题跨媒体
-      ▼ 派生（同一语料实时计算）                        ▼ 写回
- /api/snapshot 语料统计 /api/corpus?region=…        data/corpus.db（SQLite 事务，重启不丢）
- AI 层：enrich(浅层懒补全·缓存) / predict(双轨) /
-        regions·entities（通用注解器→regionMentions/entityMentions→persist）
-        sourceVerification(页面核验→SHA-256 指纹+引句匹配→缓存 24h)
- 前端：App 启动拉取 /api/corpus 合并进信息流 → 各面板/页面派生渲染
+┌───────────────────────────────── 客户端 (React 19 + Tailwind CSS) ─────────────────────────────────┐
+│                                                                                                    │
+│  App.tsx (全局状态 / 路由编排 / useAppStorage / useAppRouter / useModalStack)                      │
+│   │                                                                                                │
+│   ├─ Header (全景导航 / 六大身份透镜 / 搜索入口 / 运行时设置 / 读懂新闻提交)                         │
+│   ├─ 首页 HomeView (标准/通俗/脱水 三态流 / 4核心赛道+监控词+多源印证 / 今日·3日·全部 时效窗口)    │
+│   ├─ 深度详情 NewsDetailView (七要素 / 逻辑树 / 身份透镜 / 涟漪效应 / DeepSpectrum / 预测擂台)    │
+│   ├─ 专题档案 TopicsView (7大战略母题档案 / 真实演进时间轴 / 阵营博弈 / 证伪条件 / 7日热度火花线)   │
+│   ├─ 情报中心 IntelligenceHub (快照 / 共振 / 热力 / 密度 / 信源健康 / 盲区雷达 / 明日点名)        │
+│   ├─ 地区情报 RegionIntelligencePage (涉事地区依赖预警 / 地区×赛道矩阵 / 三级下钻 / CSV 导出)      │
+│   └─ 我的关注 MyFocusView (战略知识库 / 预测契约与 Brier 校准 / 监控雷达 / 关注标签 / 行动备忘录)  │
+│                                                                                                    │
+└────────────────────────────────────────────┬───────────────────────────────────────────────────────┘
+                                             │ HTTP fetch(/api/*)
+┌────────────────────────────────────────────▼───────────────────────────────────────────────────────┐
+│ 服务端 server.ts (Node.js + Express 5 + SQLite3)                                                   │
+│   ├─ AI Provider 抽象层：Gemini (@google/genai) / DeepSeek (OpenAI 兼容) 双通道                   │
+│   ├─ 语料库核心：SQLite 主存储 (data/corpus.db) + WAL 模式 + 双键规范去重 (URL + 标题)             │
+│   ├─ 真实信源摄取管道：零外部依赖 RSS / Atom 解析 (src/server/feeds.ts)                             │
+│   ├─ 通用注解器：区域提取、主体实体抽取、长文 DeepSeek 自动补全 (Enrich)                           │
+│   └─ 来源核验与安全沙箱：SSRF 校验 + SHA-256 页面指纹匹配 + 逐字引句核验                           │
+└────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.3 存储矩阵
+---
 
-| 数据                | 位置                                  | 说明                                               |
-| ----------------- | ----------------------------------- | ------------------------------------------------ |
-| 设置/Key/信源/词库覆盖    | `data/settings.json`                | 服务端热更新；接口脱敏（不回传 Key）                             |
-| 运行时语料+AI 标注       | `data/corpus.db`（SQLite 主存储）        | 摄取、注解、来源核验结果、AI 调用记录均事务写入；JSON 兼容快照              |
-| 来源核验缓存            | `data/corpus.db`                    | URL/页面 SHA-256 指纹/引句上下文/文本偏移/核验时间，默认 24h         |
-| AI 调用记录           | `data/corpus.db`                    | provider/model/真实 token usage/状态/错误，默认每日 500 次上限 |
-| 用户态偏好/契约/备忘录      | localStorage（`jianwei:*`，带 version） | 前端                                               |
-| enrich/predict 缓存 | 服务端内存 LRU                           | enrich 24h；predict 10min 且 key 含文章+命题+模型上下文      |
-| 限流                | 内存滑动窗口                              | 默认 300 次/分/IP，429                                |
+## 3. 核心功能模块与业务逻辑设计
 
-### 4.4 派生算法汇总（公式公开）
+### 3.1 首页综合信息流（HomeView）
+- **多维阅读范式**：
+  - *标准模式*：首屏 5 张高密度深度研判大报卡片 + 紧凑资讯列表，展示动机剖析、多方立场、涉事地点与证据印证；
+  - *通俗模式*：生活化比喻、大白话归纳、零门槛快速理解复杂事件；
+  - *脱水模式*：30 秒极速干货，提炼核心事实、数据锚点与切身启示。
+- **时间窗口控制**：
+  - 支持「今日」、「近 3 日」、「全部」三档过滤。
+  - **空态弹性引导**：当某个赛道在“今日”时间窗无新条目时，系统智能识别历史沉淀篇数，并提供“一键切换至全部范围查看档案”或“重置筛选”按钮，消除用户“无内容”疑虑。
+- **动态计数与多源印证**：
+  - 分类胶囊按钮实时计算当前时间窗口下各分类的精准条数（如 `IT (219)`、`科技 (260)`、`财经 (8)`、`教育 (4)`）；
+  - 「多源印证」智能筛出 7 天内被 2 个及以上独立来源报道的重大事实。
 
-- **净情绪（词典代理）**：`净=(正向-负向)/(正+负)×100`，逐篇唯一归类为正向/负向/中性/交织，修复正负重复计数（词表 `corpusMetrics.ts`）
+### 3.2 深度研判详情页（NewsDetailView）
+- **认知光谱与六大拆解视图**：
+  - *7W 要素表*：事由、主体、时间、地点、动机、代价与深远影响；
+  - *因果逻辑树*：前因背景、直接诱因、核心矛盾、演进路径与衍生变量；
+  - *身份利益透镜*：针对二级市场投资者、创业者、产业观察员、宏观经济学者等 6 种画像量身定制行动建议；
+  - *涟漪二阶效应*：模拟事件在产业链上下游的 1 阶至 3 阶传导波及；
+  - *五节奏排版 (DeepSpectrum)*：报刊版、对话流、数据密集表、杂志叙事与极简沉浸；
+  - *微观探针 (AI Probe)*：针对当前文章的事实细节发起深度追问，支持流式与确定性算法降级。
+- **双向沉淀到战略知识库**：
+  - 详情页顶栏提供「📥 沉淀到知识库」动作；
+  - 点击后，系统自动抽取核心定性、事实锚点与决策启示，写入用户个人的战略知识库；
+  - 状态实时响应并在详情页和知识库双向同步展示已存状态。
 
-- **跨事件共振**：共享标签 + 字符二元组文本相似度（文本信号，非因果；详见 `CrossEventNexus`）
+### 3.3 战略专题档案库（TopicsView）
+- **7 大前沿战略母题聚类**：
+  1. `dossier_ai_compute`：全球 AI 算力军备竞赛与物理功耗硬阻尼（科技/芯片）
+  2. `dossier_ai_agent_software`：开源生态与自主智能体 (AI Agent) 架构重构（IT/软件）
+  3. `dossier_solid_battery`：全固态电池产业化决战与下一代材料重塑（先进制造）
+  4. `dossier_macro_liquidity`：全球央行流动性周期与主权债务定价博弈（财经/宏观）
+  5. `dossier_education_transformation`：认知科学范式跃迁与全球高等教育重构（教育/科研）
+  6. `dossier_geopolitics_tariff`：逆向出海、散件组装 (CKD) 与地缘原产地合规穿透（地缘经贸）
+  7. `dossier_embodied_robotics`：具身智能与人形机器人从工业实测走向通用化（智能制造）
+- **动态关联与演化时间轴**：
+  - 专题母题根据关键词与赛道分类动态吸纳语料库中最新文章；
+  - 自动依据真实发布时间生成 7 天内演化脉络、各方阵营博弈诉求与证伪触发条件；
+  - 支持双专题横向并排对比（热度波浪、阵营诉求与演化速度对比）与 Markdown 全文导出。
 
-- **数据源完整度**：原文链接、发布时间、来源构成、已知来源集团覆盖（不再合成综合健康分）
+### 3.4 预测擂台与科学校准（Forecast Arena & Brier Ledger）
+- **人机双轨预测**：
+  - 用户可针对新闻中的未决事件与 AI 展开概率预测对决；
+  - 系统生成不可篡改的「预测契约」，记录预测命题、置信度、履约截止日与验证标准；
+- **Brier 分数严格回测**：
+  - 采用标准 Brier Score 公式：$\text{Brier} = \frac{1}{N} \sum_{t=1}^N (f_t - o_t)^2$；
+  - 支持事件事后真实结果核验、来源复核与偏差雷达图绘制，杜绝事后诸葛亮。
 
-- **覆盖/盲区、明日关注**：赛道词典命中计数 / 最近窗口按真实发布时间排序（不再取数组尾部；词库双端同步）
+### 3.5 个人中心与认知沉淀（MyFocusView）
+- **战略知识库面板 (KnowledgeBasePanel)**：
+  - 集中管理用户从新闻沉淀的关键卡片，支持按分类检索、打标签、补充个人批注与一键导出；
+  - 彻底移除了旧版本中的硬编码静态假卡片，展现真实沉淀的干净状态；
+- **监控雷达与关注流**：
+  - 用户自定义监控关键词，系统在摄取真实资讯时自动实时匹配并高亮呈现；
+  - 支持个人专属行动备忘录 (Action Memos)，一键归档决策要点。
 
-- **重大突发**：标题强/弱信号词 + 否定语境过滤；非官方来源需 ≥2 独立来源，已收录官方媒体允许单源
+---
 
-- **多源印证**：7 天内不同发布方、标题相似度 ≥46% 聚合；AI 文本列出的媒体不计入独立来源
+## 4. 数据架构与持久化规范
 
-- **来源集团归一**：新华社系/人民网系/央视总台系/光明日报系按集团合并；未登记域名保留为“集团未知”
-
-- **热力/密度**：外部条目 publishedAt → 4h/2h/自然日分桶的真实条数
-
-- **AI 标注**：DeepSeek 逐条 JSON（confidence 标为模型自评分），写回字段供一切面板复用
-
-- **来源页面核验**：SSRF 防护（拒本机/内网/保留地址）+ SHA-256 指纹 + 引句精确匹配；只验证引句是否逐字出现，不验证整篇报道为真
-
-- **预测校准**：Brier、Log Loss、20 个百分点分桶；样本 <20 只累计不评判优劣
-
-### 4.5 诚实/降级矩阵
-
-| 能力                                                              | 有 Key（在线）                    | 无 Key/离线             |
-| --------------------------------------------------------------- | ---------------------------- | -------------------- |
-| analyze/predict/enrich/advisor/probe/conflicts/regions/entities | 真实模型（部分含缓存）                  | 本地确定性算法或明确“不可用”，绝不造假 |
-| 语料派生统计/热力/密度/可追溯性/盲区/明日关注                                       | 同一语料实时派生（无 Key 也成立）          | 同左                   |
-| 媒体档案 A/B/C                                                      | 人工维护域名表（A=官方/B=主流商业/C=泛科技观点） | 同左；未收录来源标“来源未收录”，不虚标 |
-
-***
-
-## 5. 目录结构速览
-
+### 4.1 数据流转与生命周期
 ```
-server.ts                      Express + 静态 + AI Provider + 设置/语料/注解器 + 全部 /api
-src/App.tsx                    状态编排/路由/持久化(useLocalState)
-src/types.ts                   契约中心
-src/utils/{dateUtils,publishedAt,corpusMetrics,sectorTaxonomy,mentionRegion,sourceRegion,intelExport}
-src/hooks/{useLocalState,useEscapeClose,useSnapshot,useAIProvider}
-src/components/{home,intelligence,detail,focus,topics}+modals+RegionIntelligencePage
-src/server/feeds.ts            零依赖 RSS 抓取/解析
-src/data/*.ts                  术语/兜底数据（演示文章仅在 JIANWEI_ENABLE_DEMO_DATA=1 加载）
-scripts/{start-server,release-check,smoke,functional-test,com.news.jianwei.server.plist,fixtures}
-data/{settings.json,corpus.db,corpus.json}    （本地，gitignore）
+外部信源 RSS / 用户输入
+       │
+       ▼ (1. 抓取与零依赖解析)
+规范化 URL + 规范化标题 (SHA-256 去重)
+       │
+       ▼ (2. SQLite 事务落库)
+data/corpus.db (articles 表，WAL 模式)
+       │
+       ├─► 启发式确定性派生 ──► 净情绪、共振、赛道盲区、时段热力、发布密度
+       │
+       ├─► AI 通用注解器 (异步/按需) ──► 实体提取、涉事地区、长文深度拆解 (enrich)
+       │
+       └─► 前端实时同步 (GET /api/corpus)
+              │
+              ├─► HomeView 动态多维度信息流
+              ├─► IntelligenceHub 全局态势快照
+              ├─► TopicsView 战略专题档案
+              └─► 详情页沉淀 ──► localStorage (jianwei:knowledge-items, contracts)
 ```
 
-## 6. 测试与发布
+### 4.2 存储表结构与职责划分
+| 存储介质 | 存储对象 | 职责与安全规范 |
+|---|---|---|
+| `data/corpus.db` (SQLite) | 真实语料库 (`articles`) | 保存全文、发布时间、信源、Canonical 赛道、AI 实体与地区标注 |
+| `data/corpus.db` (SQLite) | 来源核验 (`source_verifications`) | URL、页面 SHA-256 指纹、逐字引句命中偏移、核验有效时间 |
+| `data/corpus.db` (SQLite) | AI 调用日志 (`ai_call_logs`) | 记录 Provider、模型名称、Token 消耗、延迟与错误日志 |
+| `data/settings.json` | 系统级设置 | RSS 信源列表、API Key（接口自动脱敏，不透传给前端）、分类覆盖 |
+| `localStorage` (`jianwei:*`) | 用户私有状态 | 收藏 ID、监控雷达词、预测契约、知识库卡片、阅读器偏好 |
 
-- `pnpm lint`（tsc --noEmit）、`pnpm test:unit`（28 例核心算法）、`pnpm smoke`（19 项 API 冒烟）、`pnpm test:func`（30 项功能级，需 RSS 夹具:3211）
+---
 
-- `pnpm release-check`：tsc → vite → esbuild → **纯净实例**（`JIANWEI_NO_SETTINGS=1`，无 Key 不写盘）→ smoke + functional —— 全绿
+## 5. 质量保证与发布规范
 
-- 在线通道实测：DeepSeek（chat/reasoner）、地区/主体全量 382 条（实体有结果 367 条）、限流 429 实证；来源核验 387 条记录、381/382 可访问
+- **静态类型与代码质量检查**：
+  - `npm run lint`：TypeScript 全量语法与类型检查，确保无断点、无缺失引用；
+  - `npm run build`：生产环境打包验证，确保 Vite/Rollup 构建通过；
+- **全站零外推与科学性审查**：
+  - 严格遵循 `SCIENCE_EVALUATION_PROTOCOL.md` 中的判定准则；
+  - 保证所有指标均可溯源至原始语料文本，严禁合成伪指标。
 
-## 7. 扩展点（下一步候选）
-
-1. `strict` 类型收口（先补 @types/react/react-dom）
-2. 通用注解器新增维度（机构关系/实体属性）只加 `kind`
-3. 真实日历事件 → 概率化明早点名；逐源 tier/立场 → 仲裁与星级细化
-4. 定时调度（launchd StartCalendarInterval 触发 ingest/annotate）；组合聚合页共享/订阅（URL 快照）
-5. 密钥保管/多用户鉴权（离开单机演示前必须处理）
 

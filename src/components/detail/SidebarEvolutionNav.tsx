@@ -14,6 +14,7 @@ import {
   Layers,
   Crosshair,
   GitFork,
+  GitMerge,
   UserCheck,
   Compass,
   ArrowDownRight,
@@ -44,6 +45,7 @@ export interface EvolutionMilestone {
 const TAB_ICON_MAP: Record<CognitiveDetailTab, React.ReactNode> = {
   seven_elements: <Sparkles className="w-3.5 h-3.5 text-[#E3120B]" />,
   logic_tree: <GitFork className="w-3.5 h-3.5 text-purple-600" />,
+  butterfly_effect: <GitMerge className="w-3.5 h-3.5 text-amber-500" />,
   architecture_diagram: <Layers className="w-3.5 h-3.5 text-blue-600" />,
   relevance_identity: <UserCheck className="w-3.5 h-3.5 text-emerald-600" />,
   forecast_arena: <Crosshair className="w-3.5 h-3.5 text-red-600" />,

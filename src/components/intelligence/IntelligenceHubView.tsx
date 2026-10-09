@@ -36,7 +36,7 @@ import { FeatureSummary } from '../common/FeatureSummary';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 
 type SnapshotStatus = 'loading' | 'ok' | 'error';
-type HubSection = 'overview' | 'supply_stress' | 'competitor_radar' | 'signals' | 'sources' | 'regions' | 'advisor';
+type HubSection = 'overview' | 'signals' | 'sources' | 'regions' | 'advisor';
 
 /** 情报中心默认「最近」窗口（含今天） */
 const HUB_RECENT_DAYS = 7;
@@ -69,6 +69,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 }) => {
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
   const [section, setSection] = useState<HubSection>('overview');
+  const [showScenarioSandbox, setShowScenarioSandbox] = useState<boolean>(false);
   const recentArticles = useMemo(
     () => filterRecentArticles(contextArticles, HUB_RECENT_DAYS),
     [contextArticles]
@@ -84,17 +85,13 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
   const sections: Array<{ id: HubSection; label: string; icon: React.ReactNode }> = [
     { id: 'overview', label: '态势总览', icon: <Activity className="w-4 h-4" /> },
-    { id: 'supply_stress', label: '断供压力测试', icon: <ShieldAlert className="w-4 h-4 text-rose-500" /> },
-    { id: 'competitor_radar', label: '竞对异动雷达', icon: <Compass className="w-4 h-4 text-amber-500" /> },
-    { id: 'signals', label: '信号', icon: <Flame className="w-4 h-4" /> },
+    { id: 'signals', label: '信号与共振', icon: <Flame className="w-4 h-4" /> },
     { id: 'sources', label: '来源与实体', icon: <Database className="w-4 h-4" /> },
-    { id: 'regions', label: '地区观察', icon: <MapPin className="w-4 h-4" /> },
+    { id: 'regions', label: '地缘观察', icon: <MapPin className="w-4 h-4" /> },
     { id: 'advisor', label: 'AI 顾问', icon: <Bot className="w-4 h-4" /> },
   ];
   const sectionFeatureId: Record<HubSection, FeatureSummaryId> = {
     overview: 'intelligence-overview',
-    supply_stress: 'intelligence-overview',
-    competitor_radar: 'intelligence-overview',
     signals: 'intelligence-signals',
     sources: 'intelligence-sources',
     regions: 'intelligence-regions',
@@ -328,20 +325,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         onOpenArticleById={onOpenArticleById}
       />
 
-      {/* 2.9 全球供应链断供压力测试与卡脖子模拟器 */}
-      <SupplyChainStressSimulator
-        articles={recentArticles}
-        onSelectArticleTitle={onSelectArticleTitle}
-      />
-
-      {/* 2.95 跨国企业竞争对手异动雷达 */}
-      <CompetitorDynamicRadar
-        articles={recentArticles}
-        onSelectArticleTitle={onSelectArticleTitle}
-      />
-
       {/* 3. 三层全球战略情报中心 (全景宏观 ➔ 行业垂类 ➔ 事件洞察) */}
-
       <StrategicThreeTierCenter
         articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
@@ -360,24 +344,6 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       <SituationReadoutPanel articles={recentArticles} />
       <FrequentPatternPanel articles={recentArticles} />
       </>
-      )}
-
-      {section === 'supply_stress' && (
-        <div className="space-y-6">
-          <SupplyChainStressSimulator
-            articles={recentArticles}
-            onSelectArticleTitle={onSelectArticleTitle}
-          />
-        </div>
-      )}
-
-      {section === 'competitor_radar' && (
-        <div className="space-y-6">
-          <CompetitorDynamicRadar
-            articles={recentArticles}
-            onSelectArticleTitle={onSelectArticleTitle}
-          />
-        </div>
       )}
 
       {section === 'signals' && (
@@ -502,6 +468,38 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       />
       </>
       )}
+
+      {/* 🧪 编辑情景推演沙盒 (Editorial Scenario Sandbox · 假设性模型，非当前语料库实时情报) */}
+      <div className="border-2 border-stone-300 bg-stone-50 rounded-2xl p-6 space-y-4 mt-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200 pb-3">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold border border-amber-300">
+                编辑情景沙盒 · 非实时流
+              </span>
+              <h3 className="text-base font-serif font-black text-stone-900">
+                产业极限断供压力测试与跨国竞对档案模型
+              </h3>
+            </div>
+            <p className="text-xs text-stone-500">
+              用于推演单点断供连锁冲击与假定竞对策略格局。此为编辑部预置之情景假设模型，非当前语料库的实时抓取事实。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowScenarioSandbox(!showScenarioSandbox)}
+            className="px-3.5 py-1.5 rounded-lg bg-white border border-stone-300 hover:bg-stone-100 text-stone-700 text-xs font-serif font-bold transition-colors cursor-pointer shrink-0 shadow-xs"
+          >
+            {showScenarioSandbox ? '收起情景沙盒' : '展开编辑情景沙盒（断供模拟 / 竞对雷达）'}
+          </button>
+        </div>
+        {showScenarioSandbox && (
+          <div className="space-y-6 pt-2">
+            <SupplyChainStressSimulator articles={recentArticles} onSelectArticleTitle={onSelectArticleTitle} />
+            <CompetitorDynamicRadar articles={recentArticles} onSelectArticleTitle={onSelectArticleTitle} />
+          </div>
+        )}
+      </div>
 
     </div>
   );

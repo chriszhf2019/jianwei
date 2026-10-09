@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import zlib from "node:zlib";
+import https from "node:https";
 import express, { type Express } from "express";
 import { createServer as createViteServer } from "vite";
 import { startFeedScheduler } from "./scheduler";
@@ -12,11 +13,13 @@ export type StartServerOptions = {
   app: Express;
   port: number;
   bindHost: string;
+  tlsCertPath?: string;
+  tlsKeyPath?: string;
 };
 
 /** 挂载 Vite/静态资源并监听端口，启动定时摄取与备份。 */
 export async function startServer(options: StartServerOptions): Promise<void> {
-  const { app, port, bindHost } = options;
+  const { app, port, bindHost, tlsCertPath, tlsKeyPath } = options;
 
   if (!NO_PERSIST) cleanupExpiredUserSessions();
 
@@ -90,13 +93,38 @@ export async function startServer(options: StartServerOptions): Promise<void> {
     });
   }
 
-  app.listen(port, bindHost, () => {
-    console.log(`见微 Genway Server running on http://${bindHost}:${port}`);
+  const onStarted = (scheme: string) => {
+    console.log(`见微 Genway Server running on ${scheme}://${bindHost}:${port}`);
     startFeedScheduler();
     startBackupScheduler();
     if (!NO_PERSIST) {
       const sessionCleanup = setInterval(() => cleanupExpiredUserSessions(), 60 * 60 * 1000);
       sessionCleanup.unref?.();
     }
+  };
+
+  const hasTls = Boolean(
+    tlsCertPath &&
+    tlsKeyPath &&
+    fs.existsSync(tlsCertPath) &&
+    fs.existsSync(tlsKeyPath)
+  );
+
+  if (hasTls) {
+    try {
+      const cert = fs.readFileSync(tlsCertPath!, "utf-8");
+      const key = fs.readFileSync(tlsKeyPath!, "utf-8");
+      const httpsServer = https.createServer({ cert, key }, app);
+      httpsServer.listen(port, bindHost, () => {
+        onStarted("https");
+      });
+      return;
+    } catch (e) {
+      console.error("Failed to start HTTPS server with provided credentials, falling back to HTTP:", e);
+    }
+  }
+
+  app.listen(port, bindHost, () => {
+    onStarted("http");
   });
 }

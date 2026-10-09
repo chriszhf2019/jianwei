@@ -13,39 +13,20 @@ export function registerArticleTimelineRoutes(app: import("express").Express, ap
 
     const provider = activeProvider();
     if (!provider) {
-      // Deterministic fallback if AI provider is not available
-      const isTech = String(article.category || "").includes("科技") || String(article.title).includes("AI") || String(article.title).includes("电池");
-      const isGov = String(article.category || "").includes("政策") || String(article.title).includes("关税") || String(article.title).includes("监管");
-    
       return res.json({
-        summary: `围绕《${article.title}》的产业链演变脉络：从前期技术/政策酝酿到当前实质突破，再到后续连锁溢出。`,
+        summary: `围绕《${article.title}》的时序脉络（未配置 AI 密钥）：仅展示事实发生点，不推测前因与未来。`,
+        fallback: true,
+        fallbackReason: "no_api_key",
+        fallbackNote: "未配置 AI 模型密钥。系统拒绝输出虚构的通用故事，仅保留本文基本节点。",
         timeline: [
           {
-            phase: "antecedent",
-            phaseLabel: "📜 前因与溯源",
-            timeLabel: "T-180D ~ T-30D 酝酿期",
-            title: isGov ? "地缘贸易规则重审与前期反补贴立案调查" : isTech ? "上一代架构瓶颈凸显与研发中试线持续投入" : "供需失衡与行业集中度提升",
-            detail: `在此次事件爆发前，相关主体已在行业标准制定、供应链原材料备货及专利布局上进行了多轮博弈与测试。`,
-            impact: "推升了行业准入门槛与单点技术迁移成本。",
-            keySignals: ["专利公开激增", "前期政策吹风会", "供应链散件排期延长"]
-          },
-          {
             phase: "current",
-            phaseLabel: "⚡ 当前关键节点",
-            timeLabel: "当前 (T0) 突破发生",
+            phaseLabel: "⚡ 当前事件节点",
+            timeLabel: article.publishedAt || "当前 (T0)",
             title: article.title,
-            detail: article.summary || article.tongsuSummary || "核心指标落地或关键协议签署，正式确立新的事实标准。",
-            impact: article.oneSentenceVerdict || "重塑产业链利润分配格局，倒逼同业竞品调整应对策略。",
-            keySignals: ["核心性能突破", "正式通告下发", "同业股价与现货价格波动"]
-          },
-          {
-            phase: "future",
-            phaseLabel: "🔮 潜在未来触发点",
-            timeLabel: "T+30D ~ T+180D 演变窗口",
-            title: isGov ? "属地化合规审查落地与关税正式执行节点" : isTech ? "规模化量产良品率爬坡与二代商业化竞品入场" : "上下游议价权重排与新订单周期释放",
-            detail: "未来 90 天内需重点关注下游应用端客户采纳率、监管司法审查终裁及供应链二次扩产节奏。",
-            impact: "决定该技术或政策是否能成为跨周期主导范式。",
-            keySignals: ["客户留存与复购率", "海关通关抽检率", "第三方基准评测报告"]
+            detail: article.summary || article.tongsuSummary || "本文报道之事实核心。",
+            impact: article.oneSentenceVerdict || "未生成专属影响研判（需配置 AI 模型密钥）。",
+            keySignals: ["来源于原文报道"]
           }
         ]
       });
@@ -109,36 +90,20 @@ export function registerArticleTimelineRoutes(app: import("express").Express, ap
       throw new Error("Invalid timeline structure from AI");
     } catch (err: any) {
       console.error("article-timeline AI error:", err);
-      // Fallback response
       return res.json({
-        summary: `围绕《${article.title}》的产业链演变脉络：从前期技术/政策酝酿到当前实质突破，再到后续连锁溢出。`,
+        summary: `围绕《${article.title}》的时序脉络（分析未完成）`,
+        fallback: true,
+        fallbackReason: "ai_error",
+        fallbackNote: "AI 模型时序因果梳理未完成或超时，系统已拒绝生成通用虚构故事，仅保留本文基本节点。",
         timeline: [
           {
-            phase: "antecedent",
-            phaseLabel: "📜 前因与溯源",
-            timeLabel: "前序发酵期 (T-180D ~ T-30D)",
-            title: "行业前置技术研发与政策立项准备",
-            detail: "前期积累的研发投入、实验数据沉淀与地缘政策酝酿构成事件爆发的底层土壤。",
-            impact: "催化上下游供应链提前进行产能与技术选型预备。",
-            keySignals: ["早期论文与专利申报", "属地政策意见征求稿"]
-          },
-          {
             phase: "current",
-            phaseLabel: "⚡ 当前关键节点",
-            timeLabel: "当前正在发生 (T0)",
+            phaseLabel: "⚡ 当前事件节点",
+            timeLabel: article.publishedAt || "当前 (T0)",
             title: article.title,
-            detail: article.summary || article.tongsuSummary || "实质性技术点火或官方通告出台，确立全新市场预期。",
-            impact: article.oneSentenceVerdict || "重塑行业竞争格局与利润分配机制。",
-            keySignals: ["正式发布会 / 官方公报", "行业现货价格与订单异动"]
-          },
-          {
-            phase: "future",
-            phaseLabel: "🔮 潜在未来触发点",
-            timeLabel: "未来演变窗口 (T+30D ~ T+180D)",
-            title: "商业化规模量产验收与次生政策监管终裁",
-            detail: "未来需密切跟进良品率爬坡数据、关键客户装车/部署反馈及海外监管跟进举措。",
-            impact: "验证商业闭环成立并决定中长期市场占有率。",
-            keySignals: ["首批大宗交付验收", "合规审查与反制通报"]
+            detail: article.summary || article.tongsuSummary || "当前节点使用文章已收录信息。",
+            impact: article.oneSentenceVerdict || "未生成专属影响研判。",
+            keySignals: ["来源于原文报道"]
           }
         ]
       });

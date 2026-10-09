@@ -10,7 +10,9 @@
 | # | 控件（文字/图标） | 位置 | 行为 | 实现 | 数据 |
 |---|---|---|---|---|---|
 | 1 | Logo“微/见微 Genway” | Header | 回首页 | Header→onSelectTab('home') | App activeTab |
-| 2 | 首页/情报中心/专题档案/地区情报/我的关注 | Header 导航 | 切换主页面（详情态先回列表） | onSelectTab | activeTab；置顶滚动 |
+| 2 | 今日条目/深度阅读/情报中心/地区情报/我的关注 | Header 导航 | 切换主页面（今日条目/专题长篇深度阅读/情报中心/地区情报/我的关注） | onSelectTab | activeTab；置顶滚动 |
+| 2.1 | 「情报工具」下拉二级菜单 | Header 导航 | 展开专项工具箱（断供模拟器、竞对雷达、架构全景图） | showToolsMenu | 二级工作台抽屉/模态 |
+| 2.2 | 断供模拟器 / 竞对雷达 / 架构全景图 | Header 下拉 | 打开对应专项情报模型推演面板，支持三项自由切换 | onOpenSupplyChainSimulator / onOpenCompetitorRadar / onOpenArchitectureDiagram | activeIntelligenceTool 模态状态 |
 | 3 | ⌘K 搜索按钮 | Header | 打开全局搜索 | onOpenSearch | isSearchOpen |
 | 4 | 身份透镜（当前角色）下拉 | Header | 展开 6 身份菜单 | showPersonaMenu | 本地下拉态 |
 | 5 | 身份菜单项×6 | Header 下拉 | 设全局身份 | onSelectPersona | useLocalState('user-persona') |
