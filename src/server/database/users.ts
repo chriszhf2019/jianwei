@@ -408,6 +408,26 @@ export function consumeGuestDeepRead(
   }
 }
 
+/** 只读当前游客额度，不递增。供「失败不扣次」的端点在成功后自行扣减。 */
+export function peekGuestDeepRead(
+  guestId: string,
+  limit = 1
+): { allowed: boolean; deepReads: number; remaining: number } {
+  const id = String(guestId || "").trim();
+  if (!id) return { allowed: false, deepReads: limit, remaining: 0 };
+  const db = openDatabase();
+  try {
+    const row = db.prepare(
+      "SELECT deep_reads FROM guest_usage WHERE guest_id = ?"
+    ).get(id) as { deep_reads?: number } | undefined;
+    const current = Math.max(0, Number(row?.deep_reads || 0));
+    const allowed = current < limit;
+    return { allowed, deepReads: current, remaining: allowed ? Math.max(0, limit - current) : 0 };
+  } finally {
+    db.close();
+  }
+}
+
 export function cleanupExpiredUserSessions(): number {
   if (!fs.existsSync(DB_FILE)) return 0;
   const db = openDatabase();

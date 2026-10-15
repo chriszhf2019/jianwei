@@ -5,6 +5,9 @@ import { serverCorpus, persistCorpus, findCorpusArticle } from "./corpus";
 import { djb2 } from "./cache";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
 import { inspectSource } from "./sourceVerification";
+import { consumeGuestDeepRead, peekGuestDeepRead } from "./database";
+import { NO_PERSIST } from "./settings";
+import { GUEST_DEEP_READ_LIMIT } from "./authMiddleware";
 import {
   PROMPT_VERSIONS,
   attachFieldMeta,
@@ -21,6 +24,19 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
     const { title, content, source, sourceUrl, publishedAt, category, articleId, force } = req.body || {};
     if (!title && !content) {
       return res.status(400).json({ error: "Title or content is required" });
+    }
+
+    // 游客深度解读额度：先只读校验，成功后再扣；失败/无 Key 不扣次。
+    const auth = (req as any).auth;
+    const isGuest = !!auth?.isGuest;
+    if (isGuest) {
+      const peek = NO_PERSIST ? { allowed: true } : peekGuestDeepRead(auth.guestId, GUEST_DEEP_READ_LIMIT);
+      if (!peek.allowed) {
+        return res.status(403).json({
+          error: "guest_deep_read_limit",
+          message: "游客只能使用一次深度解读，请注册并等待管理员审批。",
+        });
+      }
     }
 
     const provider = activeProvider();
@@ -117,6 +133,9 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
       }
     }
 
+    if (isGuest && !NO_PERSIST) {
+      consumeGuestDeepRead(auth.guestId, GUEST_DEEP_READ_LIMIT);
+    }
     res.json({
       enriched: true,
       cached: wasCached,

@@ -9,7 +9,7 @@ export type AuthConfig = {
   authEnabled: boolean;
 };
 
-const GUEST_DEEP_READ_LIMIT = Math.max(1, Math.min(20, Number(process.env.GUEST_DEEP_READ_LIMIT || 1)));
+export const GUEST_DEEP_READ_LIMIT = Math.max(1, Math.min(20, Number(process.env.GUEST_DEEP_READ_LIMIT || 1)));
 const GUEST_COOKIE_NAME = "jw_guest_id";
 
 export function safeTokenEqual(received: string, expected: string): boolean {
@@ -66,7 +66,6 @@ export function isGuestLightSkillRoute(pathname: string): boolean {
 export function isGuestDeepRoute(pathname: string): boolean {
   if (isGuestLightSkillRoute(pathname)) return false;
   return (
-    pathname === "/enrich" ||
     pathname.startsWith("/skill/") ||
     pathname === "/analyze" ||
     pathname === "/fetch-article" ||
@@ -78,6 +77,11 @@ export function isGuestDeepRoute(pathname: string): boolean {
     pathname === "/region/interpret" ||
     pathname === "/intelligence/frequency"
   );
+}
+
+/** 深度解读额度延后扣减：处理器成功后才扣，失败不扣次。 */
+export function isGuestDeferredQuotaRoute(pathname: string): boolean {
+  return pathname === "/enrich";
 }
 
 export function requestAuth(req: Request, authToken: string): RequestAuth | null {
@@ -155,6 +159,9 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
             message: "游客只能使用一次深度解读，请注册并等待管理员审批。",
           });
         }
+        return next();
+      }
+      if (req.method === "POST" && isGuestDeferredQuotaRoute(req.path)) {
         return next();
       }
       return res.status(401).json({
