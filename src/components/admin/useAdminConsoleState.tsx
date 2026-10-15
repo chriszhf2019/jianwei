@@ -134,6 +134,15 @@ export function useAdminConsoleState() {
   }, [fetchData]);
 
   const handleSaveSettings = async (customFeeds?: string[]) => {
+    if (keys.hasInvalidKeyAscii) {
+      showToast(
+        'error',
+        keys.geminiKeyAsciiError ||
+          keys.deepseekKeyAsciiError ||
+          '请先修正含非 ASCII 字符的 API Key，再保存配置。',
+      );
+      return;
+    }
     try {
       const activeFeeds = customFeeds || feeds.feedList;
       const cleanSectorOverrides = taxonomy.cleanOverrides();
@@ -195,6 +204,7 @@ export function useAdminConsoleState() {
     dbTotalAnalyses: database.dbTotalAnalyses,
     deepseekBaseUrlInput: keys.deepseekBaseUrlInput,
     deepseekKeyInput: keys.deepseekKeyInput,
+    deepseekKeyAsciiError: keys.deepseekKeyAsciiError,
     deepseekModelInput: keys.deepseekModelInput,
     feedList: feeds.feedList,
     fetchDatabaseData: database.fetchDatabaseData,
@@ -202,6 +212,7 @@ export function useAdminConsoleState() {
     filteredUsers: users.filteredUsers,
     formatActionBadge,
     geminiKeyInput: keys.geminiKeyInput,
+    geminiKeyAsciiError: keys.geminiKeyAsciiError,
     geminiModelInput: keys.geminiModelInput,
     handleAddFeed: feeds.handleAddFeed,
     handleCreateUser: users.handleCreateUser,
@@ -214,6 +225,7 @@ export function useAdminConsoleState() {
     handleResetPassword: users.handleResetPassword,
     handleRevokeSessions: users.handleRevokeSessions,
     handleSaveSettings,
+    hasInvalidKeyAscii: keys.hasInvalidKeyAscii,
     handleTestAi: keys.handleTestAi,
     handleTogglePresetFeed: feeds.handleTogglePresetFeed,
     handleTriggerIngest: feeds.handleTriggerIngest,

@@ -61,6 +61,7 @@ import { clearEnrichCache, enrichKey, getOrCreateCached, predictKey } from '../s
 import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
+import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
   assert.equal(parseArticleDate('Fri, 04 Sep 2026 02:33:08 +0000')! > 0, true);
@@ -1276,4 +1277,15 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   assert.match(biasRadar, /样本不足|需 ≥3|尚无带主观概率/);
 });
 
+test('apiKeyAsciiError: 空字段通过；非 ASCII 即时报错（与后端文案一致）', () => {
+  assert.equal(hasNonAsciiChars(''), false);
+  assert.equal(hasNonAsciiChars('AIzaSy-ok-ascii-key'), false);
+  assert.equal(hasNonAsciiChars('中文假密钥'), true);
+  assert.equal(hasNonAsciiChars('sk-test（全角）'), true);
+  assert.equal(apiKeyAsciiError('', 'Gemini'), null);
+  assert.equal(apiKeyAsciiError('   ', 'DeepSeek'), null);
+  assert.equal(apiKeyAsciiError('AIzaSy-ok-ascii-key', 'Gemini'), null);
+  assert.match(apiKeyAsciiError('中文假密钥', 'Gemini')!, /Gemini Key 含非 ASCII/);
+  assert.match(apiKeyAsciiError('sk-假', 'DeepSeek')!, /DeepSeek Key 含非 ASCII/);
+});
 
