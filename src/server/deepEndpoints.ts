@@ -5,9 +5,10 @@ import { serverCorpus, persistCorpus, findCorpusArticle } from "./corpus";
 import { djb2 } from "./cache";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
 import { inspectSource } from "./sourceVerification";
-import { consumeGuestDeepRead, peekGuestDeepRead } from "./database";
-import { NO_PERSIST } from "./settings";
-import { GUEST_DEEP_READ_LIMIT } from "./authMiddleware";
+import {
+  ensureGuestDeferredQuota,
+  chargeGuestDeepSuccess,
+} from "./authMiddleware";
 import {
   PROMPT_VERSIONS,
   attachFieldMeta,
@@ -27,17 +28,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
     }
 
     // 游客深度解读额度：先只读校验，成功后再扣；失败/无 Key 不扣次。
-    const auth = (req as any).auth;
-    const isGuest = !!auth?.isGuest;
-    if (isGuest) {
-      const peek = NO_PERSIST ? { allowed: true } : peekGuestDeepRead(auth.guestId, GUEST_DEEP_READ_LIMIT);
-      if (!peek.allowed) {
-        return res.status(403).json({
-          error: "guest_deep_read_limit",
-          message: "游客只能使用一次深度解读，请注册并等待管理员审批。",
-        });
-      }
-    }
+    if (!ensureGuestDeferredQuota(req, res)) return;
 
     const provider = activeProvider();
     if (!provider) {
@@ -133,14 +124,13 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
       }
     }
 
-    if (isGuest && !NO_PERSIST) {
-      consumeGuestDeepRead(auth.guestId, GUEST_DEEP_READ_LIMIT);
-    }
+    const quota = chargeGuestDeepSuccess(req, articleId ? String(articleId) : undefined);
     res.json({
       enriched: true,
       cached: wasCached,
       overrides: { ...parsed, ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}) },
       fieldMeta,
+      ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
   } catch (err: any) {
     console.error("Enrich error:", err);
@@ -286,6 +276,8 @@ async function runSingleSkill(
   opts: {
     field: string;
     skillKey: string;
+    /** false = 不占游客深度额度（如大白话） */
+    consumeGuestQuota?: boolean;
     certificationStandard?: "ai_single" | "scenario";
     buildPrompt: (input: {
       title: string;
@@ -299,6 +291,9 @@ async function runSingleSkill(
 ) {
   const { title, content, source, sourceUrl, publishedAt, category, articleId } = req.body || {};
   if (!title && !content) return res.status(400).json({ error: "Title or content is required" });
+
+  const consumeGuestQuota = opts.consumeGuestQuota !== false;
+  if (consumeGuestQuota && !ensureGuestDeferredQuota(req, res)) return;
 
   const provider = activeProvider();
   if (!provider) return res.json({ ok: false, reason: "no_api_key" });
@@ -376,6 +371,9 @@ async function runSingleSkill(
       attachFieldMeta(target, [opts.field], fieldMeta);
       persistCorpus();
     }
+    const quota = consumeGuestQuota
+      ? chargeGuestDeepSuccess(req, articleId ? String(articleId) : undefined)
+      : null;
     res.json({
       ok: true,
       cached: wasCached,
@@ -386,6 +384,7 @@ async function runSingleSkill(
         ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}),
       },
       fieldMeta,
+      ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
   } catch (err: any) {
     console.error(`${opts.skillKey} error:`, err);
@@ -398,6 +397,7 @@ app.post("/api/skill/plain", applyRateLimit, (req, res) =>
   runSingleSkill(req, res, {
     field: "tongsuSummary",
     skillKey: "plain",
+    consumeGuestQuota: false,
     buildPrompt: ({ title, source, category, content }) =>
       `你是「见微 Genway」的“小白讲解员”。请把下面这条新闻，用完全不懂行的大白话从头到尾讲一遍，严格只输出 JSON：
 {
@@ -644,6 +644,7 @@ app.post("/api/skill/relatednews", applyRateLimit, (req, res) =>
 app.post("/api/skill/personaforecast", applyRateLimit, async (req, res) => {
   const { articleId, title, content, source, category, personaId, personaName, personaDesc, extraContext } = req.body || {};
   if (!title && !content) return res.status(400).json({ error: "Title or content is required" });
+  if (!ensureGuestDeferredQuota(req, res)) return;
   const pid = String(personaId || "default");
   const provider = activeProvider();
   if (!provider) return res.json({ ok: false, reason: "no_api_key" });
@@ -720,6 +721,7 @@ ${extraContext || "（暂无；请基于标题与常识，信息不足时在 sce
     const stamped = upsertWrite(generated.data || {});
     const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.skill);
     if (target) attachFieldMeta(target, ["personaForecasts"], fieldMeta);
+    const quota = chargeGuestDeepSuccess(req, articleId ? String(articleId) : undefined);
     return res.json({
       ok: true,
       cached: generated.cached || generated.deduped,
@@ -728,6 +730,7 @@ ${extraContext || "（暂无；请基于标题与常识，信息不足时在 sce
         ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}),
       },
       fieldMeta,
+      ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
   } catch (err: any) {
     console.error("personaforecast error:", err);

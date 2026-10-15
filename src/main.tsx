@@ -30,7 +30,11 @@ const customFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promi
           payload?.error === 'password_change_required'
         ) {
           window.dispatchEvent(new CustomEvent('jianwei:auth-required', {
-            detail: { error: payload.error, message: payload.message || '' },
+            detail: {
+              error: payload.error,
+              message: payload.message || '',
+              remaining: payload.remaining,
+            },
           }));
         }
       })

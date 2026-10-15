@@ -42,7 +42,15 @@ export function useAuthSession() {
   useEffect(() => {
     fetch('/api/auth/me')
       .then((response) => (response.ok ? response.json() : null))
-      .then((data) => setAuthUser(data?.user || null))
+      .then((data) => {
+        if (!data?.user) {
+          setAuthUser(null);
+          return;
+        }
+        setAuthUser(
+          data.guestQuota ? { ...data.user, guestQuota: data.guestQuota } : data.user
+        );
+      })
       .catch(() => setAuthUser(null));
   }, []);
 
@@ -50,7 +58,10 @@ export function useAuthSession() {
     const handleAuthRequired = (event: Event) => {
       const detail = (event as CustomEvent).detail || {};
       if (detail.error === 'guest_deep_read_limit') {
-        setAuthError('游客只能使用一次深度解读。注册并等待管理员审批后可继续使用。');
+        setAuthError(
+          detail.message ||
+            '游客深度解读次数已用完。注册并等待管理员审批后可继续使用。'
+        );
       } else if (detail.error === 'password_change_required') {
         setMustChangePassword(true);
       } else {

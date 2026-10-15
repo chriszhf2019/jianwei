@@ -369,36 +369,70 @@ export function revokeUserSession(token: string): void {
   }
 }
 
+function parseGuestArticleIds(raw: unknown): string[] {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw || "[]") : raw;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 50);
+  } catch {
+    return [];
+  }
+}
+
+export type GuestDeepReadUsage = {
+  allowed: boolean;
+  deepReads: number;
+  remaining: number;
+  charged?: boolean;
+};
+
+/**
+ * 扣减游客深度解读次数。
+ * 传入同一 articleId 时只计 1 次（enrich + skill 共享）；无 articleId 则按次递增。
+ */
 export function consumeGuestDeepRead(
   guestId: string,
-  limit = 1
-): { allowed: boolean; deepReads: number; remaining: number } {
+  limit = 1,
+  articleId?: string
+): GuestDeepReadUsage {
   const id = String(guestId || "").trim();
-  if (!id) return { allowed: false, deepReads: limit, remaining: 0 };
+  if (!id) return { allowed: false, deepReads: limit, remaining: 0, charged: false };
+  const articleKey = String(articleId || "").trim().slice(0, 200);
   const db = openDatabase();
   try {
     db.exec("BEGIN IMMEDIATE");
     try {
       const now = new Date().toISOString();
       db.prepare(`
-        INSERT INTO guest_usage (guest_id, deep_reads, created_at, updated_at)
-        VALUES (?, 0, ?, ?)
+        INSERT INTO guest_usage (guest_id, deep_reads, deep_article_ids, created_at, updated_at)
+        VALUES (?, 0, '[]', ?, ?)
         ON CONFLICT(guest_id) DO NOTHING
       `).run(id, now, now);
       const row = db.prepare(
-        "SELECT deep_reads FROM guest_usage WHERE guest_id = ?"
-      ).get(id) as { deep_reads?: number } | undefined;
+        "SELECT deep_reads, deep_article_ids FROM guest_usage WHERE guest_id = ?"
+      ).get(id) as { deep_reads?: number; deep_article_ids?: string } | undefined;
       const current = Math.max(0, Number(row?.deep_reads || 0));
+      const articleIds = parseGuestArticleIds(row?.deep_article_ids);
+      if (articleKey && articleIds.includes(articleKey)) {
+        db.exec("COMMIT");
+        return {
+          allowed: true,
+          deepReads: current,
+          remaining: Math.max(0, limit - current),
+          charged: false,
+        };
+      }
       if (current >= limit) {
         db.exec("COMMIT");
-        return { allowed: false, deepReads: current, remaining: 0 };
+        return { allowed: false, deepReads: current, remaining: 0, charged: false };
       }
       const next = current + 1;
+      const nextIds = articleKey ? [...articleIds, articleKey].slice(-50) : articleIds;
       db.prepare(
-        "UPDATE guest_usage SET deep_reads = ?, updated_at = ? WHERE guest_id = ?"
-      ).run(next, now, id);
+        "UPDATE guest_usage SET deep_reads = ?, deep_article_ids = ?, updated_at = ? WHERE guest_id = ?"
+      ).run(next, JSON.stringify(nextIds), now, id);
       db.exec("COMMIT");
-      return { allowed: true, deepReads: next, remaining: Math.max(0, limit - next) };
+      return { allowed: true, deepReads: next, remaining: Math.max(0, limit - next), charged: true };
     } catch (error) {
       db.exec("ROLLBACK");
       throw error;
@@ -408,19 +442,28 @@ export function consumeGuestDeepRead(
   }
 }
 
-/** 只读当前游客额度，不递增。供「失败不扣次」的端点在成功后自行扣减。 */
+/**
+ * 只读当前游客额度，不递增。
+ * 若传入已扣过费的 articleId，即使次数已达上限也允许（同文 enrich/skill 共享）。
+ */
 export function peekGuestDeepRead(
   guestId: string,
-  limit = 1
-): { allowed: boolean; deepReads: number; remaining: number } {
+  limit = 1,
+  articleId?: string
+): GuestDeepReadUsage {
   const id = String(guestId || "").trim();
   if (!id) return { allowed: false, deepReads: limit, remaining: 0 };
+  const articleKey = String(articleId || "").trim().slice(0, 200);
   const db = openDatabase();
   try {
     const row = db.prepare(
-      "SELECT deep_reads FROM guest_usage WHERE guest_id = ?"
-    ).get(id) as { deep_reads?: number } | undefined;
+      "SELECT deep_reads, deep_article_ids FROM guest_usage WHERE guest_id = ?"
+    ).get(id) as { deep_reads?: number; deep_article_ids?: string } | undefined;
     const current = Math.max(0, Number(row?.deep_reads || 0));
+    const articleIds = parseGuestArticleIds(row?.deep_article_ids);
+    if (articleKey && articleIds.includes(articleKey)) {
+      return { allowed: true, deepReads: current, remaining: Math.max(0, limit - current) };
+    }
     const allowed = current < limit;
     return { allowed, deepReads: current, remaining: allowed ? Math.max(0, limit - current) : 0 };
   } finally {

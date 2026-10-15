@@ -15,7 +15,13 @@ export function classifyAiClientError(input: {
     return '服务端未配置可用 AI Key。请在管理端或环境变量中配置 Gemini / DeepSeek 后再试。';
   }
   if (reason === 'guest_deep_read_limit' || payload.error === 'guest_deep_read_limit') {
-    return '游客深度解读次数已用完。注册并等待管理员审批后可继续使用。';
+    const remaining = payload.remaining;
+    if (typeof remaining === 'number') {
+      return remaining <= 0
+        ? '游客深度解读次数已用完（剩余 0）。注册并等待管理员审批后可继续使用。'
+        : `游客深度解读额度不足（剩余 ${remaining} 次）。注册并等待管理员审批后可继续使用。`;
+    }
+    return payload.message || '游客深度解读次数已用完。注册并等待管理员审批后可继续使用。';
   }
   if (reason === 'registration_required' || payload.error === 'registration_required') {
     return '该功能需要注册并完成审批。';
