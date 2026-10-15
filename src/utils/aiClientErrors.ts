@@ -14,6 +14,16 @@ export function classifyAiClientError(input: {
   if (reason === 'no_api_key' || payload.fallbackReason === 'no_api_key') {
     return '服务端未配置可用 AI Key。请在管理端或环境变量中配置 Gemini / DeepSeek 后再试。';
   }
+  if (
+    reason === 'fetch_failed' ||
+    reason === 'fetch_blocked' ||
+    reason === 'no_source_content'
+  ) {
+    return (
+      note ||
+      '未能获取原文正文，深度分析未开始（未扣减游客额度）。请检查原文链接是否可公开访问后重试。'
+    );
+  }
   if (reason === 'guest_deep_read_limit' || payload.error === 'guest_deep_read_limit') {
     const remaining = payload.remaining;
     if (typeof remaining === 'number') {

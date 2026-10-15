@@ -1191,7 +1191,7 @@ test('游客额度：同 articleId 只扣一次；peek 对已扣文章仍放行'
   }
 });
 
-test('classifyAiClientError: 区分无 Key / 游客限额 / 超时', async () => {
+test('classifyAiClientError: 区分无 Key / 游客限额 / 超时 / 抓取失败', async () => {
   const { classifyAiClientError } = await import('../src/utils/aiClientErrors');
   assert.match(classifyAiClientError({ payload: { reason: 'no_api_key' } }), /Key/);
   assert.match(
@@ -1202,6 +1202,70 @@ test('classifyAiClientError: 区分无 Key / 游客限额 / 超时', async () =>
     classifyAiClientError({ error: new Error('AbortError: timed out'), fallbackMs: 45_000 }),
     /超时/
   );
+  assert.match(
+    classifyAiClientError({
+      payload: { reason: 'fetch_failed', note: '未能抓取可用原文正文。深度分析未开始，未扣减游客额度。' },
+    }),
+    /未能抓取|未扣减/
+  );
+  assert.match(
+    classifyAiClientError({ payload: { reason: 'no_source_content' } }),
+    /原文|未扣减/
+  );
+});
+
+test('enrich 抓取优先：无链接且短正文 → no_source_content；语料长正文可跳过抓取', async () => {
+  const {
+    resolveEnrichArticleContent,
+    NO_SOURCE_CONTENT_NOTE,
+    MIN_CORPUS_FULL_CONTENT,
+  } = await import('../src/server/articleFetch');
+
+  const missing = await resolveEnrichArticleContent({
+    requestContent: '短摘要',
+    sourceUrl: '',
+  });
+  assert.equal(missing.ok, false);
+  if (!missing.ok) {
+    assert.equal(missing.reason, 'no_source_content');
+    assert.equal(missing.note, NO_SOURCE_CONTENT_NOTE);
+  }
+
+  const long = '正文'.repeat(Math.ceil(MIN_CORPUS_FULL_CONTENT / 2) + 10);
+  const fromCorpus = await resolveEnrichArticleContent({
+    corpusContent: long,
+    sourceUrl: '',
+    requestContent: '短',
+  });
+  assert.equal(fromCorpus.ok, true);
+  if (fromCorpus.ok) {
+    assert.equal(fromCorpus.contentBasis, 'corpus_content');
+    assert.ok(fromCorpus.content.length >= MIN_CORPUS_FULL_CONTENT);
+  }
+
+  const fromRequest = await resolveEnrichArticleContent({
+    requestContent: long,
+    sourceUrl: '',
+  });
+  assert.equal(fromRequest.ok, true);
+  if (fromRequest.ok) {
+    assert.equal(fromRequest.contentBasis, 'request_content');
+  }
+});
+
+test('enrich 路由：AI 前先 resolveEnrichArticleContent，失败路径不调用 chargeGuestDeepSuccess', () => {
+  const deep = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  const enrichStart = deep.indexOf('app.post("/api/enrich"');
+  const enrichEnd = deep.indexOf('app.post("/api/region/interpret"');
+  assert.ok(enrichStart >= 0 && enrichEnd > enrichStart);
+  const enrichBlock = deep.slice(enrichStart, enrichEnd);
+  assert.match(enrichBlock, /resolveEnrichArticleContent/);
+  assert.match(enrichBlock, /reason: resolved\.reason/);
+  assert.match(enrichBlock, /chargeGuestDeepSuccess/);
+  // 失败早退在扣费之前：resolved.ok 失败 return 必须出现在 charge 之前
+  const failReturnAt = enrichBlock.indexOf('if (!resolved.ok)');
+  const chargeAt = enrichBlock.indexOf('chargeGuestDeepSuccess');
+  assert.ok(failReturnAt >= 0 && chargeAt > failReturnAt);
 });
 
 test('信任余项：推送不伪装成功、首页先贴链接、因果图无假 92%', () => {

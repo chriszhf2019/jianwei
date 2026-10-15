@@ -5,6 +5,7 @@ import { serverCorpus, persistCorpus, findCorpusArticle } from "./corpus";
 import { djb2 } from "./cache";
 import { zhFullDate, isoToday, nowHHmm } from "./date";
 import { inspectSource } from "./sourceVerification";
+import { resolveEnrichArticleContent } from "./articleFetch";
 import {
   ensureGuestDeferredQuota,
   chargeGuestDeepSuccess,
@@ -23,11 +24,11 @@ export function registerDeepEndpoints(app: express.Express, limit: RateLimiter):
 app.post("/api/enrich", applyRateLimit, async (req, res) => {
   try {
     const { title, content, source, sourceUrl, publishedAt, category, articleId, force } = req.body || {};
-    if (!title && !content) {
-      return res.status(400).json({ error: "Title or content is required" });
+    if (!title && !content && !sourceUrl) {
+      return res.status(400).json({ error: "Title, content or sourceUrl is required" });
     }
 
-    // 游客深度解读额度：先只读校验，成功后再扣；失败/无 Key 不扣次。
+    // 游客深度解读额度：先只读校验，成功后再扣；失败/无 Key/抓取失败不扣次。
     if (!ensureGuestDeferredQuota(req, res)) return;
 
     const provider = activeProvider();
@@ -35,15 +36,39 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       return res.json({ enriched: false, reason: "no_api_key" });
     }
     const model = providerModel(provider);
+
+    const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
+    const resolvedUrl = String(sourceUrl || target?.sourceUrl || "").trim();
+
+    // P1：AI 分析前先拿到原文；抓取失败诚实报错且不扣额度。
+    const resolved = await resolveEnrichArticleContent({
+      sourceUrl: resolvedUrl,
+      requestContent: content,
+      corpusContent: target?.content,
+      force: force === true,
+    });
+    if (!resolved.ok) {
+      return res.json({
+        enriched: false,
+        reason: resolved.reason,
+        note: resolved.note,
+        ...(resolved.status ? { status: resolved.status } : {}),
+        ...(resolved.fetchReason ? { fetchReason: resolved.fetchReason } : {}),
+      });
+    }
+
+    const effectiveContent = resolved.content;
+    const contentBasis = resolved.contentBasis;
+    const effectiveTitle = String(title || resolved.fetchedTitle || target?.title || "").trim();
+    const effectiveSource = String(source || resolved.sourceName || target?.sourceName || "外部信源").trim();
     const key = enrichKey({
-      title,
+      title: effectiveTitle,
       articleId,
-      content,
+      content: effectiveContent,
       provider,
       model,
       promptVersion: PROMPT_VERSIONS.enrich,
     });
-    const target = articleId ? serverCorpus.find((a: any) => String(a?.id) === String(articleId)) : undefined;
 
     const prompt = `你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。
 【核心语言规则】：无论输入的原始标题、正文或信源语言是英文还是中文，你必须一律且百分之百使用规范、专业、精辟的【简体中文】输出所有的分析字段（包括 subtitle、oneSentenceVerdict、summary、sevenElements、logicTree、tongsuSummary、dehydratedItems、bullBearDebate、coreLogic 等全量字段，不得残留英文长句或段落）。
@@ -77,12 +102,13 @@ JSON 结构如下：
    "coreLogic": { "essence": "事情的本质/底层逻辑一句话（跳出新闻本身的第一性概括）", "points": ["核心逻辑1（结构性机制）", "核心逻辑2", "核心逻辑3"], "counterIntuitive": "最反直觉/容易被误读的一点（或留空）" },
    "bullBearDebate": { "bull": [{ "point": "正方论点（支持/看多）", "basis": "依据或隐含假设，一句话" }], "bear": [{ "point": "反方论点（质疑/看空）", "basis": "依据或隐含假设，一句话" }], "coreDispute": "双方真正的分歧焦点（双方都在争什么）一句话", "read": "当前力量判断：哪方论据更硬、或取决于什么关键条件（一句话，克制）" }
 }
-标题：${title || "无标题"}
-来源：${source || "外部信源"}
-原文链接：${sourceUrl || "未提供"}
+标题：${effectiveTitle || "无标题"}
+来源：${effectiveSource || "外部信源"}
+原文链接：${resolvedUrl || "未提供"}
 来源发布时间：${publishedAt || "未提供"}
 分类：${category || "外部信源"}
-正文/要点：${content || "请基于标题给出克制、可复核的分析"}。请遵循“报刊为骨，数据为翼”，避免臆造硬数据；无法核实的数字用定性表述。
+正文依据：${contentBasis}
+正文/要点：${effectiveContent || "请基于标题给出克制、可复核的分析"}。请遵循“报刊为骨，数据为翼”，避免臆造硬数据；无法核实的数字用定性表述。
 多源规则：multiSources 只能列出输入材料中明确出现、且能找到对应表述的来源。没有可核验来源线索时必须返回 []，不得根据常识补媒体名或把模型记忆当作“已核实”。
 注意：tongsuSummary.simpleSay 必须是把本条新闻从头讲清楚的完整大白话（讲清楚“谁、干了什么、为什么、影响谁”），不要只写一句口号；whyExplanation 用类比让小白秒懂；jargonTerms 至少 2 个（若有术语）。
 bullBearDebate：给这场正反方博弈建模——bull 列 2-3 条支持方/乐观方论点（point+basis），bear 列 2-3 条反对方/质疑方论点；coreDispute 点出双方真正的分歧焦点；read 给出当前力量判断（哪方论据更硬、或结果取决于什么），克制不喊单。
@@ -115,6 +141,11 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
         for (const k of deepKeys) {
           if (parsed?.[k] !== undefined && parsed[k] !== null) target[k] = parsed[k];
         }
+        // 写回抓到的原文，供后续 skill / 再 enrich 复用
+        if (contentBasis === "full_article" && effectiveContent && (!target.content || String(target.content).length < effectiveContent.length)) {
+          target.content = effectiveContent.slice(0, 50_000);
+        }
+        target.contentBasis = contentBasis;
         attachFieldMeta(target, deepKeys.filter((k) => parsed?.[k] !== undefined && parsed[k] !== null), fieldMeta);
         // 若仍为浅层默认，标记为已补全（避免首页卡片误判“待补全”）
         if (Array.isArray(target.spectrumLayers) && target.spectrumLayers.length > 0) {
@@ -128,7 +159,8 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
     res.json({
       enriched: true,
       cached: wasCached,
-      overrides: { ...parsed, ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}) },
+      contentBasis,
+      overrides: { ...parsed, contentBasis, ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}) },
       fieldMeta,
       ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
