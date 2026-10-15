@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import type { Express, Request, Response, NextFunction } from "express";
-import { consumeGuestDeepRead, resolveUserSession } from "./database";
+import {
+  consumeGuestDeepRead,
+  peekGuestDeepRead,
+  resolveUserSession,
+  type GuestDeepReadUsage,
+} from "./database";
 import { NO_PERSIST } from "./settings";
 import type { RequestAuth } from "./routes/authRoutes";
 
@@ -63,13 +68,32 @@ export function isGuestLightSkillRoute(pathname: string): boolean {
   return pathname === "/skill/plain";
 }
 
+/** 游客可免费 POST：抓取正文不占用深度解读额度（失败/成功均不扣）。 */
+export function isGuestFreePostRoute(pathname: string): boolean {
+  return pathname === "/fetch-article";
+}
+
+/** 深度解读额度延后扣减：处理器成功后才扣，校验失败/AI 失败不扣次。 */
+export function isGuestDeferredQuotaRoute(pathname: string): boolean {
+  if (
+    pathname === "/enrich" ||
+    pathname === "/analyze" ||
+    pathname === "/ask-nuance"
+  ) {
+    return true;
+  }
+  // 除大白话外的 skill：与 enrich 共享同一 articleId 额度
+  if (pathname.startsWith("/skill/") && !isGuestLightSkillRoute(pathname)) {
+    return true;
+  }
+  return false;
+}
+
 export function isGuestDeepRoute(pathname: string): boolean {
   if (isGuestLightSkillRoute(pathname)) return false;
+  if (isGuestFreePostRoute(pathname)) return false;
+  if (isGuestDeferredQuotaRoute(pathname)) return false;
   return (
-    pathname.startsWith("/skill/") ||
-    pathname === "/analyze" ||
-    pathname === "/fetch-article" ||
-    pathname === "/ask-nuance" ||
     pathname === "/strategic-advisor" ||
     pathname === "/predict" ||
     pathname === "/source/inspect" ||
@@ -79,9 +103,45 @@ export function isGuestDeepRoute(pathname: string): boolean {
   );
 }
 
-/** 深度解读额度延后扣减：处理器成功后才扣，失败不扣次。 */
-export function isGuestDeferredQuotaRoute(pathname: string): boolean {
-  return pathname === "/enrich";
+export function guestDeepLimitPayload(usage: Pick<GuestDeepReadUsage, "deepReads" | "remaining">) {
+  const remaining = Math.max(0, Number(usage.remaining || 0));
+  return {
+    error: "guest_deep_read_limit" as const,
+    message:
+      remaining <= 0
+        ? "游客深度解读次数已用完，请注册并等待管理员审批。"
+        : `游客深度解读额度不足（剩余 ${remaining} 次），请注册并等待管理员审批。`,
+    remaining,
+    limit: GUEST_DEEP_READ_LIMIT,
+    deepReads: Math.max(0, Number(usage.deepReads || 0)),
+  };
+}
+
+/** 延后扣费路由：先 peek；已达上限则 403。返回 false 表示已写响应。 */
+export function ensureGuestDeferredQuota(req: { body?: any; auth?: RequestAuth }, res: Response): boolean {
+  const auth = (req as any).auth as RequestAuth | undefined;
+  if (!auth?.isGuest) return true;
+  if (NO_PERSIST) return true;
+  const articleId = String(
+    req.body?.articleId || req.body?.articleContext?.id || ""
+  ).trim();
+  const peek = peekGuestDeepRead(auth.guestId || "", GUEST_DEEP_READ_LIMIT, articleId || undefined);
+  if (!peek.allowed) {
+    res.status(403).json(guestDeepLimitPayload(peek));
+    return false;
+  }
+  return true;
+}
+
+/** 成功路径扣费；同一 articleId 不重复计数。 */
+export function chargeGuestDeepSuccess(
+  req: { body?: any; auth?: RequestAuth },
+  articleId?: string
+): GuestDeepReadUsage | null {
+  const auth = (req as any).auth as RequestAuth | undefined;
+  if (!auth?.isGuest || NO_PERSIST) return null;
+  const id = String(articleId || req.body?.articleId || req.body?.articleContext?.id || "").trim();
+  return consumeGuestDeepRead(auth.guestId || "", GUEST_DEEP_READ_LIMIT, id || undefined);
 }
 
 export function requestAuth(req: Request, authToken: string): RequestAuth | null {
@@ -149,19 +209,19 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
       if (req.method === "POST" && isGuestLightSkillRoute(req.path)) {
         return next();
       }
+      if (req.method === "POST" && isGuestFreePostRoute(req.path)) {
+        return next();
+      }
+      if (req.method === "POST" && isGuestDeferredQuotaRoute(req.path)) {
+        return next();
+      }
       if (req.method === "POST" && isGuestDeepRoute(req.path)) {
         const usage = NO_PERSIST
           ? { allowed: true, deepReads: 1, remaining: 0 }
           : consumeGuestDeepRead(guestId, GUEST_DEEP_READ_LIMIT);
         if (!usage.allowed) {
-          return res.status(403).json({
-            error: "guest_deep_read_limit",
-            message: "游客只能使用一次深度解读，请注册并等待管理员审批。",
-          });
+          return res.status(403).json(guestDeepLimitPayload(usage));
         }
-        return next();
-      }
-      if (req.method === "POST" && isGuestDeferredQuotaRoute(req.path)) {
         return next();
       }
       return res.status(401).json({

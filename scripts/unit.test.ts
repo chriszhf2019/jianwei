@@ -1127,16 +1127,67 @@ test('预设管理员：须由环境变量显式配置，无写死凭据', async
 });
 
 test('游客：大白话不计入深度解读额度', async () => {
-  const { isGuestDeepRoute, isGuestLightSkillRoute } = await import('../src/server/authMiddleware');
+  const {
+    isGuestDeepRoute,
+    isGuestLightSkillRoute,
+    isGuestFreePostRoute,
+    isGuestDeferredQuotaRoute,
+  } = await import('../src/server/authMiddleware');
   assert.equal(isGuestLightSkillRoute('/skill/plain'), true);
   assert.equal(isGuestDeepRoute('/skill/plain'), false);
-  assert.equal(isGuestDeepRoute('/skill/sevenw'), true);
-  assert.equal(isGuestDeepRoute('/fetch-article'), true);
-  assert.equal(isGuestDeepRoute('/analyze'), true);
+  assert.equal(isGuestDeferredQuotaRoute('/skill/sevenw'), true);
+  assert.equal(isGuestDeepRoute('/skill/sevenw'), false);
+  assert.equal(isGuestFreePostRoute('/fetch-article'), true);
+  assert.equal(isGuestDeepRoute('/fetch-article'), false);
+  assert.equal(isGuestDeferredQuotaRoute('/analyze'), true);
+  assert.equal(isGuestDeferredQuotaRoute('/ask-nuance'), true);
+  assert.equal(isGuestDeferredQuotaRoute('/enrich'), true);
+  assert.equal(isGuestDeepRoute('/analyze'), false);
 
   const authGate = fs.readFileSync(path.join(process.cwd(), 'src/components/AuthGate.tsx'), 'utf8');
   assert.match(authGate, /大白话/);
   assert.match(authGate, /不占用/);
+  assert.match(authGate, /不扣次/);
+});
+
+test('游客额度：同 articleId 只扣一次；peek 对已扣文章仍放行', async () => {
+  const crypto = await import('node:crypto');
+  const { consumeGuestDeepRead, peekGuestDeepRead } = await import('../src/server/database/users');
+  const { openDatabase } = await import('../src/server/database/connection');
+  const guestId = `guest_${crypto.randomBytes(12).toString('hex')}`;
+  try {
+    const first = consumeGuestDeepRead(guestId, 1, 'art-1');
+    assert.equal(first.allowed, true);
+    assert.equal(first.charged, true);
+    assert.equal(first.deepReads, 1);
+    assert.equal(first.remaining, 0);
+
+    const again = consumeGuestDeepRead(guestId, 1, 'art-1');
+    assert.equal(again.allowed, true);
+    assert.equal(again.charged, false);
+    assert.equal(again.deepReads, 1);
+
+    const peekSame = peekGuestDeepRead(guestId, 1, 'art-1');
+    assert.equal(peekSame.allowed, true);
+
+    const other = consumeGuestDeepRead(guestId, 1, 'art-2');
+    assert.equal(other.allowed, false);
+    assert.equal(other.remaining, 0);
+
+    const peekOther = peekGuestDeepRead(guestId, 1, 'art-2');
+    assert.equal(peekOther.allowed, false);
+  } finally {
+    try {
+      const db = openDatabase();
+      try {
+        db.prepare('DELETE FROM guest_usage WHERE guest_id = ?').run(guestId);
+      } finally {
+        db.close();
+      }
+    } catch {
+      /* ignore cleanup errors */
+    }
+  }
 });
 
 test('classifyAiClientError: 区分无 Key / 游客限额 / 超时', async () => {

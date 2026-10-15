@@ -272,6 +272,10 @@ export function openDatabase(): DatabaseSync {
   db.prepare(
     "DELETE FROM source_checks WHERE page_text IS NULL AND status IN ('verified_quote', 'quote_not_found', 'quote_too_short')"
   ).run();
+  const guestUsageColumns = db.prepare("PRAGMA table_info(guest_usage)").all() as Array<{ name: string }>;
+  if (!guestUsageColumns.some((column) => column.name === "deep_article_ids")) {
+    db.exec("ALTER TABLE guest_usage ADD COLUMN deep_article_ids TEXT NOT NULL DEFAULT '[]'");
+  }
   const articleColumns = db.prepare("PRAGMA table_info(articles)").all() as Array<{ name: string }>;
   if (!articleColumns.some((column) => column.name === "payload_hash")) {
     db.exec("ALTER TABLE articles ADD COLUMN payload_hash TEXT");

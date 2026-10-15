@@ -21,6 +21,10 @@ import {
   createFieldMeta,
   sanitizeEnrichPayload,
 } from "../aiValidation";
+import {
+  ensureGuestDeferredQuota,
+  chargeGuestDeepSuccess,
+} from "../authMiddleware";
 
 export type RateLimiter = (req: Request, res: Response, next: () => void) => void;
 
@@ -37,17 +41,24 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
         return res.status(400).json({ error: "Title or content is required" });
       }
 
+      // 游客：校验失败不扣；成功交付后再扣（同 articleId 与 enrich/skill 共享）
+      if (!ensureGuestDeferredQuota(req, res)) return;
+
       const analysisKey = generateAnalysisKey({ articleId, title, source, content });
 
       // 优先从数据库缓存查询
       if (!forceRefresh) {
         const cached = getAnalysisFromDatabase(analysisKey);
         if (cached && cached.payload) {
+          const quota = chargeGuestDeepSuccess(req, articleId ? String(articleId) : undefined);
           return res.json({
             fallback: false,
             cached: true,
             hitCount: cached.hitCount,
             data: cached.payload,
+            ...(quota
+              ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } }
+              : {}),
           });
         }
       }
@@ -257,11 +268,21 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
         payload: parsed,
       });
 
-      res.json({ fallback: false, cached: false, data: parsed });
+      const quota = chargeGuestDeepSuccess(req, articleId ? String(articleId) : undefined);
+      res.json({
+        fallback: false,
+        cached: false,
+        data: parsed,
+        ...(quota
+          ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } }
+          : {}),
+      });
     } catch (err: any) {
       console.error("AI Analysis error:", err);
       res.json({
         fallback: true,
+        fallbackReason: "error",
+        fallbackNote: UPSTREAM_ERROR_FALLBACK_NOTE,
         error: err.message,
         data: null,
       });
@@ -322,10 +343,13 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
   // Nuance In-depth Inquiry endpoint
   app.post("/api/ask-nuance", applyRateLimit, async (req, res) => {
     try {
-      const { question, articleContext } = req.body;
+      const { question, articleContext, articleId } = req.body;
       if (!question) {
         return res.status(400).json({ error: "Question is required" });
       }
+
+      // 游客：400/无 Key/AI 失败不扣；成功回答后再扣（同文共享）
+      if (!ensureGuestDeferredQuota(req, res)) return;
 
       const provider = activeProvider();
       if (!provider) {
@@ -351,7 +375,14 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
 
       const text = await callAI(prompt, { temperature: 0.4 });
 
-      res.json({ answer: text });
+      const linkedArticleId = String(articleId || articleContext?.id || "").trim();
+      const quota = chargeGuestDeepSuccess(req, linkedArticleId || undefined);
+      res.json({
+        answer: text,
+        ...(quota
+          ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } }
+          : {}),
+      });
     } catch (err: any) {
       console.error("Nuance Ask error:", err);
       res.json({

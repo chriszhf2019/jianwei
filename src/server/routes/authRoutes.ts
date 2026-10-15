@@ -15,6 +15,7 @@ import {
   updateUser,
 } from "../database";
 import { NO_PERSIST } from "../settings";
+import { peekGuestDeepRead } from "../database";
 
 export type RateLimiter = (req: Request, res: Response, next: () => void) => void;
 
@@ -151,7 +152,20 @@ export function registerAuthRoutes(
 
   app.get("/api/auth/me", (req, res) => {
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ user: (req as any).auth || null });
+    const auth = (req as any).auth || null;
+    if (auth?.isGuest && auth.guestId && !NO_PERSIST) {
+      const guestLimit = Math.max(1, Math.min(20, Number(process.env.GUEST_DEEP_READ_LIMIT || 1)));
+      const usage = peekGuestDeepRead(auth.guestId, guestLimit);
+      return res.json({
+        user: auth,
+        guestQuota: {
+          limit: guestLimit,
+          used: usage.deepReads,
+          remaining: usage.remaining,
+        },
+      });
+    }
+    res.json({ user: auth });
   });
 
   app.post("/api/auth/logout", (req, res) => {
