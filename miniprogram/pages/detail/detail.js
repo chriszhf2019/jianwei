@@ -73,8 +73,10 @@ Page({
         const tip =
           reason === 'no_api_key'
             ? '深读不可用：服务端未配置 AI Key'
-            : `深读未完成（${reason}）`;
-        wx.showToast({ title: tip, icon: 'none', duration: 3000 });
+            : reason === 'fetch_failed' || reason === 'fetch_blocked' || reason === 'no_source_content'
+              ? (res.note || '未能获取原文，深读未开始（未扣额度）')
+              : `深读未完成（${reason}）`;
+        wx.showToast({ title: tip.slice(0, 40), icon: 'none', duration: 3000 });
         return;
       }
       const overrides = res.overrides || {};
