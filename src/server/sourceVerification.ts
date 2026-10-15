@@ -205,13 +205,33 @@ export function revalidateCachedQuote(
   };
 }
 
+// 抓取正文里的导航/页脚/ICP 备案等 boilerplate：命中即整行剔除，页脚标记后整体截断。
+const BOILERPLATE_LINE_RE =
+  /ICP(备|证)?\s*\d+(-\d+)?\s*号?|公网安备\s*\d+\s*号|备案号|copyright|版权所有|all\s+rights\s+reserved|增值电信业务经营许可证|广播电视节目制作经营许可证/i;
+
+const FOOTER_MARKER_RE =
+  /^(关于我们|联系我们|友情链接|隐私政策|用户协议|免责声明|版权声明|广告服务|广告合作|意见反馈|举报投诉|网站地图|手机版|客户端下载|RSS\s*订阅|©\s*\d{4}|Copyright.*)$/i;
+
+function stripPageBoilerplate(text: string): string {
+  const lines = String(text || "").split("\n");
+  const cleaned: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (BOILERPLATE_LINE_RE.test(line)) continue;
+    // 页脚标记（独立短行）后视为页脚，整体截断，只保留其前的文章主体。
+    if (line.length <= 40 && FOOTER_MARKER_RE.test(line)) break;
+    cleaned.push(line);
+  }
+  return cleaned.join("\n");
+}
+
 export function extractPageMetadata(html: string): {
   title: string;
   canonicalUrl: string;
   description: string;
   text: string;
-} {
-  const source = String(html || "");
+} {  const source = String(html || "");
   const titleMatch =
     source.match(/<title[^>]*>([\s\S]*?)<\/title>/i) ||
     source.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
@@ -224,16 +244,18 @@ export function extractPageMetadata(html: string): {
     source.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i) ||
     source.match(/<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["']/i);
 
-  const text = decodeHtmlEntities(
-    source
-      .replace(/<(script|style|noscript|svg|template)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(p|div|section|article|li|h[1-6])>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-  )
-    .replace(/[ \t\f\v]+/g, " ")
-    .replace(/\n{2,}/g, "\n")
-    .trim();
+  const text = stripPageBoilerplate(
+    decodeHtmlEntities(
+      source
+        .replace(/<(script|style|noscript|svg|template)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(p|div|section|article|li|h[1-6])>/gi, "\n")
+        .replace(/<[^>]+>/g, " ")
+    )
+      .replace(/[ \t\f\v]+/g, " ")
+      .replace(/\n{2,}/g, "\n")
+      .trim()
+  );
 
   return {
     title: decodeHtmlEntities(titleMatch?.[1] || "").replace(/\s+/g, " ").trim().slice(0, 300),
