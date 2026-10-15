@@ -76,8 +76,8 @@ importers:
         specifier: ^10.4.21
         version: 10.6.1(postcss@8.5.30)
       esbuild:
-        specifier: ^0.25.12
-        version: 0.25.12
+        specifier: ^0.28.2
+        version: 0.28.2
       tailwindcss:
         specifier: ^4.1.14
         version: 4.3.3
