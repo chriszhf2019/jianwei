@@ -51,6 +51,8 @@ interface D3GraphNode extends d3.SimulationNodeDatum {
   matchedArticle?: NewsArticle;
   radius: number;
   color: string;
+  /** 弱关联：仅同源/BM25 相似，未落到主题或实体。 */
+  weak?: boolean;
 }
 
 interface D3GraphLink extends d3.SimulationLinkDatum<D3GraphNode> {
@@ -60,15 +62,17 @@ interface D3GraphLink extends d3.SimulationLinkDatum<D3GraphNode> {
   dashed?: boolean;
 }
 
-/** 启发式提取关联原因中的连接纽带（Connection Point） */
-function extractConnectionHub(why: string, media: string): string {
-  if (/背景|前因|起因|历史|铺垫/.test(why)) return '前置背景';
-  if (/反方|争议|博弈|分歧|对立/.test(why)) return '多空博弈';
-  if (/后续|进展|跟进|发酵|演进/.test(why)) return '后续演变';
-  if (/产业链|上下游|生态|供应商|客户/.test(why)) return '产业协同';
-  if (/政策|监管|宏观|利率|规则/.test(why)) return '政策映射';
-  if (/竞品|对标|同行|竞争/.test(why)) return '竞争对标';
-  return media ? `${media}报道` : '因果关联';
+/** 启发式提取关联原因中的连接纽带（Connection Point），并标记是否为弱关联。 */
+function extractConnectionHub(why: string, media: string): { label: string; weak: boolean } {
+  if (/背景|前因|起因|历史|铺垫/.test(why)) return { label: '前置背景', weak: false };
+  if (/反方|争议|博弈|分歧|对立/.test(why)) return { label: '多空博弈', weak: false };
+  if (/后续|进展|跟进|发酵|演进/.test(why)) return { label: '后续演变', weak: false };
+  if (/产业链|上下游|生态|供应商|客户/.test(why)) return { label: '产业协同', weak: false };
+  if (/政策|监管|宏观|利率|规则/.test(why)) return { label: '政策映射', weak: false };
+  if (/竞品|对标|同行|竞争/.test(why)) return { label: '竞争对标', weak: false };
+  if (/共现|实体/.test(why)) return { label: '同实体关联', weak: false };
+  // 仅同源 / BM25 词项相似，未落到主题或实体：弱关联，不冒充因果拓扑。
+  return { label: '同批语料关联', weak: true };
 }
 
 export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
@@ -175,7 +179,8 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
     const bridgeMap = new Map<string, string>();
 
     combinedItems.forEach((item, index) => {
-      const bridgeType = extractConnectionHub(item.why, item.media);
+      const hub = extractConnectionHub(item.why, item.media);
+      const bridgeType = hub.label;
       const bridgeId = `bridge-${bridgeType}`;
 
       if (!bridgeMap.has(bridgeType)) {
@@ -185,7 +190,8 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
           label: bridgeType,
           type: 'bridge',
           radius: 16,
-          color: '#1E293B',
+          color: hub.weak ? '#A8A29E' : '#1E293B',
+          weak: hub.weak,
           why: `连接纽带：${bridgeType}`,
         });
 
@@ -194,6 +200,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
           source: rootId,
           target: bridgeId,
           relation: '枢纽',
+          dashed: hub.weak,
         });
       }
 
@@ -216,7 +223,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
         source: bridgeId,
         target: leafId,
         relation: isMatched ? '语料库已匹配' : '外部线索',
-        dashed: !isMatched,
+        dashed: !isMatched || hub.weak,
       });
     });
 
@@ -365,7 +372,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
       .attr('font-size', (d) => (d.type === 'root' ? 12 : d.type === 'bridge' ? 10 : 11))
       .attr('font-weight', (d) => (d.type === 'root' ? '900' : '700'))
       .attr('font-family', 'var(--font-serif)')
-      .attr('fill', (d) => (d.type === 'bridge' ? '#FFFFFF' : '#1E293B'))
+      .attr('fill', (d) => (d.type === 'bridge' ? (d.weak ? '#44403C' : '#FFFFFF') : '#1E293B'))
       .attr('text-anchor', (d) => (d.type === 'bridge' ? 'middle' : 'start'))
       .attr('dy', (d) => (d.type === 'bridge' ? 3.5 : d.radius + 14))
       .attr('dx', (d) => (d.type === 'bridge' ? 0 : -d.radius + 4));
@@ -542,7 +549,8 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {combinedItems.map((item, idx) => {
             const isMatched = !!item.matchedArticle;
-            const hubTag = extractConnectionHub(item.why, item.media);
+            const hub = extractConnectionHub(item.why, item.media);
+            const hubTag = hub.label;
 
             return (
               <div
@@ -556,7 +564,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
                 <div className="space-y-2">
                   {/* Top tags */}
                   <div className="flex items-center justify-between text-xs">
-                    <span className="px-2 py-0.5 rounded-md font-serif font-bold text-[11px] bg-stone-900 text-stone-100">
+                    <span className={`px-2 py-0.5 rounded-md font-serif font-bold text-[11px] ${hub.weak ? 'bg-stone-200 text-stone-500' : 'bg-stone-900 text-stone-100'}`}>
                       {hubTag}
                     </span>
                     <span className="font-mono text-[11px] text-stone-500 font-bold bg-white px-2 py-0.5 rounded border border-stone-200">

@@ -151,7 +151,7 @@ export function useAdminConsoleState() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || '保存失败');
+        throw new Error(err.message || err.error || '保存失败');
       }
 
       localStorage.setItem('sector-taxonomy-overrides', JSON.stringify(cleanSectorOverrides));

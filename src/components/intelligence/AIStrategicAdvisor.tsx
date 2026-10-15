@@ -17,6 +17,8 @@ export const AIStrategicAdvisor: React.FC<AIStrategicAdvisorProps> = ({
     answer: string | null;
     /** 服务端标记：本次没有生成内容 */
     fallback?: boolean;
+    /** 服务端给出的具体原因（区分「未配 Key」与「调用失败」） */
+    fallbackNote?: string;
     error?: string;
     citations: string[];
   } | null>(null);
@@ -63,6 +65,7 @@ export const AIStrategicAdvisor: React.FC<AIStrategicAdvisorProps> = ({
         answer: data.answer || null,
         citations: data.citations || [],
         fallback: !!data.fallback,
+        fallbackNote: typeof data.fallbackNote === 'string' ? data.fallbackNote : undefined,
       });
     } catch (e) {
       console.error(e);
@@ -156,7 +159,7 @@ export const AIStrategicAdvisor: React.FC<AIStrategicAdvisorProps> = ({
           <div className="text-sm font-serif text-stone-900 leading-relaxed whitespace-pre-line bg-white p-4 rounded-lg border border-stone-300">
             {advisorResponse.fallback && (
               <p className="mb-2 text-[11px] font-bold text-amber-700">
-                未配置可用模型，本次没有生成顾问结论。
+                {advisorResponse.fallbackNote || '本次没有生成顾问结论。'}
               </p>
             )}
             {advisorResponse.answer ? (

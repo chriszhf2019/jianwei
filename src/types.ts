@@ -374,6 +374,8 @@ export interface NewsArticle {
   regionMentions?: RegionMention[];
   /** AI 全量标注写回的涉事主体（/api/entities/annotate） */
   entityMentions?: EntityMention[];
+  /** 最近一次深度分析（/api/enrich）失败的提示；写回文章状态以跨页面保留。 */
+  deepAnalysisError?: string;
   /** 各 AI 字段的生成来源与版本；用于审计模型切换、提示词更新和缓存命中。 */
   aiFieldMeta?: Record<string, AiFieldMeta>;
 }

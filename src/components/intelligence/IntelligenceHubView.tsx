@@ -53,6 +53,8 @@ interface IntelligenceHubViewProps {
   predictionContracts?: PredictionContract[];
   /** 跳转「地区情报」深潜工作台（主体×矩阵×三级下钻×组合） */
   onGoRegion?: () => void;
+  /** 游客：全库篇数与游客可读篇数需区分标注。 */
+  isGuest?: boolean;
 }
 
 export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
@@ -66,6 +68,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   onOpenArticleById,
   predictionContracts = [],
   onGoRegion,
+  isGuest = false,
 }) => {
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
   const [section, setSection] = useState<HubSection>('overview');
@@ -129,7 +132,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
                 : '未连接'}
             </div>
             <div className="text-[10px] text-stone-400">
-              全库 {totalCorpusCount} · 首页看板看当日
+              {isGuest ? `全库 ${totalCorpusCount} · 游客可读 4 条` : `全库 ${totalCorpusCount} · 首页看板看当日`}
             </div>
           </div>
         </div>

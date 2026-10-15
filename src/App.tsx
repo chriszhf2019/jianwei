@@ -284,6 +284,7 @@ export const App: React.FC = () => {
                 if (matched) handleSelectArticle(matched);
               }}
               onGoRegion={() => goTab('region')}
+              isGuest={!!authUser?.isGuest}
             />
           )}
 

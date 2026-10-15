@@ -407,10 +407,18 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
   // —— 浅层外部信源条目：深层认知 AI 懒加载补全 ——
   const isShallow = !article.spectrumLayers || article.spectrumLayers.length === 0;
-  const [enrichPhase, setEnrichPhase] = useState<'idle' | 'loading' | 'done' | 'unavailable' | 'error'>('idle');
-  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [enrichPhase, setEnrichPhase] = useState<'idle' | 'loading' | 'done' | 'unavailable' | 'error'>(
+    article.deepAnalysisError ? 'error' : 'idle'
+  );
+  const [enrichError, setEnrichError] = useState<string | null>(article.deepAnalysisError || null);
   const [enrichElapsed, setEnrichElapsed] = useState(0);
   const enrichAbortRef = useRef<AbortController | null>(null);
+
+  // 文章切换时，用写回文章状态的深度分析错误恢复提示，避免静默回到「尚未生成」。
+  useEffect(() => {
+    setEnrichPhase(article.deepAnalysisError ? 'error' : 'idle');
+    setEnrichError(article.deepAnalysisError || null);
+  }, [article.id]);
 
   useEffect(() => {
     if (enrichPhase !== 'loading') {
@@ -426,6 +434,13 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     enrichAbortRef.current?.abort();
     setEnrichPhase('idle');
     setEnrichError('已取消深度分析请求。');
+  };
+
+  const persistEnrichError = (message: string) => {
+    setEnrichError(message);
+    if (onEnrichArticle) {
+      onEnrichArticle({ ...article, deepAnalysisError: message });
+    }
   };
 
   const handleGenerateDeepAnalysis = async () => {
@@ -452,14 +467,15 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       });
       const json = await response.json().catch(() => ({}));
       if (json?.enriched && json.overrides && onEnrichArticle) {
-        onEnrichArticle(mergeDeep(article, json.overrides));
+        onEnrichArticle({ ...mergeDeep(article, json.overrides), deepAnalysisError: undefined });
         setEnrichPhase('done');
+        setEnrichError(null);
       } else if (json?.reason === 'no_api_key') {
         setEnrichPhase('unavailable');
-        setEnrichError(classifyAiClientError({ status: response.status, payload: json }));
+        persistEnrichError(classifyAiClientError({ status: response.status, payload: json }));
       } else {
         setEnrichPhase('error');
-        setEnrichError(classifyAiClientError({ status: response.status, payload: json }));
+        persistEnrichError(classifyAiClientError({ status: response.status, payload: json }));
       }
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
@@ -467,7 +483,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         setEnrichError('已取消深度分析请求。');
       } else {
         setEnrichPhase('error');
-        setEnrichError(classifyAiClientError({ error: err }));
+        persistEnrichError(classifyAiClientError({ error: err }));
       }
     }
   };
@@ -1129,7 +1145,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         article.tongsuSummary?.simpleSay ||
                         article.oneSentenceVerdict ||
                         article.summary ||
-                        '正在提炼生活化通俗比喻…'
+                        '暂无大白话讲解。'
                       }
                       entities={(article.entityMentions || []).map((e) => e.name)}
                       onOpenTermExplain={onOpenTermExplain}
@@ -1148,7 +1164,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         article.tongsuSummary?.whyExplanation ||
                         article.sevenElements?.why ||
                         article.coreLogic?.essence ||
-                        '各方在产业周期与供需博弈下的自然选择。'
+                        '暂无解释。'
                       }
                       entities={(article.entityMentions || []).map((e) => e.name)}
                       onOpenTermExplain={onOpenTermExplain}
@@ -1168,7 +1184,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         (Array.isArray(article.personaImpacts) && article.personaImpacts.length > 0
                           ? article.personaImpacts[0]?.coreImpact || article.personaImpacts[0]?.recommendedAction
                           : article.sevenElements?.soWhat) ||
-                        '影响下游应用成本与相关技能需求，建议保持关注。'
+                        '暂无说明。'
                       }
                       entities={(article.entityMentions || []).map((e) => e.name)}
                       onOpenTermExplain={onOpenTermExplain}
