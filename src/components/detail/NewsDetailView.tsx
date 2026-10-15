@@ -1129,7 +1129,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         article.tongsuSummary?.simpleSay ||
                         article.oneSentenceVerdict ||
                         article.summary ||
-                        '正在提炼生活化通俗比喻…'
+                        '暂无大白话讲解。'
                       }
                       entities={(article.entityMentions || []).map((e) => e.name)}
                       onOpenTermExplain={onOpenTermExplain}
@@ -1148,7 +1148,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         article.tongsuSummary?.whyExplanation ||
                         article.sevenElements?.why ||
                         article.coreLogic?.essence ||
-                        '各方在产业周期与供需博弈下的自然选择。'
+                        '暂无解释。'
                       }
                       entities={(article.entityMentions || []).map((e) => e.name)}
                       onOpenTermExplain={onOpenTermExplain}
@@ -1168,7 +1168,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         (Array.isArray(article.personaImpacts) && article.personaImpacts.length > 0
                           ? article.personaImpacts[0]?.coreImpact || article.personaImpacts[0]?.recommendedAction
                           : article.sevenElements?.soWhat) ||
-                        '影响下游应用成本与相关技能需求，建议保持关注。'
+                        '暂无说明。'
                       }
                       entities={(article.entityMentions || []).map((e) => e.name)}
                       onOpenTermExplain={onOpenTermExplain}
