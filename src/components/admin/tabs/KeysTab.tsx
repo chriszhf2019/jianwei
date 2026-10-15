@@ -12,7 +12,7 @@ import { AiCostPanel } from '../AiCostPanel';
 import type { AdminTabScope } from './scope';
 
 export function KeysTab({ s }: { s: AdminTabScope }) {
-  const { aiChoice, deepseekBaseUrlInput, deepseekKeyInput, deepseekModelInput, geminiKeyInput, geminiModelInput, handleSaveSettings, handleTestAi, setAiChoice, setDeepseekBaseUrlInput, setDeepseekKeyInput, setDeepseekModelInput, setGeminiKeyInput, setGeminiModelInput, setShowDeepseekKey, setShowGeminiKey, settings, showDeepseekKey, showGeminiKey, status, testResult, testingAi } = s;
+  const { aiChoice, deepseekBaseUrlInput, deepseekKeyAsciiError, deepseekKeyInput, deepseekModelInput, geminiKeyAsciiError, geminiKeyInput, geminiModelInput, handleSaveSettings, handleTestAi, hasInvalidKeyAscii, setAiChoice, setDeepseekBaseUrlInput, setDeepseekKeyInput, setDeepseekModelInput, setGeminiKeyInput, setGeminiModelInput, setShowDeepseekKey, setShowGeminiKey, settings, showDeepseekKey, showGeminiKey, status, testResult, testingAi } = s;
   return (
         <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
@@ -103,7 +103,12 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                     placeholder={settings?.ai?.gemini ? '•••••••••••••••• (已保存)' : 'AIzaSy...'}
                     value={geminiKeyInput}
                     onChange={(e) => setGeminiKeyInput(e.target.value)}
-                    className="w-full pl-3 pr-10 py-2 text-xs bg-white border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900 font-mono"
+                    aria-invalid={Boolean(geminiKeyAsciiError)}
+                    className={`w-full pl-3 pr-10 py-2 text-xs bg-white border rounded-lg focus:outline-hidden font-mono ${
+                      geminiKeyAsciiError
+                        ? 'border-rose-500 focus:border-rose-600'
+                        : 'border-stone-300 focus:border-stone-900'
+                    }`}
                   />
                   <button
                     type="button"
@@ -113,6 +118,12 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                     {showGeminiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
+                {geminiKeyAsciiError && (
+                  <p className="text-[11px] text-rose-700 font-serif font-bold flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{geminiKeyAsciiError}</span>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -148,7 +159,12 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                     placeholder={settings?.ai?.deepseek ? '•••••••••••••••• (已保存)' : 'sk-...'}
                     value={deepseekKeyInput}
                     onChange={(e) => setDeepseekKeyInput(e.target.value)}
-                    className="w-full pl-3 pr-10 py-2 text-xs bg-white border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900 font-mono"
+                    aria-invalid={Boolean(deepseekKeyAsciiError)}
+                    className={`w-full pl-3 pr-10 py-2 text-xs bg-white border rounded-lg focus:outline-hidden font-mono ${
+                      deepseekKeyAsciiError
+                        ? 'border-rose-500 focus:border-rose-600'
+                        : 'border-stone-300 focus:border-stone-900'
+                    }`}
                   />
                   <button
                     type="button"
@@ -158,6 +174,12 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                     {showDeepseekKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
+                {deepseekKeyAsciiError && (
+                  <p className="text-[11px] text-rose-700 font-serif font-bold flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>{deepseekKeyAsciiError}</span>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -172,10 +194,21 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
             </div>
           </div>
 
-          <div className="flex justify-end pt-4 border-t border-stone-200">
+          <div className="flex flex-col items-end gap-2 pt-4 border-t border-stone-200">
+            {hasInvalidKeyAscii && (
+              <p className="text-[11px] text-rose-700 font-serif font-bold">
+                请先修正含非 ASCII 字符的 API Key，再保存配置。
+              </p>
+            )}
             <button
+              type="button"
               onClick={() => handleSaveSettings()}
-              className="px-6 py-2.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold transition-all shadow-xs flex items-center space-x-2 cursor-pointer"
+              disabled={hasInvalidKeyAscii}
+              className={`px-6 py-2.5 text-white rounded-xl text-xs font-serif font-bold transition-all shadow-xs flex items-center space-x-2 ${
+                hasInvalidKeyAscii
+                  ? 'bg-stone-400 cursor-not-allowed opacity-70'
+                  : 'bg-stone-900 hover:bg-[#E3120B] cursor-pointer'
+              }`}
             >
               <Check className="w-4 h-4" />
               <span>保存 AI 密钥与服务配置</span>
