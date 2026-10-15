@@ -4,6 +4,7 @@ import {
   callAI,
   deepseekKeyOk,
   geminiKeyOk,
+  isUsableApiKey,
 } from "../ai";
 import {
   appendFeedItems,
@@ -338,8 +339,26 @@ export function registerCorpusRoutes(app: Express, applyRateLimit: RateLimiter):
       if (choice === "auto" || choice === "gemini" || choice === "deepseek") {
         settings.aiChoice = choice;
       }
-      if (typeof b.geminiApiKey === "string") settings.geminiApiKey = b.geminiApiKey.trim();
-      if (typeof b.deepseekApiKey === "string") settings.deepseekApiKey = b.deepseekApiKey.trim();
+      if (typeof b.geminiApiKey === "string") {
+        const v = b.geminiApiKey.trim();
+        if (v && !isUsableApiKey(v)) {
+          return res.status(400).json({
+            error: "invalid_api_key",
+            message: "Gemini Key 含非 ASCII 字符（如全角括号/空格），请粘贴纯 ASCII 密钥。",
+          });
+        }
+        settings.geminiApiKey = v;
+      }
+      if (typeof b.deepseekApiKey === "string") {
+        const v = b.deepseekApiKey.trim();
+        if (v && !isUsableApiKey(v)) {
+          return res.status(400).json({
+            error: "invalid_api_key",
+            message: "DeepSeek Key 含非 ASCII 字符（如全角括号/空格），请粘贴纯 ASCII 密钥。",
+          });
+        }
+        settings.deepseekApiKey = v;
+      }
       if (typeof b.geminiModel === "string" && b.geminiModel.trim()) settings.geminiModel = b.geminiModel.trim();
       if (typeof b.deepseekModel === "string" && b.deepseekModel.trim()) settings.deepseekModel = b.deepseekModel.trim();
       if (typeof b.deepseekBaseUrl === "string" && b.deepseekBaseUrl.trim()) {

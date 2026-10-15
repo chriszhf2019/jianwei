@@ -12,7 +12,7 @@ export type AIProvider = "gemini" | "deepseek";
 
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = settings.geminiApiKey;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || !isUsableApiKey(apiKey)) {
     return null;
   }
   try {
@@ -36,6 +36,20 @@ export function isPlaceholderApiKey(key: string): boolean {
     k.startsWith("sk-xxx") ||
     k.includes("example")
   );
+}
+
+/**
+ * 校验 API Key 仅含可见 ASCII（0x20–0x7E）。
+ * 全角括号/空格、中文等非 ASCII 字符会让 HTTP 头或上游请求触发 ByteString / 编码错误。
+ */
+export function isUsableApiKey(key: string): boolean {
+  const k = String(key || "");
+  if (!k.trim()) return false;
+  for (let i = 0; i < k.length; i += 1) {
+    const c = k.charCodeAt(i);
+    if (c < 0x20 || c > 0x7e) return false;
+  }
+  return true;
 }
 
 export function geminiKeyOk(): boolean {
@@ -232,6 +246,10 @@ export async function runAI(
 
     const baseUrl = (settings.deepseekBaseUrl || "https://api.deepseek.com").replace(/\/+$/, "");
     const dsModel = providerModel("deepseek");
+    const dsKey = String(settings.deepseekApiKey || "").trim();
+    if (!isUsableApiKey(dsKey)) {
+      throw new Error("DeepSeek API key contains non-ASCII characters; fix the key in settings");
+    }
     const isReasoner = dsModel.toLowerCase().includes("reasoner");
     const body: {
       model: string;
@@ -256,7 +274,7 @@ export async function runAI(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${settings.deepseekApiKey}`,
+          Authorization: `Bearer ${dsKey}`,
         },
       body: JSON.stringify(body),
       signal: controller.signal,
