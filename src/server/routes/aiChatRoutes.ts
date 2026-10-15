@@ -24,7 +24,8 @@ import {
 
 export type RateLimiter = (req: Request, res: Response, next: () => void) => void;
 
-const FALLBACK_NOTE = "未配置可用模型或上游请求失败，本次未生成内容。";
+const NO_KEY_FALLBACK_NOTE = "未配置可用 AI 模型（Gemini / DeepSeek Key），本次未生成内容。";
+const UPSTREAM_ERROR_FALLBACK_NOTE = "AI 调用失败或超时，本次未生成内容。";
 
 /** AI 深度分析 / 顾问 / 探针 / 简报追问 / 预测推演。 */
 export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter): void {
@@ -56,7 +57,7 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
         return res.json({
           fallback: true,
           fallbackReason: "no_api_key",
-          fallbackNote: FALLBACK_NOTE,
+          fallbackNote: NO_KEY_FALLBACK_NOTE,
           data: null,
         });
       }
@@ -280,7 +281,7 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
         return res.json({
           fallback: true,
           fallbackReason: "no_api_key",
-          fallbackNote: FALLBACK_NOTE,
+          fallbackNote: NO_KEY_FALLBACK_NOTE,
           citations: [],
           answer: null,
         });
@@ -311,7 +312,7 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
       res.json({
         fallback: true,
         fallbackReason: "error",
-        fallbackNote: FALLBACK_NOTE,
+        fallbackNote: UPSTREAM_ERROR_FALLBACK_NOTE,
         answer: null,
         citations: [],
       });
@@ -331,7 +332,7 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
         return res.json({
           fallback: true,
           fallbackReason: "no_api_key",
-          fallbackNote: FALLBACK_NOTE,
+          fallbackNote: NO_KEY_FALLBACK_NOTE,
           answer: null,
         });
       }
@@ -356,7 +357,7 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
       res.json({
         fallback: true,
         fallbackReason: "error",
-        fallbackNote: FALLBACK_NOTE,
+        fallbackNote: UPSTREAM_ERROR_FALLBACK_NOTE,
         answer: null,
       });
     }
