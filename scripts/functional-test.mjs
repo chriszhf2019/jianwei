@@ -109,7 +109,9 @@ async function main() {
   check('H2b 首发文章保留第二家媒体发布记录', !!corroborated, JSON.stringify(extItems.map((a) => ({ title: a.title, occurrences: a.sourceOccurrences?.length || 0 }))).slice(0, 300));
   const snap1 = await get('/api/snapshot');
   check('H3 snapshot 切换 live（demo:false, corpusSize 增长）', snap1.meta.corpus === 'live' && snap1.meta.demo === false && snap1.meta.corpusSize >= 2);
-  check('H4 snapshot 派生包含外部信源分类', (snap1.derived.categoryCounts['外部信源'] || 0) >= 2);
+  // 外部条目现在按赛道归类（科技/财经/…），「外部信源」只是 isExternal 标记，不再是 category 值。
+  const catTotal = Object.values(snap1.derived.categoryCounts).reduce((s, n) => s + (Number(n) || 0), 0);
+  check('H4 snapshot 对已摄取外部条目做主题归类', catTotal >= 2, JSON.stringify(snap1.derived.categoryCounts));
 
   // —— I. 摄取错误路径（指向不可达源） ——
   const s2 = await post('/api/settings', { feeds: ['http://127.0.0.1:3999/none.xml', RSS] });
