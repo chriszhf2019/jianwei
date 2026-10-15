@@ -14,7 +14,8 @@ interface AiUsageView {
     promptTokens: number;
     outputTokens: number;
   } | null;
-  costToday?: (ListedSpend & { estimatedCostUsd?: number | null }) | null;
+  /** 服务端实际可能只返回估算形状 `{ estimatedCostUsd, priceSource }`，没有 ListedSpend 的明细字段。 */
+  costToday?: (Partial<ListedSpend> & { estimatedCostUsd?: number | null; priceSource?: string }) | null;
 }
 
 const OMIT_TEXT: Record<OmitReason, string> = {
@@ -27,6 +28,9 @@ export const AiCostPanel: React.FC<{ usage?: AiUsageView | null }> = ({ usage })
   const today = usage?.persistedToday;
   const cost = usage?.costToday;
   const calls = today?.calls ?? 0;
+  // 服务端可能只返回估算形状 { estimatedCostUsd, priceSource }，没有 ListedSpend 的明细字段，需容错避免整页崩溃。
+  const omitted = Array.isArray(cost?.omitted) ? cost.omitted : [];
+  const hasListed = Array.isArray(cost?.omitted) && typeof cost?.pricedCalls === 'number';
 
   return (
     <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-3">
@@ -61,15 +65,15 @@ export const AiCostPanel: React.FC<{ usage?: AiUsageView | null }> = ({ usage })
           <p>用量没有写入数据库，不估算费用。</p>
         ) : calls === 0 ? (
           <p>今日还没有调用，不乘出费用。</p>
-        ) : (
+        ) : hasListed ? (
           <>
             <p>
-              今日调用 {calls} 次。已标价 {cost.pricedCalls} 次，参考费用 {formatListedUsd(cost.listedCostUsd)}。
-              未返回 token 的 {cost.unreportedCalls} 次不折算。
+              今日调用 {calls} 次。已标价 {cost?.pricedCalls ?? 0} 次，参考费用 {formatListedUsd(cost?.listedCostUsd ?? null)}。
+              未返回 token 的 {cost?.unreportedCalls ?? 0} 次不折算。
             </p>
-            {cost.omitted.length > 0 && (
+            {omitted.length > 0 && (
               <ul className="space-y-1">
-                {cost.omitted.map((item) => (
+                {omitted.map((item) => (
                   <li key={`${item.reason}-${item.provider}-${item.model}`} className="font-mono text-[11px] text-stone-600">
                     {item.provider}:{item.model} · {item.calls} 次 · 输入 {item.promptTokens} · 输出 {item.outputTokens} · {OMIT_TEXT[item.reason]}，不估算
                   </li>
@@ -77,8 +81,13 @@ export const AiCostPanel: React.FC<{ usage?: AiUsageView | null }> = ({ usage })
               </ul>
             )}
           </>
+        ) : (
+          <p>
+            今日调用 {calls} 次。参考估算费用 {formatListedUsd(cost?.estimatedCostUsd ?? null)}
+            {cost?.priceSource ? `（${cost.priceSource}）` : ''}。
+          </p>
         )}
-        <p className="text-[11px] text-stone-500">{cost?.note || '付费档公开标价不是供应商账单。'}</p>
+        <p className="text-[11px] text-stone-500">{cost?.note || cost?.priceSource || '付费档公开标价不是供应商账单。'}</p>
       </div>
     </section>
   );
