@@ -81,59 +81,69 @@ export function useUserPrefsStore() {
     { version: 1 }
   );
 
+  // 知识库写入以服务端为准：游客 POST/PATCH/DELETE 会 401 registration_required，
+  // 由 main.tsx 的 fetch 拦截器弹出注册/登录；不得先乐观写入 localStorage 造成假成功。
   const handleAddKnowledge = useCallback(
-    (item: KnowledgeItem) => {
-      setKnowledgeItems((prev) => [item, ...prev.filter((i) => i.id !== item.id && i.title !== item.title)]);
-      logUserActivity({
-        action: 'knowledge.deposit',
-        entityType: 'knowledge',
-        entityId: item.id,
-        metadata: { title: item.title, category: item.category },
-      });
-      void fetch('/api/knowledge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
-      })
-        .then(async (res) => {
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data?.item) {
-            setKnowledgeItems((prev) => [
-              data.item,
-              ...prev.filter((i) => i.id !== data.item.id && i.title !== data.item.title),
-            ]);
-          }
-        })
-        .catch(() => undefined);
+    async (item: KnowledgeItem): Promise<boolean> => {
+      try {
+        const res = await fetch('/api/knowledge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item),
+        });
+        const data = await res.json().catch(() => ({} as any));
+        if (!res.ok) return false;
+        const saved: KnowledgeItem = data?.item || item;
+        setKnowledgeItems((prev) => [
+          saved,
+          ...prev.filter((i) => i.id !== saved.id && i.title !== saved.title),
+        ]);
+        logUserActivity({
+          action: 'knowledge.deposit',
+          entityType: 'knowledge',
+          entityId: saved.id,
+          metadata: { title: saved.title, category: saved.category },
+        });
+        return true;
+      } catch {
+        return false;
+      }
     },
     [setKnowledgeItems]
   );
 
   const handleUpdateKnowledge = useCallback(
-    (id: string, updates: Partial<KnowledgeItem>) => {
-      setKnowledgeItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
-      void fetch(`/api/knowledge/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-        .then(async (res) => {
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data?.item) {
-            setKnowledgeItems((prev) => prev.map((item) => (item.id === id ? data.item : item)));
-          }
-        })
-        .catch(() => undefined);
+    async (id: string, updates: Partial<KnowledgeItem>): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/knowledge/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        const data = await res.json().catch(() => ({} as any));
+        if (!res.ok) return false;
+        const saved: KnowledgeItem = data?.item || { id, ...updates } as KnowledgeItem;
+        setKnowledgeItems((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, ...saved } : item))
+        );
+        return true;
+      } catch {
+        return false;
+      }
     },
     [setKnowledgeItems]
   );
 
   const handleRemoveKnowledge = useCallback(
-    (id: string) => {
-      setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
-      void fetch(`/api/knowledge/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => undefined);
+    async (id: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/knowledge/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!res.ok) return false;
+        setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
+        return true;
+      } catch {
+        return false;
+      }
     },
     [setKnowledgeItems]
   );
@@ -358,13 +368,21 @@ export function useUserPrefsStore() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(local),
             });
-            const registeredData = await registered.json();
+            const registeredData = await registered.json().catch(() => ({} as any));
             if (registered.ok && registeredData?.item) {
               merged.set(registeredData.item.id, registeredData.item);
               continue;
             }
+            // 游客/未登录：丢弃本机乐观残留，避免刷新后仍显示「已沉淀」假成功
+            if (
+              registered.status === 401 ||
+              registered.status === 403 ||
+              registeredData?.error === 'registration_required'
+            ) {
+              continue;
+            }
           } catch {
-            /* keep local offline copy */
+            /* offline: keep local copy */
           }
           merged.set(local.id, { ...local, ledger: 'local' });
         }

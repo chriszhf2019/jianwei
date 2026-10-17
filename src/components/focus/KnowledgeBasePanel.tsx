@@ -26,9 +26,9 @@ import { KeyTermHighlight } from '../common/KeyTermHighlight';
 
 interface KnowledgeBasePanelProps {
   knowledgeItems: KnowledgeItem[];
-  onAddKnowledge?: (item: KnowledgeItem) => void;
-  onUpdateKnowledge?: (id: string, updates: Partial<KnowledgeItem>) => void;
-  onRemoveKnowledge?: (id: string) => void;
+  onAddKnowledge?: (item: KnowledgeItem) => boolean | Promise<boolean>;
+  onUpdateKnowledge?: (id: string, updates: Partial<KnowledgeItem>) => boolean | Promise<boolean>;
+  onRemoveKnowledge?: (id: string) => boolean | Promise<boolean>;
   onOpenArticleById?: (articleId: string) => void;
   onOpenTermExplain?: (term: string) => void;
 }
@@ -47,6 +47,8 @@ export const KnowledgeBasePanel: React.FC<KnowledgeBasePanelProps> = ({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<string>('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [writeError, setWriteError] = useState('');
+  const [isWriting, setIsWriting] = useState(false);
 
   // Manual Add Form State
   const [newTitle, setNewTitle] = useState('');
@@ -102,11 +104,23 @@ export const KnowledgeBasePanel: React.FC<KnowledgeBasePanelProps> = ({
     setNoteDraft(item.personalNote || '');
   };
 
-  const handleSaveNote = (id: string) => {
-    if (onUpdateKnowledge) {
-      onUpdateKnowledge(id, { personalNote: noteDraft });
+  const handleSaveNote = async (id: string) => {
+    if (!onUpdateKnowledge) {
+      setEditingNoteId(null);
+      return;
     }
-    setEditingNoteId(null);
+    setWriteError('');
+    setIsWriting(true);
+    try {
+      const ok = await onUpdateKnowledge(id, { personalNote: noteDraft });
+      if (ok === false) {
+        setWriteError('更新知识库需要登录。请注册并完成审批后再试。');
+        return;
+      }
+      setEditingNoteId(null);
+    } finally {
+      setIsWriting(false);
+    }
   };
 
   // Export as Markdown
@@ -141,10 +155,10 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
     URL.revokeObjectURL(url);
   };
 
-  // Submit manual creation
-  const handleCreateKnowledge = (e: React.FormEvent) => {
+  // Submit manual creation（服务端确认成功后再关闭；游客写入会失败并提示登录）
+  const handleCreateKnowledge = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newVerdict.trim()) return;
+    if (!newTitle.trim() || !newVerdict.trim() || isWriting) return;
 
     const newItem: KnowledgeItem = {
       id: `kb-${Date.now()}`,
@@ -157,13 +171,23 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
       createdAt: new Date().toISOString().slice(0, 10),
     };
 
-    if (onAddKnowledge) onAddKnowledge(newItem);
-    setShowAddModal(false);
-    // Reset
-    setNewTitle('');
-    setNewVerdict('');
-    setNewTakeaways('');
-    setNewNote('');
+    if (!onAddKnowledge) return;
+    setWriteError('');
+    setIsWriting(true);
+    try {
+      const ok = await onAddKnowledge(newItem);
+      if (ok === false) {
+        setWriteError('沉淀知识库需要登录。游客可浏览公开语料，写入需注册并审批。');
+        return;
+      }
+      setShowAddModal(false);
+      setNewTitle('');
+      setNewVerdict('');
+      setNewTakeaways('');
+      setNewNote('');
+    } finally {
+      setIsWriting(false);
+    }
   };
 
   return (
@@ -189,7 +213,10 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
 
         <div className="flex items-center space-x-2.5 shrink-0">
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setWriteError('');
+              setShowAddModal(true);
+            }}
             className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -206,6 +233,12 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
           </button>
         </div>
       </div>
+
+      {writeError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs text-rose-800 font-serif font-bold">
+          {writeError}
+        </div>
+      )}
 
       {/* 相对旧 localStorage 的轻量迁移说明 */}
       <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-3 text-xs text-stone-700 space-y-1">
@@ -339,12 +372,21 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
 
                     {onRemoveKnowledge && (
                       <button
-                        onClick={() => {
-                          if (window.confirm(`确定从知识库中移除《${item.title}》吗？`)) {
-                            onRemoveKnowledge(item.id);
+                        onClick={async () => {
+                          if (!window.confirm(`确定从知识库中移除《${item.title}》吗？`)) return;
+                          setWriteError('');
+                          setIsWriting(true);
+                          try {
+                            const ok = await onRemoveKnowledge(item.id);
+                            if (ok === false) {
+                              setWriteError('删除知识库条目需要登录。');
+                            }
+                          } finally {
+                            setIsWriting(false);
                           }
                         }}
-                        className="p-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 cursor-pointer transition-colors"
+                        disabled={isWriting}
+                        className="p-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50 cursor-pointer transition-colors disabled:opacity-40"
                         title="删除该条目"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -500,12 +542,22 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
                 <span>手动沉淀战略认知条目</span>
               </h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                type="button"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setWriteError('');
+                }}
                 className="text-stone-400 hover:text-stone-700 text-sm font-bold"
               >
                 ✕
               </button>
             </div>
+
+            {writeError && (
+              <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-800 font-serif font-bold">
+                {writeError}
+              </div>
+            )}
 
             <form onSubmit={handleCreateKnowledge} className="space-y-3.5 text-xs">
               <div className="space-y-1">
@@ -596,9 +648,10 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-lg font-serif font-bold shadow-xs cursor-pointer"
+                  disabled={isWriting}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white rounded-lg font-serif font-bold shadow-xs cursor-pointer"
                 >
-                  确认沉淀
+                  {isWriting ? '提交中…' : '确认沉淀'}
                 </button>
               </div>
             </form>
