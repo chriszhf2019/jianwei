@@ -1850,3 +1850,45 @@ test('articleTime: formatArticlePublishedMeta 相对+绝对统一', async () => 
   assert.ok(s.includes('2026-09-04'), s);
   assert.ok(s.includes('昨天') || s.includes('小时') || s.includes('天'), s);
 });
+
+
+test('ArticleCompareView: 对比栏分类用规范化赛道而非原始 category', () => {
+  const src = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/ArticleCompareView.tsx'), 'utf8');
+  assert.match(src, /function displayCategory/);
+  assert.match(src, /getArticleCanonicalCategory/);
+  assert.match(src, /\{displayCategory\(primaryArticle\)\}/);
+  assert.match(src, /\{displayCategory\(secondaryArticle\)\}/);
+  assert.match(src, /\{displayCategory\(cand\)\}/);
+  // 徽章文案走 displayCategory；原始 category 仅允许出现在 tooltip「原始标注」中
+  assert.match(src, /原始标注/);
+  assert.equal(/\>\s*\{primaryArticle\.category\}\s*</.test(src), false);
+  assert.equal(/\>\s*\{secondaryArticle\.category\}\s*</.test(src), false);
+  assert.equal(/\>\s*\{cand\.category\}\s*</.test(src), false);
+});
+
+test('深链: GET /api/corpus/item/:id 与游客可读 /corpus/', () => {
+  const routes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/corpusRoutes.ts'), 'utf8');
+  assert.match(routes, /\/api\/corpus\/item\/:id/);
+  assert.match(routes, /queryArticleById/);
+  assert.match(routes, /findCorpusArticle/);
+  assert.match(routes, /article_not_found/);
+
+  const articlesDb = fs.readFileSync(path.join(process.cwd(), 'src/server/database/articles.ts'), 'utf8');
+  assert.match(articlesDb, /export function queryArticleById/);
+
+  const auth = fs.readFileSync(path.join(process.cwd(), 'src/server/authMiddleware.ts'), 'utf8');
+  assert.match(auth, /pathname\.startsWith\("\/corpus\/"\)/);
+
+  const router = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useAppRouter.ts'), 'utf8');
+  assert.match(router, /ensureArticleById/);
+  assert.match(router, /deepLinkStatus/);
+  assert.match(router, /not_found/);
+
+  const corpusStore = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useCorpusStore.ts'), 'utf8');
+  assert.match(corpusStore, /ensureArticleById/);
+  assert.match(corpusStore, /\/api\/corpus\/item\//);
+
+  const app = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.match(app, /未找到该文章/);
+  assert.match(app, /正在加载文章/);
+});

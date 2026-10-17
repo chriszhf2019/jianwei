@@ -65,6 +65,7 @@ export function isKnowledgeApiPath(pathname: string): boolean {
 function isGuestReadRoute(pathname: string): boolean {
   return (
     pathname === "/corpus" ||
+    pathname.startsWith("/corpus/") ||
     pathname === "/snapshot" ||
     pathname === "/auth/me" ||
     pathname === "/preferences" ||

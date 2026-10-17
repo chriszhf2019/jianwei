@@ -86,6 +86,8 @@ export function useCorpusStore() {
   }, [articles]);
 
   const [activeRequests, setActiveRequests] = useState(0);
+  /** 首屏语料（IndexedDB 或 /api/corpus）至少完成一轮，供深链判定「列表里没有」而非「还在加载」。 */
+  const [corpusReady, setCorpusReady] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -131,6 +133,42 @@ export function useCorpusStore() {
       return next;
     });
   }, []);
+
+  /** 深链 / 单篇拉取：合并进语料并写入 IndexedDB，避免游客列表截断后丢篇。 */
+  const upsertArticle = useCallback((article: NewsArticle) => {
+    setArticles((prev) => {
+      const idx = prev.findIndex((a) => a.id === article.id);
+      const next =
+        idx >= 0
+          ? prev.map((a, i) => (i === idx ? { ...a, ...article } : a))
+          : [article, ...prev];
+      void saveCachedCorpus(next);
+      return next;
+    });
+  }, []);
+
+  const ensureArticleById = useCallback(
+    async (articleId: string): Promise<NewsArticle | null> => {
+      const id = String(articleId || '').trim();
+      if (!id) return null;
+      const existing = articlesRef.current.find((a) => a.id === id);
+      if (existing) return existing;
+      try {
+        const res = await fetch(`/api/corpus/item/${encodeURIComponent(id)}`);
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`corpus item ${res.status}`);
+        const json = await res.json();
+        const article = json?.article as NewsArticle | undefined;
+        if (!article || !article.id) return null;
+        upsertArticle(article);
+        return article;
+      } catch (err) {
+        console.warn('ensureArticleById failed:', err);
+        return null;
+      }
+    },
+    [upsertArticle]
+  );
 
   const handleAnalysisComplete = useCallback((newArticle: NewsArticle) => {
     setArticles((prev) => {
@@ -248,9 +286,15 @@ export function useCorpusStore() {
         const page: NewsArticle[] = Array.isArray(json?.corpus) ? json.corpus : [];
         if (offset === 0) {
           loadedCount = page.length;
-          setArticles(page);
-          if (page.length > 0) void saveCachedCorpus(page);
-          else void corpusDB.removeItem(INDEXED_DB_CORPUS_KEY);
+          setArticles((prev) => {
+            const pageIds = new Set(page.map((a) => a.id));
+            // 保留当前内存中不在本页的篇目（深链单篇 / enrich 写回），避免游客 limit 把它们冲掉
+            const retained = prev.filter((a) => a.id && !pageIds.has(a.id)).slice(0, 40);
+            const next = retained.length > 0 ? [...page, ...retained] : page;
+            if (next.length > 0) void saveCachedCorpus(next);
+            else void corpusDB.removeItem(INDEXED_DB_CORPUS_KEY);
+            return next;
+          });
         } else if (page.length > 0) {
           loadedCount += page.length;
           setArticles((prev) => {
@@ -266,10 +310,13 @@ export function useCorpusStore() {
         }
       } finally {
         setActiveRequests((c) => Math.max(0, c - 1));
+        if (offset === 0) setCorpusReady(true);
       }
     };
 
-    loadPage(0).catch(() => undefined);
+    loadPage(0).catch(() => {
+      setCorpusReady(true);
+    });
     return () => controller.abort();
   }, []);
 
@@ -292,8 +339,11 @@ export function useCorpusStore() {
     articlesRef,
     derived,
     activeRequests,
+    corpusReady,
     trackLoading,
     handleEnrichArticle,
+    upsertArticle,
+    ensureArticleById,
     handleAnalysisComplete,
     runNewsSkill,
     runPersonaForecast,

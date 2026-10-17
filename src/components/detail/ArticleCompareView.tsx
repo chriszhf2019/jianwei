@@ -6,7 +6,7 @@ import {
   compareDivergenceLabel,
   COMPARE_WEAK_SIMILARITY,
 } from '../../utils/relatedArticles';
-import { getArticleCanonicalCategory } from '../../utils/categoryClassifier';
+import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
 import { formatArticleTime } from '../../utils/articleTime';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { EvidenceBadge } from '../common/EvidenceBadge';
@@ -41,6 +41,12 @@ interface ArticleCompareViewProps {
   onClose: () => void;
   onSelectPrimaryArticle?: (article: NewsArticle) => void;
   onOpenTermExplain?: (term: string) => void;
+}
+
+
+/** 与详情页头徽章一致：展示规范化赛道（如 IT→科技），避免左右栏打出原始 IT。 */
+function displayCategory(article: { category?: string; title?: string; subtitle?: string; summary?: string; tags?: string[]; sourceUrl?: string; sourceName?: string; feedUrl?: string }): string {
+  return getArticleCanonicalCategory(article);
 }
 
 // 字符二元组 Jaccard 计算
@@ -148,11 +154,11 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
     setAiArbitration(null);
   }, [primaryArticle.id, pool]);
 
-  // 获取所有可选文章分类
+  // 获取所有可选文章分类（规范化，与详情头徽章一致）
   const categories = useMemo(() => {
     const set = new Set<string>();
     pool.forEach((a) => {
-      if (a.category) set.add(a.category);
+      set.add(displayCategory(a));
     });
     return Array.from(set);
   }, [pool]);
@@ -160,7 +166,7 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
   // 搜索过滤可选文章列表
   const filteredCandidates = useMemo(() => {
     return pool.filter((article) => {
-      if (filterCategory !== 'all' && article.category !== filterCategory) return false;
+      if (filterCategory !== 'all' && displayCategory(article) !== filterCategory) return false;
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -412,7 +418,7 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
               <option value="all">全部分类 ({pool.length})</option>
               {categories.map((cat) => (
                 <option key={cat} value={cat}>
-                  {cat} ({pool.filter((a) => a.category === cat).length})
+                  {cat} ({pool.filter((a) => displayCategory(a) === cat).length})
                 </option>
               ))}
             </select>
@@ -440,7 +446,7 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
                     <div className="space-y-0.5 max-w-[85%]">
                       <div className="flex items-center gap-2">
                         <span className="font-serif font-bold text-[10px] px-1.5 py-0.2 rounded bg-stone-100 text-stone-700">
-                          {cand.category}
+                          {displayCategory(cand)}
                         </span>
                         <span className="font-mono text-[10px] text-stone-500">{cand.sourceName || '外部信源'}</span>
                         <span className="font-mono text-[10px] text-stone-400">{formatArticleTime(cand)}</span>
@@ -601,8 +607,15 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="font-serif font-bold text-[#E3120B] bg-red-50 px-2 py-0.5 rounded border border-red-200 text-[10px]">
-                  {primaryArticle.category}
+                <span
+                  className="font-serif font-bold text-[#E3120B] bg-red-50 px-2 py-0.5 rounded border border-red-200 text-[10px]"
+                  title={
+                    primaryArticle.category && primaryArticle.category !== displayCategory(primaryArticle)
+                      ? `原始标注：${primaryArticle.category}`
+                      : (CATEGORY_THEMES[displayCategory(primaryArticle)]?.desc || undefined)
+                  }
+                >
+                  {displayCategory(primaryArticle)}
                 </span>
                 <span className="font-mono text-stone-500 text-[11px] font-bold">
                   {primaryArticle.sourceName || '外部信源'}
@@ -722,8 +735,15 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs">
-                  <span className="font-serif font-bold text-[#0284C7] bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10px]">
-                    {secondaryArticle.category}
+                  <span
+                    className="font-serif font-bold text-[#0284C7] bg-blue-50 px-2 py-0.5 rounded border border-blue-200 text-[10px]"
+                    title={
+                      secondaryArticle.category && secondaryArticle.category !== displayCategory(secondaryArticle)
+                        ? `原始标注：${secondaryArticle.category}`
+                        : (CATEGORY_THEMES[displayCategory(secondaryArticle)]?.desc || undefined)
+                    }
+                  >
+                    {displayCategory(secondaryArticle)}
                   </span>
                   <span className="font-mono text-stone-500 text-[11px] font-bold">
                     {secondaryArticle.sourceName || '外部信源'}

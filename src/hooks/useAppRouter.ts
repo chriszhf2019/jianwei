@@ -34,20 +34,36 @@ function writeHash(hash: string): void {
   }
 }
 
+export type ArticleDeepLinkStatus = 'idle' | 'pending' | 'loading' | 'not_found';
+
 /** Hash 路由：主导航与文章详情可刷新恢复。 */
-export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObject<NewsArticle[]>) {
+export function useAppRouter(
+  articles: NewsArticle[],
+  articlesRef: MutableRefObject<NewsArticle[]>,
+  options?: {
+    corpusReady?: boolean;
+    ensureArticleById?: (id: string) => Promise<NewsArticle | null>;
+  }
+) {
+  const corpusReady = options?.corpusReady ?? true;
+  const ensureArticleById = options?.ensureArticleById;
+
   const [activeTab, setActiveTab] = useState<AppViewTab>(() => parseLocationHash().tab);
   const [pendingArticleId, setPendingArticleId] = useState<string | null>(() =>
     parseLocationHash().tab === 'detail' ? parseLocationHash().articleId : null
   );
   const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [detailInitialTab, setDetailInitialTab] = useState<CognitiveDetailTab>('seven_elements');
+  const [deepLinkStatus, setDeepLinkStatus] = useState<ArticleDeepLinkStatus>(() =>
+    parseLocationHash().tab === 'detail' && parseLocationHash().articleId ? 'pending' : 'idle'
+  );
 
   useEffect(() => {
     if (activeTab === 'detail' && !selectedArticle) return;
     writeHash(hashForView(activeTab, selectedArticle));
   }, [activeTab, selectedArticle]);
 
+  // 列表命中：语料已含该 id
   useEffect(() => {
     if (!pendingArticleId) return;
     const found = articles.find((a) => a.id === pendingArticleId);
@@ -55,8 +71,34 @@ export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObj
     setSelectedArticle(found);
     setActiveTab('detail');
     setPendingArticleId(null);
+    setDeepLinkStatus('idle');
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [articles, pendingArticleId]);
+
+  // 列表未命中：语料就绪后按 id 拉单篇（覆盖游客 limit 截断）
+  useEffect(() => {
+    if (!pendingArticleId || !corpusReady || !ensureArticleById) return;
+    if (articles.some((a) => a.id === pendingArticleId)) return;
+
+    let cancelled = false;
+    const id = pendingArticleId;
+    setDeepLinkStatus('loading');
+    void ensureArticleById(id).then((article) => {
+      if (cancelled) return;
+      if (article) {
+        setSelectedArticle(article);
+        setActiveTab('detail');
+        setPendingArticleId(null);
+        setDeepLinkStatus('idle');
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      } else {
+        setDeepLinkStatus('not_found');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingArticleId, corpusReady, ensureArticleById, articles]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -68,20 +110,24 @@ export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObj
             setSelectedArticle(found);
             setActiveTab('detail');
             setPendingArticleId(null);
+            setDeepLinkStatus('idle');
           } else {
             setActiveTab('detail');
             setSelectedArticle(null);
             setPendingArticleId(view.articleId);
+            setDeepLinkStatus('pending');
           }
         } else {
           setActiveTab('home');
           setSelectedArticle(null);
           setPendingArticleId(null);
+          setDeepLinkStatus('idle');
         }
       } else {
         setActiveTab(view.tab);
         setSelectedArticle(null);
         setPendingArticleId(null);
+        setDeepLinkStatus('idle');
       }
     };
     window.addEventListener('hashchange', onHashChange);
@@ -92,6 +138,8 @@ export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObj
     setSelectedArticle(art);
     setDetailInitialTab('seven_elements');
     setActiveTab('detail');
+    setPendingArticleId(null);
+    setDeepLinkStatus('idle');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     logUserActivity({
       action: 'article.read',
@@ -106,6 +154,8 @@ export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObj
       setSelectedArticle(art);
       setDetailInitialTab(tab);
       setActiveTab('detail');
+      setPendingArticleId(null);
+      setDeepLinkStatus('idle');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     []
@@ -114,12 +164,16 @@ export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObj
   const handleBackToList = useCallback(() => {
     setActiveTab('home');
     setSelectedArticle(null);
+    setPendingArticleId(null);
+    setDeepLinkStatus('idle');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   const goTab = useCallback((tab: PrimaryNavTab) => {
     setActiveTab(tab);
     setSelectedArticle(null);
+    setPendingArticleId(null);
+    setDeepLinkStatus('idle');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -130,6 +184,7 @@ export function useAppRouter(articles: NewsArticle[], articlesRef: MutableRefObj
     setSelectedArticle,
     detailInitialTab,
     pendingArticleId,
+    deepLinkStatus,
     handleSelectArticle,
     handleSelectArticleWithTab,
     handleBackToList,

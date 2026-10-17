@@ -10,12 +10,13 @@ import {
   appendFeedItems,
   ALLOW_DEMO_DATA,
   corpusSortTime,
+  findCorpusArticle,
   getCorpusRevision,
   lastIngest,
   persistCorpus,
   serverCorpus,
 } from "../corpus";
-import { queryArticlesPage, recordAuditEvent } from "../database";
+import { queryArticleById, queryArticlesPage, recordAuditEvent } from "../database";
 import { diagnoseFeedContract, ingestAllFeeds, pingAllFeeds, pingFeed } from "../feeds";
 import {
   feedUrls,
@@ -237,6 +238,29 @@ export function registerCorpusRoutes(app: Express, applyRateLimit: RateLimiter):
       console.error("Feed ingest error:", e);
       res.status(500).json({ error: "feed ingest failed: " + (e?.message || e) });
     }
+  });
+
+
+  // 单篇深链：游客硬刷新 /#/article/:id 不受列表 GUEST_ARTICLE_LIMIT 截断
+  app.get("/api/corpus/item/:id", (req, res) => {
+    res.setHeader("Cache-Control", "private, max-age=30, must-revalidate");
+    const id = decodeURIComponent(String(req.params.id || "")).trim();
+    if (!id) {
+      res.status(400).json({ error: "missing_article_id", message: "缺少文章 id" });
+      return;
+    }
+    let article: any = null;
+    if (!NO_PERSIST) {
+      article = queryArticleById(id);
+    }
+    if (!article) {
+      article = findCorpusArticle(id) || null;
+    }
+    if (!article) {
+      res.status(404).json({ error: "article_not_found", message: "未找到该文章，可能已从语料库下架" });
+      return;
+    }
+    res.json({ ok: true, article });
   });
 
   app.get("/api/corpus", (req, res) => {
