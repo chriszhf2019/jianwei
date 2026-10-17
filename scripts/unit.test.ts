@@ -24,7 +24,17 @@ import {
   sanitizeFrequencyAnalysis,
   sanitizeGrayscaleAssessment,
   sanitizeRegionImpact,
+  PROMPT_VERSIONS,
 } from '../src/server/aiValidation';
+import {
+  ANALYSIS_FRAMEWORK_VERSION,
+  ANALYSIS_FRAMEWORK_LABELS,
+  extractAnalysisFramework,
+  hasFrameworkContent,
+  mergeDeepAnalysisFields,
+  normalizeAiVerdictActionLevel,
+} from '../src/shared/analysisFramework';
+import { buildAnalysisFrameworkPrompt } from '../src/server/prompts/analysisFrameworkPrompt';
 import { calibrationBuckets, forecastMetrics, predictionOutcomes } from '../src/utils/predictionCalibration';
 import {
   extractPageMetadata,
@@ -1351,5 +1361,144 @@ test('apiKeyAsciiError: 空字段通过；非 ASCII 即时报错（与后端文�
   assert.equal(apiKeyAsciiError('AIzaSy-ok-ascii-key', 'Gemini'), null);
   assert.match(apiKeyAsciiError('中文假密钥', 'Gemini')!, /Gemini Key 含非 ASCII/);
   assert.match(apiKeyAsciiError('sk-假', 'DeepSeek')!, /DeepSeek Key 含非 ASCII/);
+});
+
+test('AnalysisFramework: 产品话术映射到现有字段，旧字段不丢', () => {
+  const fw = extractAnalysisFramework({
+    summary: '摘要内容',
+    oneSentenceVerdict: '一句话定性',
+    sevenElements: {
+      what: '发生了什么',
+      who: '主体',
+      when: '今天',
+      where: '全球',
+      why: '动因',
+      how: '路径',
+      soWhat: '格局影响',
+      aiVerdict: { confidenceScore: 50, volatility: '中', actionLevel: '观望', verdictSummary: '裁决' },
+    },
+    dehydratedItems: {
+      coreEntity: 'X',
+      keyAction: '动作',
+      relatedCount: 1,
+      coreShifts: ['变化'],
+      impactHighlights: ['对供应链承压'],
+    },
+    aiInterpretation: {
+      core: '判断',
+      basis: '依据',
+      impact: '主要影响文案',
+      limits: '边界',
+      grayscale: {
+        memberships: [],
+        evidenceStrength: '中',
+        support: [],
+        oppose: [],
+        uncertain: [],
+        reverseRisks: ['逆转风险A'],
+        decision: '持续观察',
+        decisionReason: '阈值未达',
+      },
+    },
+    riskReviewText: { mainRisk: '主风险', misread: '', blindSpot: '', watchMetrics: '' },
+    evidenceChain: [
+      {
+        id: 'ev-1',
+        claim: '论断',
+        sourceFact: '材料事实',
+        reliability: '说明',
+        confidenceScore: 40,
+        sourceUrl: null,
+        verificationStatus: 'unlinked',
+        relation: 'supports',
+      },
+    ],
+    bullBearDebate: { bull: [], bear: [{ point: '看空点' }], coreDispute: '', read: '' },
+  } as any);
+
+  assert.equal(fw.summary, '摘要内容');
+  assert.equal(fw.verdict, '一句话定性');
+  assert.equal(fw.impact, '主要影响文案');
+  assert.ok(fw.sevenW?.what === '发生了什么');
+  assert.ok(fw.risks.includes('主风险'));
+  assert.ok(fw.risks.includes('逆转风险A'));
+  assert.equal(fw.evidence.length, 1);
+  assert.equal(fw.frameworkVersion, ANALYSIS_FRAMEWORK_VERSION);
+  assert.equal(ANALYSIS_FRAMEWORK_LABELS.verdict, '定性');
+  assert.equal(hasFrameworkContent(fw), true);
+});
+
+test('AnalysisFramework: actionLevel 旧枚举归一，enrich/analyze 共用 sanitize', () => {
+  assert.equal(normalizeAiVerdictActionLevel('观察'), '关注');
+  assert.equal(normalizeAiVerdictActionLevel('规避'), '观望');
+  assert.equal(normalizeAiVerdictActionLevel('行动'), '行动');
+
+  const cleaned = sanitizeEnrichPayload({
+    sevenElements: {
+      what: 'w',
+      who: '',
+      when: '',
+      where: '',
+      why: '',
+      how: '',
+      soWhat: '',
+      aiVerdict: { confidenceScore: 120, volatility: '未知', actionLevel: '观察', verdictSummary: 'x' },
+    },
+  });
+  assert.equal(cleaned.sevenElements.aiVerdict.actionLevel, '关注');
+  assert.equal(cleaned.sevenElements.aiVerdict.confidenceScore, 100);
+  assert.equal(cleaned.sevenElements.aiVerdict.volatility, '中');
+  assert.equal(PROMPT_VERSIONS.enrich, ANALYSIS_FRAMEWORK_VERSION);
+  assert.equal(PROMPT_VERSIONS.analyze, ANALYSIS_FRAMEWORK_VERSION);
+});
+
+test('AnalysisFramework: mergeDeepAnalysisFields 保留旧字段并合并深度字段', () => {
+  const merged = mergeDeepAnalysisFields(
+    { title: '保留标题', summary: '旧摘要', customKeep: true } as any,
+    { summary: '新摘要', oneSentenceVerdict: '定性', coreLogic: { essence: '本质', points: ['a'] } }
+  );
+  assert.equal((merged as any).title, '保留标题');
+  assert.equal((merged as any).customKeep, true);
+  assert.equal(merged.summary, '新摘要');
+  assert.equal(merged.oneSentenceVerdict, '定性');
+  assert.equal((merged as any).coreLogic.essence, '本质');
+});
+
+test('AnalysisFramework: enrich/analyze 共用同一 prompt 构建器与深度 schema', () => {
+  const enrich = buildAnalysisFrameworkPrompt({
+    mode: 'enrich',
+    title: '测试标题',
+    content: '正文',
+    contentBasis: 'full_article',
+  });
+  const analyze = buildAnalysisFrameworkPrompt({
+    mode: 'analyze',
+    title: '测试标题',
+    content: '正文',
+    dateLabel: '2026年10月17日',
+  });
+  assert.match(enrich, /analysis-framework-2026-10-17-v1/);
+  assert.match(analyze, /analysis-framework-2026-10-17-v1/);
+  assert.match(enrich, /oneSentenceVerdict/);
+  assert.match(analyze, /oneSentenceVerdict/);
+  assert.match(enrich, /evidenceChain/);
+  assert.match(analyze, /evidenceChain/);
+  assert.match(enrich, /行动\|关注\|观望/);
+  assert.match(analyze, /行动\|关注\|观望/);
+  // analyze 有壳字段，enrich 没有 title 壳要求作为独立顶层说明
+  assert.match(analyze, /"title":/);
+  assert.match(enrich, /正文依据：full_article/);
+
+  const deep = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  const chat = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/aiChatRoutes.ts'), 'utf8');
+  assert.match(deep, /buildAnalysisFrameworkPrompt/);
+  assert.match(chat, /buildAnalysisFrameworkPrompt/);
+  assert.match(deep, /sanitizeEnrichPayload/);
+  assert.match(chat, /sanitizeEnrichPayload/);
+
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  const modal = fs.readFileSync(path.join(process.cwd(), 'src/components/AnalyzeModal.tsx'), 'utf8');
+  assert.match(detail, /FrameworkOverviewCard/);
+  assert.match(modal, /mergeDeepAnalysisFields/);
 });
 

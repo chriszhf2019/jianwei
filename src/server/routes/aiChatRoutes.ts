@@ -25,6 +25,8 @@ import {
   ensureGuestDeferredQuota,
   chargeGuestDeepSuccess,
 } from "../authMiddleware";
+import { buildAnalysisFrameworkPrompt } from "../prompts/analysisFrameworkPrompt";
+import { ANALYSIS_DEEP_FIELD_KEYS } from "../../shared/analysisFramework";
 
 export type RateLimiter = (req: Request, res: Response, next: () => void) => void;
 
@@ -74,175 +76,17 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
       }
       const model = providerModel(provider);
 
-      const prompt = `你是一个顶级深度调查记者、政经智库宏观分析师与《见微 Genway》特约总编。
-  《见微 Genway》的核心理念是：“于细微处，读懂新闻背后。报刊为骨，数据为翼，光谱拆解为记”。
-
-  请对以下提供的新闻标题及内容进行极其精辟、深刻的“认知路径拆解”（七要素、逻辑因果树、六大身份“与我何干”、涟漪效应、五层光谱）：
-
-  新闻标题：${title || "无标题"}
-  新闻来源/背景：${source || "媒体报道"}
-  原文链接：${sourceUrl || "未提供"}
-  新闻正文/要点：${content || "请结合标题分析当前热点"}
-
-  请严格输出合法的 JSON 格式，JSON 结构必须严格符合以下格式：
-  {
-    "title": "精炼的主标题（经典大报刊风格）",
-    "subtitle": "副标题：提炼出最核心的隐蔽逻辑或细微反转",
-    "oneSentenceVerdict": "高密度的一句话结论/定性（报刊黑体加粗风格）",
-    "readTimeMinutes": 4,
-    "category": "${category || "科技前沿"}",
-    "tags": ["核心标签1", "标签2", "标签3"],
-    "date": "${zhFullDate(new Date())}",
-    "timeAgo": "刚刚",
-    "sourceName": "${source || "见微·特约深度观察"}",
-    "sourceDate": "${isoToday(new Date())} ${nowHHmm(new Date())}",
-    "sourceCount": 1,
-    "credibilityStars": 2,
-    "impactScope": "全球",
-    "changeVelocity": "↑ 快速",
-    "summary": "100-150字见微速读：直击核心真相",
-    "coreQuote": "最具有穿透力的一句金句（报刊排版用）",
-    "quoteAuthor": "见微·特约观察员",
-    "tongsuSummary": {
-      "simpleSay": "小白能完全听懂的大白话概括",
-      "whyExplanation": "用极其生动的生活日常比喻解释为什么",
-      "whatItMeans": "普通人能感受到的直接影响",
-      "jargonTerms": ["专业术语1", "专业术语2"]
-    },
-    "dehydratedItems": {
-      "coreEntity": "核心主体",
-      "keyAction": "核心动作与事实",
-      "relatedCount": 8,
-      "coreShifts": ["核心变化1", "核心变化2", "核心变化3"],
-      "impactHighlights": ["关键影响1", "关键影响2"]
-    },
-    "sevenElements": {
-      "what": "具体发生了什么",
-      "who": "核心参与各方与推手",
-      "when": "发生时间节点与周期",
-      "where": "地理与行业空间",
-      "why": "深层动因与未言明的诉求",
-      "how": "实现路径与操作手法",
-      "soWhat": "对未来格局的终极影响",
-      "aiVerdict": {
-        "confidenceScore": 0,
-        "volatility": "高|中|低",
-        "actionLevel": "观察|行动|规避",
-        "verdictSummary": "针对该事件的 AI 综合裁决建议；confidenceScore 仅在有依据时填写 0-100，禁止套用示例分"
-      }
-    },
-    "logicTree": {
-      "rootCause": "最底层的始发根因",
-      "nodes": [
-        { "id": "n-1", "label": "根因节点", "category": "cause", "description": "详细描述" },
-        { "id": "n-2", "label": "传导节点1", "category": "mid_effect", "description": "详细描述" },
-        { "id": "n-3", "label": "传导节点2", "category": "mid_effect", "description": "详细描述" },
-        { "id": "n-4", "label": "终局市场影响", "category": "market_impact", "description": "详细描述" }
-      ],
-      "variableWeights": [
-        { "name": "核心影响变量1", "weight": 40, "impactDirection": "up", "description": "说明" },
-        { "name": "核心影响变量2", "weight": 30, "impactDirection": "down", "description": "说明" },
-        { "name": "核心影响变量3", "weight": 20, "impactDirection": "neutral", "description": "说明" },
-        { "name": "核心影响变量4", "weight": 10, "impactDirection": "up", "description": "说明" }
-      ]
-    },
-    "personaImpacts": [
-      { "personaId": "investor", "coreImpact": "对投资者的核心影响", "opportunity": "潜在机会", "threatRisk": "风险提示", "recommendedAction": "具体动作" },
-      { "personaId": "manager", "coreImpact": "对企业决策者的核心影响", "opportunity": "潜在机会", "threatRisk": "风险提示", "recommendedAction": "具体动作" },
-      { "personaId": "founder", "coreImpact": "对创业者的核心影响", "opportunity": "潜在机会", "threatRisk": "风险提示", "recommendedAction": "具体动作" },
-      { "personaId": "pm", "coreImpact": "对产品经理的核心影响", "opportunity": "潜在机会", "threatRisk": "风险提示", "recommendedAction": "具体动作" },
-      { "personaId": "dev", "coreImpact": "对开发者的核心影响", "opportunity": "潜在机会", "threatRisk": "风险提示", "recommendedAction": "具体动作" },
-      { "personaId": "sales_mkt", "coreImpact": "对销售市场的核心影响", "opportunity": "潜在机会", "threatRisk": "风险提示", "recommendedAction": "具体动作" }
-    ],
-    "rippleEffect": {
-      "stages": [
-        { "stage": "一阶影响", "title": "直接影响", "timeframe": "1-3个月", "items": ["影响点1", "影响点2"], "severity": "高" },
-        { "stage": "二阶影响", "title": "产业链连锁反应", "timeframe": "3-12个月", "items": ["影响点1", "影响点2"], "severity": "高" },
-        { "stage": "三阶影响", "title": "宏观生态与地缘格局", "timeframe": "1-3年", "items": ["影响点1", "影响点2"], "severity": "中" }
-      ],
-      "knowledgeGraph": [
-        { "id": "kg-1", "name": "主要机构/公司", "type": "company", "relationToMain": "核心发起方" },
-        { "id": "kg-2", "name": "核心技术/协议", "type": "tech", "relationToMain": "关键突破" },
-        { "id": "kg-3", "name": "关联行业市场", "type": "market", "relationToMain": "受影响下游" }
-      ],
-      "multiSources": [
-        { "sourceName": "官方披露/白皮书", "tier": "Tier 1 顶级权威", "stance": "正面", "verified": false, "excerpt": "核心证据引述" },
-        { "sourceName": "路透/彭博主流媒体", "tier": "Tier 1 顶级权威", "stance": "中性", "verified": false, "excerpt": "市场观点引述" }
-      ]
-    },
-    "spectrumLayers": [
-      {
-        "layer": "micro_signal",
-        "name": "事实层·微观线索",
-        "color": "#F59E0B",
-        "headline": "常人忽略的细节/数字/反常措辞",
-        "content": "深入解析这个细微事实的异常之处...",
-        "keyIndicators": ["线索1", "线索2"]
-      },
-      {
-        "layer": "interests",
-        "name": "利益层·各方博弈",
-        "color": "#0284C7",
-        "headline": "台前发声者 vs 幕后最大获益方",
-        "content": "剖析各主体的隐秘动机...",
-        "keyIndicators": ["获利方", "受损方"]
-      },
-      {
-        "layer": "logic_chain",
-        "name": "逻辑层·因果推演",
-        "color": "#8B5CF6",
-        "headline": "从表面现象到深层传导链条",
-        "content": "推导因果逻辑...",
-        "keyIndicators": ["传导链1", "传导链2"]
-      },
-      {
-        "layer": "data_signal",
-        "name": "信号层·量化指标",
-        "color": "#0D9488",
-        "headline": "行业与宏观五维信号强度",
-        "content": "数据侧反映的真实热度与冷思考...",
-        "keyIndicators": ["数据点1", "数据点2"]
-      },
-      {
-        "layer": "deduction",
-        "name": "推演层·见微之见",
-        "color": "#E3120B",
-        "headline": "未来6-18个月终局预测与行动盲区",
-        "content": "终局洞察与给读者的认知升级提示...",
-        "keyIndicators": ["中长期判断", "行动启示"]
-      }
-    ],
-    "evidenceChain": [
-      {
-        "id": "ev-1",
-        "claim": "论断1",
-        "sourceFact": "输入材料中可查证的细节",
-        "quote": "输入材料中的原文短引句；没有则留空",
-        "sourceName": "来源名称；输入未提供则留空",
-        "sourceUrl": "真实可访问链接；输入未提供则填 null，不得编造",
-        "publishedAt": "来源发布时间；未知则 null",
-        "sourceType": "primary_document|official_statement|reported_media|unknown",
-        "relation": "supports|contradicts|context",
-        "reliability": "可靠性依据说明",
-        "confidenceScore": 0
-      }
-    ],
-    "industrySignals": [
-      { "sector": "核心行业", "strength": 88, "trend": "up", "detail": "行业异动描述" }
-    ],
-    "fastReadPoints": [
-      { "tag": "核心转折", "text": "精辟解释这件事为什么在今天爆发" }
-    ],
-    "narrativeSections": [
-      { "chapter": "第一章：平静湖面下的第一缕微澜", "paragraphs": ["深度叙事段落1...", "深度叙事段落2..."] }
-    ]
-  }
-
-  证据边界（必须遵守）：
-  1. multiSources 只允许列出输入材料中明确出现、能对应到原文表述的来源；无法核验时返回 []，不得补造媒体名或把模型记忆包装成“已核实”。
-  2. evidenceChain.sourceFact 只能引用输入材料中的事实、数字或可解析出处；输入未提供的硬数据不得生成。
-  3. confidenceScore 是模型自报的相对把握，不是经历史数据校准的真实概率；文案中不得称其为“命中率”“基准率”或“事实概率”。
-  4. 所有推断用“可能/取决于/若…则…”表达，并明确列出可能推翻判断的信号。`;
+      const prompt = buildAnalysisFrameworkPrompt({
+        mode: "analyze",
+        title: title || "无标题",
+        source: source || "媒体报道",
+        sourceUrl: sourceUrl || "未提供",
+        category: category || "科技前沿",
+        content: content || "请结合标题分析当前热点",
+        dateLabel: zhFullDate(new Date()),
+        timeLabel: nowHHmm(new Date()),
+        sourceDateLabel: `${isoToday(new Date())} ${nowHHmm(new Date())}`,
+      });
 
       const text = await callAI(prompt, { json: true, temperature: 0.3 });
       let parsed;
@@ -254,7 +98,10 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
       }
 
       parsed = sanitizeEnrichPayload(parsed);
-      attachFieldMeta(parsed, ["evidenceChain", "sevenElements", "rippleEffect"], createFieldMeta(provider, model, PROMPT_VERSIONS.analyze));
+      const deepPresent = ANALYSIS_DEEP_FIELD_KEYS.filter(
+        (k) => parsed?.[k] !== undefined && parsed[k] !== null
+      );
+      attachFieldMeta(parsed, deepPresent.length ? [...deepPresent] : ["evidenceChain", "sevenElements", "rippleEffect"], createFieldMeta(provider, model, PROMPT_VERSIONS.analyze));
 
       // 存储分析结果到后台 SQLite 语料数据库
       saveAnalysisToDatabase({

@@ -7,6 +7,7 @@ import { NewsArticle } from '../types';
 import { todayFullZh, isoToday, nowHHmm } from '../utils/dateUtils';
 import { MethodBadge } from './common/MethodBadge';
 import { classifyAiClientError } from '../utils/aiClientErrors';
+import { mergeDeepAnalysisFields } from '../shared/analysisFramework';
 
 interface AnalyzeModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ function buildHonestArticle(
   }
 ): NewsArticle {
   const hasSource = Boolean(input.sourceUrl.trim() || input.source.trim());
-  return {
+  const base: NewsArticle = {
     id: input.articleId || `user-${Date.now()}`,
     title: articleData.title || input.title || '用户投递',
     subtitle: articleData.subtitle || '',
@@ -74,6 +75,8 @@ function buildHonestArticle(
     isCustom: true,
     isExternal: Boolean(input.sourceUrl.trim()),
   };
+  // 与 enrich 深度白名单对齐，避免贴链结果丢 coreLogic / bullBearDebate 等字段
+  return mergeDeepAnalysisFields(base, articleData as Record<string, unknown>);
 }
 
 export const AnalyzeModal: React.FC<AnalyzeModalProps> = ({

@@ -18,6 +18,8 @@ import {
   sanitizeRegionImpact,
   sanitizeEnrichPayload,
 } from "./aiValidation";
+import { buildAnalysisFrameworkPrompt } from "./prompts/analysisFrameworkPrompt";
+import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 export interface RateLimiter { (req: express.Request, res: express.Response, next: express.NextFunction): void; }
 export function registerDeepEndpoints(app: express.Express, limit: RateLimiter): void {
   const applyRateLimit = limit;
@@ -70,51 +72,16 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       promptVersion: PROMPT_VERSIONS.enrich,
     });
 
-    const prompt = `你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。
-【核心语言规则】：无论输入的原始标题、正文或信源语言是英文还是中文，你必须一律且百分之百使用规范、专业、精辟的【简体中文】输出所有的分析字段（包括 subtitle、oneSentenceVerdict、summary、sevenElements、logicTree、tongsuSummary、dehydratedItems、bullBearDebate、coreLogic 等全量字段，不得残留英文长句或段落）。
-JSON 结构如下：
-{
-  "subtitle": "精炼副标题",
-  "oneSentenceVerdict": "一句话终局定性",
-  "summary": "120 字以内速读摘要",
-  "sevenElements": { "what": "", "who": "", "when": "", "where": "", "why": "", "how": "", "soWhat": "", "aiVerdict": { "confidenceScore": 0, "volatility": "高|中|低", "actionLevel": "行动|关注|观望", "verdictSummary": "" } },
-  "logicTree": { "rootCause": "", "nodes": [{ "id": "n-1", "label": "", "category": "cause", "description": "" }, { "id": "n-2", "label": "", "category": "mid_effect", "description": "" }, { "id": "n-3", "label": "", "category": "mid_effect", "description": "" }, { "id": "n-4", "label": "", "category": "market_impact", "description": "" }], "variableWeights": [{ "name": "", "weight": 0, "impactDirection": "up|down|neutral", "description": "" }] },
-  "personaImpacts": [{ "personaId": "investor|manager|founder|pm|dev|sales_mkt", "coreImpact": "", "opportunity": "", "threatRisk": "", "recommendedAction": "" }],
-  "rippleEffect": { "stages": [{ "stage": "一阶影响", "title": "", "timeframe": "", "items": [""], "severity": "高|中|低" }], "knowledgeGraph": [{ "id": "kg-1", "name": "", "type": "company", "relationToMain": "" }], "multiSources": [{ "sourceName": "", "tier": "", "stance": "正面|中性|负面", "verified": false, "excerpt": "" }] },
-  "spectrumLayers": [{ "layer": "micro_signal|interests|logic_chain|data_signal|deduction", "name": "", "color": "#RRGGBB", "headline": "", "content": "", "keyIndicators": [""] }],
-  "evidenceChain": [{
-    "id": "ev-1",
-    "claim": "",
-    "sourceFact": "",
-    "quote": "输入材料中的原文短引句；没有则留空",
-    "sourceName": "来源名称；输入材料未提供则留空",
-    "sourceUrl": "真实可访问链接；输入材料未提供则填 null，不得编造",
-    "publishedAt": "来源发布时间；未知则 null",
-    "sourceType": "primary_document|official_statement|reported_media|unknown",
-    "relation": "supports|contradicts|context",
-    "reliability": "可靠性依据说明",
-    "confidenceScore": 0
-  }],
-  "tongsuSummary": { "simpleSay": "用大白话把整件事讲一遍（像对完全不懂行业的朋友解释，不用任何术语，2-4 句）", "whyExplanation": "用一个生活化比喻解释为什么会这样", "whatItMeans": "对普通人/你来说，这件事直接意味着什么（1-2 句大白话）", "jargonTerms": ["文中出现的术语/黑话，用于点击释义", "…"] },
-  "dehydratedItems": { "coreEntity": "核心主体（公司/机构/人名）", "keyAction": "一句话：它干了什么/发生了什么", "relatedCount": 3, "coreShifts": ["核心变化1（要点式）", "核心变化2", "核心变化3"], "impactHighlights": ["对谁有什么影响", "关键看点"] },
-   "backstoryTimeline": [{ "date": "时间节点（如 2026-05 或具体日期；不确定写约）", "event": "此前发生的相关事件一句话", "relevance": "它与今天这篇的关系（铺垫/诱因/进展/背景，一句话）" }],
-   "stakeholderImpact": [{ "name": "受影响方名称（公司/机构/人群/行业）", "type": "company|government|person|group|industry|market", "direction": "benefit|pressure|neutral", "strength": 1, "why": "为什么受益/承压（一句话，克制可复核）" }],
-   "coreLogic": { "essence": "事情的本质/底层逻辑一句话（跳出新闻本身的第一性概括）", "points": ["核心逻辑1（结构性机制）", "核心逻辑2", "核心逻辑3"], "counterIntuitive": "最反直觉/容易被误读的一点（或留空）" },
-   "bullBearDebate": { "bull": [{ "point": "正方论点（支持/看多）", "basis": "依据或隐含假设，一句话" }], "bear": [{ "point": "反方论点（质疑/看空）", "basis": "依据或隐含假设，一句话" }], "coreDispute": "双方真正的分歧焦点（双方都在争什么）一句话", "read": "当前力量判断：哪方论据更硬、或取决于什么关键条件（一句话，克制）" }
-}
-标题：${effectiveTitle || "无标题"}
-来源：${effectiveSource || "外部信源"}
-原文链接：${resolvedUrl || "未提供"}
-来源发布时间：${publishedAt || "未提供"}
-分类：${category || "外部信源"}
-正文依据：${contentBasis}
-正文/要点：${effectiveContent || "请基于标题给出克制、可复核的分析"}。请遵循“报刊为骨，数据为翼”，避免臆造硬数据；无法核实的数字用定性表述。
-多源规则：multiSources 只能列出输入材料中明确出现、且能找到对应表述的来源。没有可核验来源线索时必须返回 []，不得根据常识补媒体名或把模型记忆当作“已核实”。
-注意：tongsuSummary.simpleSay 必须是把本条新闻从头讲清楚的完整大白话（讲清楚“谁、干了什么、为什么、影响谁”），不要只写一句口号；whyExplanation 用类比让小白秒懂；jargonTerms 至少 2 个（若有术语）。
-bullBearDebate：给这场正反方博弈建模——bull 列 2-3 条支持方/乐观方论点（point+basis），bear 列 2-3 条反对方/质疑方论点；coreDispute 点出双方真正的分歧焦点；read 给出当前力量判断（哪方论据更硬、或结果取决于什么），克制不喊单。
-coreLogic：给出这件事的底层逻辑分析——essence 用一句话讲清本质（第一性视角，不用事件名复述）；points 列 2-4 条结构性核心逻辑（驱动机制/约束/利益结构/演化规则）；counterIntuitive 点出最反直觉或最易误读处（没有就空字符串）。
-stakeholderImpact：列出受本事件影响的主要相关方 3-6 个（含类型与方向：benefit=受益/pressure=承压/neutral=中性，strength 1-5 表示影响强度），why 用可复核表述，宁缺毋滥。
-backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时间正序，最久远在前），只列确属铺垫/诱因/同类进展的节点，宁缺毋滥；不确定时间用“约”；若确实没有值得写的前情，返回空数组 []。`;
+    const prompt = buildAnalysisFrameworkPrompt({
+      mode: "enrich",
+      title: effectiveTitle,
+      source: effectiveSource,
+      sourceUrl: resolvedUrl,
+      publishedAt: publishedAt ? String(publishedAt) : undefined,
+      category: category ? String(category) : undefined,
+      content: effectiveContent,
+      contentBasis,
+    });
 
     const generated = await getOrCreateCached(key, async () => {
       const text = await callAI(prompt, { json: true, temperature: 0.3 });
@@ -133,11 +100,7 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
     // 深度解析结果写回语料：刷新后仍算“已深度解读”（当日口径的“深度解读”计数因此持久）
     if (articleId) {
       if (target) {
-        const deepKeys = [
-          "sevenElements", "logicTree", "personaImpacts", "rippleEffect", "spectrumLayers",
-          "evidenceChain", "industrySignals", "oneSentenceVerdict", "subtitle", "summary",
-          "coreQuote", "quoteAuthor", "tongsuSummary", "dehydratedItems", "backstoryTimeline", "stakeholderImpact", "coreLogic", "bullBearDebate",
-        ];
+        const deepKeys = [...ANALYSIS_DEEP_FIELD_KEYS];
         for (const k of deepKeys) {
           if (parsed?.[k] !== undefined && parsed[k] !== null) target[k] = parsed[k];
         }

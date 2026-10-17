@@ -31,6 +31,8 @@ import { EditorialNotice } from '../common/EditorialNotice';
 import type { FeatureSummaryId } from '../../utils/featureSummaries';
 import { EvidenceBadge } from '../common/EvidenceBadge';
 import { MethodBadge } from '../common/MethodBadge';
+import { FrameworkOverviewCard } from '../common/FrameworkOverviewCard';
+import { mergeDeepAnalysisFields } from '../../shared/analysisFramework';
 import { formatArticleTime } from '../../utils/articleTime';
 import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
@@ -83,38 +85,11 @@ const MissingDeep: React.FC<{ feature: string; note?: string }> = ({ feature, no
   </div>
 );
 
-// 将 /api/enrich 返回的深层字段合并进浅层文章（只取白名单字段）
-type DeepMergeKeys =
-  | 'sevenElements'
-  | 'logicTree'
-  | 'personaImpacts'
-  | 'rippleEffect'
-  | 'spectrumLayers'
-  | 'evidenceChain'
-  | 'industrySignals'
-  | 'oneSentenceVerdict'
-  | 'subtitle'
-  | 'summary'
-  | 'coreQuote'
-  | 'quoteAuthor'
-  | 'tongsuSummary'
-  | 'dehydratedItems'
-  | 'backstoryTimeline'
-  | 'stakeholderImpact'
-  | 'coreLogic'
-  | 'bullBearDebate'
-  | 'relatedNews'
-  | 'personaForecasts'
-  | 'aiFieldMeta';
-
+// 将 /api/enrich 返回的深层字段合并进浅层文章（统一框架白名单 + 详情扩展字段）
 function mergeDeep(article: NewsArticle, overrides: Record<string, unknown>): NewsArticle {
-  const keys: DeepMergeKeys[] = [
-    'sevenElements','logicTree','personaImpacts','rippleEffect','spectrumLayers',
-    'evidenceChain','industrySignals','oneSentenceVerdict','subtitle','summary','coreQuote','quoteAuthor',
-    'tongsuSummary','dehydratedItems','backstoryTimeline','stakeholderImpact','coreLogic','bullBearDebate','relatedNews','personaForecasts','aiFieldMeta',
-  ];
-  const next: NewsArticle = { ...article };
-  for (const key of keys) {
+  const next = mergeDeepAnalysisFields({ ...article }, overrides);
+  // 详情页扩展字段（不在框架核心白名单内，但 enrich/skill 仍可能写回）
+  for (const key of ['relatedNews', 'personaForecasts', 'aiFieldMeta', 'contentBasis'] as const) {
     const value = overrides[key];
     if (value !== undefined && value !== null) {
       (next as any)[key] = value;
@@ -1330,6 +1305,9 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           </details>
         )}
       </div>
+
+      {/* 统一分析框架总览：详情 enrich 与贴链 analyze 共用 */}
+      <FrameworkOverviewCard article={article} />
 
       {/* ⚖️ 左右分栏双文并排对比模式 */}
       {isCompareMode && (

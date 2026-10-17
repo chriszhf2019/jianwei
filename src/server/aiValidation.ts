@@ -1,9 +1,11 @@
 import type { AiFieldMeta, EvidenceItem, GrayscaleAssessment, NewsArticle } from "../types";
 import type { AIProvider } from "./ai";
 
+import { ANALYSIS_FRAMEWORK_VERSION, normalizeAiVerdictActionLevel } from "../shared/analysisFramework";
+
 export const PROMPT_VERSIONS = {
-  analyze: "analyze-2026-09-12-v2",
-  enrich: "enrich-2026-09-12-v2",
+  analyze: ANALYSIS_FRAMEWORK_VERSION,
+  enrich: ANALYSIS_FRAMEWORK_VERSION,
   skill: "skill-2026-09-13-v5",
   region_interpret: "region-interpret-2026-09-13-v1",
   frequency_analysis: "frequency-analysis-2026-09-13-v1",
@@ -147,7 +149,7 @@ export function sanitizeEnrichPayload(input: any): any {
           ...aiVerdict,
           confidenceScore: clampScore(aiVerdict.confidenceScore),
           volatility: ["高", "中", "低"].includes(String(aiVerdict.volatility)) ? aiVerdict.volatility : "中",
-          actionLevel: ["行动", "关注", "观望"].includes(String(aiVerdict.actionLevel)) ? aiVerdict.actionLevel : "观望",
+          actionLevel: normalizeAiVerdictActionLevel(aiVerdict.actionLevel),
         },
       };
     }
