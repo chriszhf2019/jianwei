@@ -9,6 +9,7 @@ import {
 import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
+import { TopicClusterSection } from './TopicClusterSection';
 import { UserCheck, ShieldCheck, Bookmark, Radio, Target, Sparkles, Link2, FileText } from 'lucide-react';
 import { deriveFromList } from '../../utils/corpusMetrics';
 import { articleSortTime, parseArticleDate, filterTodayBoardArticles } from '../../utils/articleTime';
@@ -502,6 +503,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </details>
         </>
+      )}
+
+      {/* 跨源事件聚合：把「事件」提为首页主对象，单篇报道降为事件内来源 */}
+      {articles.length > 0 && (
+        <TopicClusterSection articles={articles} onSelectArticle={onSelectArticle} />
       )}
 
       {articles.length > 0 && (
