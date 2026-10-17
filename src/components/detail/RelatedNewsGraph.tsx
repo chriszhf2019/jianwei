@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
 import { NewsArticle } from '../../types';
-import { findRelatedArticles } from '../../utils/relatedArticles';
+import { findRelatedArticlesRanked } from '../../utils/relatedArticles';
 import { 
   Network, 
   Grid, 
@@ -28,6 +28,9 @@ interface RelatedNewsItem {
   why: string;
   // 若在 contextArticles 中找到匹配文章，保存其引用
   matchedArticle?: NewsArticle;
+  /** BM25 回退且无实体共现时的弱关联 */
+  weak?: boolean;
+  titleOverlap?: number;
 }
 
 interface RelatedNewsGraphProps {
@@ -119,22 +122,27 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
       });
     }
 
-    // 若 article.relatedNews 暂无，则利用 BM25 本地启发式推选出语料库中 top 4 篇相关报道作为连接候选
-    const fallbackRelated = findRelatedArticles(article, pool, 4);
-    return fallbackRelated.map((cand) => {
+    // 若 article.relatedNews 暂无：BM25 + 标题重合门槛；不过线则返回空（隐藏拓扑，避免异题误连）
+    const fallbackRelated = findRelatedArticlesRanked(article, pool, 4);
+    return fallbackRelated.map((hit) => {
+      const cand = hit.document;
       const commonEntities = (article.entityMentions || [])
         .map((e) => e.name)
         .filter((name) => (cand.title || '').includes(name) || (cand.summary || '').includes(name));
 
       const bridgeDesc = commonEntities.length > 0
         ? `在当前语料库中共现关键实体「${commonEntities.slice(0, 2).join('、')}」，构成同向演变连接点`
-        : `同属「${cand.category}」赛道，基于 BM25 词项相似度提取的同语境报道`;
+        : hit.weak
+          ? `标题重合约 ${Math.round(hit.titleOverlap * 100)}%，词项弱相关（异题风险），仅供参考`
+          : `同属「${cand.category || '相关'}」赛道，BM25 与标题重合均过门槛`;
 
       return {
         title: cand.title,
         media: cand.sourceName || '语料库收录',
         why: bridgeDesc,
         matchedArticle: cand,
+        weak: hit.weak,
+        titleOverlap: hit.titleOverlap,
       };
     });
   }, [article, contextArticles]);
@@ -215,7 +223,8 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
         why: item.why,
         matchedArticle: item.matchedArticle,
         radius: isMatched ? 20 : 17,
-        color: isMatched ? '#0284C7' : '#78716C',
+        color: item.weak ? '#A8A29E' : isMatched ? '#0284C7' : '#78716C',
+        weak: item.weak || hub.weak,
       });
 
       // 桥梁连到叶子节点
@@ -420,6 +429,69 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
         .call(zoomTransformRef.current.scaleBy, 0.8);
     }
   };
+
+  const strongCount = combinedItems.filter((i) => !i.weak).length;
+  const allWeakOrEmpty = combinedItems.length === 0 || strongCount === 0;
+
+  // 无过门槛关联：隐藏整块拓扑（浅层 / 异题弱匹配不占版面）；仍保留 AI 刷新入口
+  if (allWeakOrEmpty) {
+    const hasCurated = (article.relatedNews || []).length > 0;
+    if (!hasCurated && combinedItems.length === 0) {
+      return (
+        <div className="bg-stone-50 border border-dashed border-stone-300 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-sans">
+          <div className="text-xs text-stone-600">
+            <span className="font-serif font-bold text-stone-800">关联报道</span>
+            <span className="mx-1.5 text-stone-300">·</span>
+            语料中暂无达到同题门槛的相关稿（已过滤弱 BM25 / 异题命中）。
+          </div>
+          {onRunSkill && (
+            <button
+              type="button"
+              onClick={handleGenerateRelatedNews}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-serif font-bold bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 disabled:opacity-50 cursor-pointer shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+              <span>{isGenerating ? '生成中…' : 'AI 补充相关线索'}</span>
+            </button>
+          )}
+        </div>
+      );
+    }
+    // 仅有弱关联：折叠提示，不渲染「高度契合」式星轨图
+    if (!hasCurated && strongCount === 0 && combinedItems.length > 0) {
+      return (
+        <div className="bg-stone-50 border border-stone-300 rounded-xl px-4 py-3 space-y-2 font-sans">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="text-xs text-stone-600">
+              <span className="font-serif font-bold text-stone-800">关联报道 · 异题弱匹配</span>
+              <span className="mx-1.5 text-stone-300">·</span>
+              检出 {combinedItems.length} 条低重合候选，已降级展示（不宣称同题印证）。
+            </div>
+            {onRunSkill && (
+              <button
+                type="button"
+                onClick={handleGenerateRelatedNews}
+                disabled={isGenerating}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-serif font-bold bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 disabled:opacity-50 cursor-pointer shrink-0"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+                <span>{isGenerating ? '生成中…' : 'AI 补充相关线索'}</span>
+              </button>
+            )}
+          </div>
+          <ul className="text-[11px] text-stone-500 space-y-1 list-disc pl-4">
+            {combinedItems.slice(0, 3).map((item, idx) => (
+              <li key={`${item.title}-${idx}`} className="line-clamp-1">
+                {item.title}
+                {typeof item.titleOverlap === 'number' ? `（标题重合 ${Math.round(item.titleOverlap * 100)}%）` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="bg-white border-2 border-stone-800 rounded-2xl p-5 sm:p-7 shadow-sm space-y-5 font-sans">
