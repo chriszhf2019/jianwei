@@ -63,7 +63,7 @@ interface D3GraphLink extends d3.SimulationLinkDatum<D3GraphNode> {
 }
 
 /** 启发式提取关联原因中的连接纽带（Connection Point），并标记是否为弱关联。 */
-function extractConnectionHub(why: string, media: string): { label: string; weak: boolean } {
+function extractConnectionHub(why: string): { label: string; weak: boolean } {
   if (/背景|前因|起因|历史|铺垫/.test(why)) return { label: '前置背景', weak: false };
   if (/反方|争议|博弈|分歧|对立/.test(why)) return { label: '多空博弈', weak: false };
   if (/后续|进展|跟进|发酵|演进/.test(why)) return { label: '后续演变', weak: false };
@@ -179,7 +179,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
     const bridgeMap = new Map<string, string>();
 
     combinedItems.forEach((item, index) => {
-      const hub = extractConnectionHub(item.why, item.media);
+      const hub = extractConnectionHub(item.why);
       const bridgeType = hub.label;
       const bridgeId = `bridge-${bridgeType}`;
 
@@ -549,7 +549,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {combinedItems.map((item, idx) => {
             const isMatched = !!item.matchedArticle;
-            const hub = extractConnectionHub(item.why, item.media);
+            const hub = extractConnectionHub(item.why);
             const hubTag = hub.label;
 
             return (
