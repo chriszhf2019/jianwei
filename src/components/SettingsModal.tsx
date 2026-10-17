@@ -144,7 +144,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       localStorage.setItem('genway_morning_digest_subscription', JSON.stringify(payload));
       setExistingSub(payload);
       setSavingSub(false);
-      setSubSuccessMsg('晨间早报推送订阅已成功保存！');
+      setSubSuccessMsg('已保存为本机提醒偏好（真实投递通道尚未接入）。');
       setTimeout(() => setSubSuccessMsg(''), 3000);
     }, 400);
   };
@@ -284,7 +284,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             { id: 'profile', label: '个人资料与阅读', icon: <UserRound className="w-3.5 h-3.5" /> },
             { id: 'interests', label: '关注领域与标签', icon: <BookOpen className="w-3.5 h-3.5" /> },
             { id: 'radar', label: '雷达监控词库', icon: <Radio className="w-3.5 h-3.5" /> },
-            { id: 'subscription', label: '早报推送订阅', icon: <Bell className="w-3.5 h-3.5 text-amber-600" /> },
+            { id: 'subscription', label: '早报提醒偏好', icon: <Bell className="w-3.5 h-3.5 text-amber-600" /> },
             { id: 'security', label: '账户安全与密码', icon: <Lock className="w-3.5 h-3.5" /> },
           ].map((tab) => {
             const isActive = activeSection === tab.id;
@@ -522,16 +522,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <h3 className="text-xs font-serif font-bold text-stone-900 flex items-center space-x-1.5">
                     <Bell className="w-4 h-4 text-amber-600" />
-                    <span>晨间 3 分钟专属透镜早报订阅</span>
+                    <span>晨间早报 · 本机提醒偏好</span>
                   </h3>
                   <p className="text-[11px] text-stone-500 mt-0.5">
-                    每天准时送达：结合您当前的认知透镜与雷达词库，过滤噪音，推送高价值决策情报
+                    提醒偏好仅保存在本机浏览器；真实邮件 / Webhook 投递通道尚未接入
                   </p>
                 </div>
                 {existingSub && (
-                  <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    <span>已激活推送</span>
+                  <span className="text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
+                    <AlertCircle className="w-3 h-3 text-amber-600" />
+                    <span>仅本机偏好 · 未接入投递</span>
                   </span>
                 )}
               </div>
@@ -555,7 +555,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-serif font-bold text-stone-900">
-                      当前生效的订阅档案
+                      当前本机提醒偏好
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
@@ -564,7 +564,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         className="px-2.5 py-1 bg-white hover:bg-stone-100 border border-stone-300 rounded-lg text-xs font-serif font-bold text-stone-700 transition-colors flex items-center space-x-1 cursor-pointer disabled:opacity-50"
                       >
                         <Send className="w-3 h-3 text-amber-600" />
-                        <span>{testingDispatch ? '发送中…' : '发送测试推送'}</span>
+                        <span>{testingDispatch ? '发送中…' : '测试提醒（不会真正发出）'}</span>
                       </button>
                       <button
                         onClick={handleUnsubscribe}
@@ -577,7 +577,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono pt-1">
                     <div className="bg-white p-2.5 rounded-lg border border-stone-200">
-                      <span className="text-[10px] text-stone-400 block font-sans">推送通道</span>
+                      <span className="text-[10px] text-stone-400 block font-sans">提醒通道（未接入投递）</span>
                       <span className="font-bold text-stone-800">
                         {existingSub.channel === 'email' ? '📧 电子邮箱' : '🤖 Webhook 机器人'}
                       </span>
@@ -716,7 +716,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="px-5 py-2 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>{savingSub ? '正在保存…' : '保存订阅设置'}</span>
+                    <span>{savingSub ? '正在保存…' : '保存本机偏好'}</span>
                   </button>
 
                   <button
@@ -726,7 +726,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="px-4 py-2 border border-stone-300 hover:bg-stone-100 text-stone-700 rounded-xl text-xs font-serif font-bold transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5 text-stone-500" />
-                    <span>发送测试推送</span>
+                    <span>测试提醒（不会真正发出）</span>
                   </button>
                 </div>
               </form>
