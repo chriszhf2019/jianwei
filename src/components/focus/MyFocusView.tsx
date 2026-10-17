@@ -7,6 +7,7 @@ import { PredictionCalibrationPanel } from './PredictionCalibrationPanel';
 import { CognitiveBiasRadarPanel } from './CognitiveBiasRadarPanel';
 import { EvaluationLabPanel } from './EvaluationLabPanel';
 import { JudgmentLedgerPanel } from './JudgmentLedgerPanel';
+import { KnowledgeCoveragePanel } from './KnowledgeCoveragePanel';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
 import { KnowledgeGraphView } from './KnowledgeGraphView';
 import { ButterflyRoundtablePanel } from './ButterflyRoundtablePanel';
@@ -398,6 +399,13 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* 🗺️ 认知覆盖：收藏/判断/沉淀在赛道上的分布与盲区 */}
+      <KnowledgeCoveragePanel
+        bookmarkedArticles={bookmarkedArticles}
+        predictionContracts={predictionContracts}
+        knowledgeItems={knowledgeItems}
+      />
       </>
       )}
 
