@@ -1122,10 +1122,15 @@ test('预设管理员：须由环境变量显式配置，无写死凭据', async
   const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
   assert.match(detail, /用户投递 · 读懂新闻/);
   assert.match(detail, /methodId="model_interpretation"/);
-  assert.match(detail, /去复核原文/);
+  // 死控件「去复核原文」已移除；复核走「阅读原文」打开信源
+  assert.equal(detail.includes('去复核原文'), false);
+  assert.match(detail, /阅读原文/);
+  assert.match(detail, /getArticleCanonicalCategory/);
+  assert.match(detail, /formatArticlePublishedMeta/);
   assert.match(detail, /RelatedNewsGraph/);
   assert.match(detail, /ArticleCompareView/);
   assert.match(detail, /offlineStorage/);
+  assert.match(detail, /shallowMode=\{isShallow\}/);
 
   const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
   assert.match(header, /isAdmin/);
@@ -1777,3 +1782,71 @@ test('知识库写入鉴权：isRegisteredKnowledgeWriter 拒绝游客与 guest 
   assert.match(payload.message, /登录/);
 });
 
+test('relatedArticles: 相似度门槛过滤异题弱匹配（Meta AI vs 自杀率）', async () => {
+  const {
+    findRelatedArticles,
+    findRelatedArticlesRanked,
+    titleBigramJaccard,
+    compareDivergenceLabel,
+    RELATED_TITLE_OVERLAP_MIN,
+  } = await import('../src/utils/relatedArticles');
+
+  const anchor = {
+    id: 'a',
+    title: 'Meta 发布新一代 AI 大模型与推理芯片合作',
+    summary: 'Meta 与云厂商推进大语言模型训练与推理基础设施。',
+    entityMentions: [{ name: 'Meta' }],
+  };
+  const pool = [
+    {
+      id: 'b',
+      title: '英国公布最新青少年自杀率统计报告',
+      summary: '公共卫生部门呼吁加强心理健康干预与社区支持。',
+    },
+    {
+      id: 'c',
+      title: 'Meta AI 模型开源权重引发业界跟进',
+      summary: '开源大模型生态加速，推理成本下降。',
+      entityMentions: [{ name: 'Meta' }],
+    },
+  ];
+
+  const overlapWeak = titleBigramJaccard(anchor.title, pool[0].title);
+  assert.ok(overlapWeak < RELATED_TITLE_OVERLAP_MIN, `弱标题重合应低于门槛，实际 ${overlapWeak}`);
+
+  const related = findRelatedArticles(anchor, pool, 4);
+  assert.ok(!related.some((x) => x.id === 'b'), '异题弱匹配不得进入相关列表');
+  assert.ok(related.some((x) => x.id === 'c'), '同题/同实体应可召回');
+
+  const ranked = findRelatedArticlesRanked(anchor, pool, 4);
+  assert.ok(ranked.every((r) => r.document.id !== 'b'));
+
+  const high = compareDivergenceLabel({
+    textSimilarity: 52,
+    isSameSource: true,
+    categoryA: 'AI',
+    categoryB: 'AI',
+    sharedEntities: ['Meta'],
+  });
+  assert.equal(high.label, '同题印证 · 高度契合');
+
+  const sameSourceOnly = compareDivergenceLabel({
+    textSimilarity: 4,
+    isSameSource: true,
+    categoryA: 'AI',
+    categoryB: '科技',
+    sharedEntities: [],
+  });
+  assert.equal(sameSourceOnly.label, '异题弱关联 · 低重合');
+  assert.equal(sameSourceOnly.weak, true);
+});
+
+test('articleTime: formatArticlePublishedMeta 相对+绝对统一', async () => {
+  const { formatArticlePublishedMeta } = await import('../src/utils/articleTime');
+  const s = formatArticlePublishedMeta(
+    { publishedAt: '2026-09-04T08:00:00Z' },
+    Date.parse('2026-09-05T08:00:00Z')
+  );
+  assert.ok(s.includes('2026-09-04'), s);
+  assert.ok(s.includes('昨天') || s.includes('小时') || s.includes('天'), s);
+});

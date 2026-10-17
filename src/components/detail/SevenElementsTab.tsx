@@ -17,6 +17,8 @@ interface SevenElementsTabProps {
   contextArticles?: NewsArticle[];
   onOpenArticle?: (article: NewsArticle) => void;
   onOpenTermExplain?: (term: string) => void;
+  /** 浅层条目：折叠空模块、隐藏与「生成深度分析」重复的补齐 CTA */
+  shallowMode?: boolean;
 }
 
 
@@ -108,6 +110,7 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
   contextArticles = [],
   onOpenArticle,
   onOpenTermExplain,
+  shallowMode = false,
 }) => {
 
   const [timelineBusy, setTimelineBusy] = React.useState(false);
@@ -142,6 +145,9 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
     relatednews: '相关新闻线索',
   };
   const missingElements = readyKeys.filter((k) => !elementReady[k]);
+  const effectiveOpen = shallowMode
+    ? { core: !!article.sevenElements, evidence: false, scenario: false }
+    : open;
   const allOpen = open.core && open.evidence && open.scenario;
 
   // 一键补齐缺失要素：固定顺序逐个生成，成功后以最新合并文章继续下一项
@@ -232,7 +238,7 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
 
   return (
     <div className="space-y-5 font-sans">
-      {/* 总览工具条：默认只显示生成进度和必要操作。 */}
+      {/* 总览工具条：浅层与主 CTA 对齐，避免「已拆解完毕」与「仍有 N 项未生成」冲突 */}
       <div className="bg-white border border-stone-300 rounded-xl px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -240,7 +246,9 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
             <h3 className="text-sm font-serif font-black text-stone-950">事实与分析</h3>
           </div>
           <p className="text-[11px] leading-relaxed text-stone-500 mt-0.5">
-            {missingElements.length > 0 ? (
+            {shallowMode && missingElements.length > 0 ? (
+              <>深度扩展模块尚未生成（{missingElements.map((k) => elementNames[k]).join(' · ')}）。请先使用上方唯一主按钮「生成深度分析」。</>
+            ) : missingElements.length > 0 ? (
               <>仍有 <b className="text-stone-800">{missingElements.length}</b> 项未生成：{missingElements.map((k) => elementNames[k]).join(' · ')}</>
             ) : (
               <>核心内容与扩展分析均已生成</>
@@ -248,7 +256,8 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {onRunSkill && (
+          {/* 浅层：不在此重复「生成深度分析」，唯一主 CTA 在详情顶栏 */}
+          {onRunSkill && !shallowMode && (
             <button
               type="button"
               onClick={generateAll}
@@ -263,19 +272,27 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
                   : '要素已齐全 ✓'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setOpen({ core: !allOpen, evidence: !allOpen, scenario: !allOpen })}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 text-xs font-serif font-bold transition-colors"
-          >
-            {allOpen ? '全部收起' : '全部展开'}
-          </button>
+          {!shallowMode && (
+            <button
+              type="button"
+              onClick={() => setOpen({ core: !allOpen, evidence: !allOpen, scenario: !allOpen })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 text-xs font-serif font-bold transition-colors"
+            >
+              {allOpen ? '全部收起' : '全部展开'}
+            </button>
+          )}
         </div>
       </div>
 
+      {shallowMode && !sevenElements ? (
+        <div className="bg-stone-50 border border-dashed border-stone-300 rounded-xl px-4 py-3 text-xs text-stone-600 font-sans">
+          空框架维度与扩展分析已默认收起。请保留上方原文，使用唯一主按钮「生成深度分析」后再展开事实拆解。
+        </div>
+      ) : (
+      <>
       {/* 组一：核心结论（默认展开）—— 事件模型 + 底层逻辑 */}
       <GroupFold
-        open={open.core}
+        open={effectiveOpen.core}
         label="核心结论"
         desc="事件模型 · 底层逻辑 —— 快速看懂：发生了什么、本质是什么"
         onToggle={() => setOpen((o) => ({ ...o, core: !o.core }))}
@@ -448,7 +465,7 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
 
       {/* 组二：证据佐证 —— 多源验证 + 相关新闻 */}
       <GroupFold
-        open={open.evidence}
+        open={effectiveOpen.evidence}
         label="证据佐证"
         desc="多源验证 · 相关新闻 —— 谁也在说、还能读什么（站内优先 + AI 补充线索）"
         onToggle={() => setOpen((o) => ({ ...o, evidence: !o.evidence }))}
@@ -691,7 +708,7 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
 
       {/* 组三：推演视角 —— 全景时间轴 + 影响力与利益方 + 正反方博弈 */}
       <GroupFold
-        open={open.scenario}
+        open={effectiveOpen.scenario}
         label="推演视角"
         desc="全景时间轴 · 影响力利益方 · 正反方博弈 —— 来龙去脉、影响谁、谁的理由更硬"
         onToggle={() => setOpen((o) => ({ ...o, scenario: !o.scenario }))}
@@ -1088,6 +1105,8 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
 
       {/* ⑦ 相关新闻（本地真实优先 + AI 补充线索） */}
       </GroupFold>
+      </>
+      )}
     </div>
   );
 };

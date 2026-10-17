@@ -1,6 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NewsArticle } from '../../types';
-import { findRelatedArticles } from '../../utils/relatedArticles';
+import {
+  findRelatedArticles,
+  titleBigramJaccard,
+  compareDivergenceLabel,
+  COMPARE_WEAK_SIMILARITY,
+} from '../../utils/relatedArticles';
+import { getArticleCanonicalCategory } from '../../utils/categoryClassifier';
 import { formatArticleTime } from '../../utils/articleTime';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { EvidenceBadge } from '../common/EvidenceBadge';
@@ -78,10 +84,10 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
     [contextArticles, primaryArticle.id]
   );
 
-  // 默认对比文章：先找相关度最高的一篇，若无则取池中第一篇
+  // 默认对比文章：仅在通过相似度门槛时自动选 B；弱匹配不自动挑异题稿
   const defaultSecondary = useMemo(() => {
     const related = findRelatedArticles(primaryArticle, pool, 1);
-    return related[0] || pool[0] || null;
+    return related[0] || null;
   }, [primaryArticle, pool]);
 
   const [secondaryArticle, setSecondaryArticle] = useState<NewsArticle | null>(defaultSecondary);
@@ -135,13 +141,12 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
     });
   };
 
-  // 当外部 primaryArticle 变动时，确保 secondaryArticle 不与 primaryArticle 重复
+  // 主文切换时：重置为过门槛的相关稿；无合格相关则清空，由用户手动挑选
   useEffect(() => {
-    if (secondaryArticle?.id === primaryArticle.id) {
-      const nextSecondary = pool.find((a) => a.id !== primaryArticle.id) || null;
-      setSecondaryArticle(nextSecondary);
-    }
-  }, [primaryArticle.id, pool, secondaryArticle?.id]);
+    const related = findRelatedArticles(primaryArticle, pool, 1);
+    setSecondaryArticle(related[0] || null);
+    setAiArbitration(null);
+  }, [primaryArticle.id, pool]);
 
   // 获取所有可选文章分类
   const categories = useMemo(() => {
@@ -205,27 +210,32 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
     const rootCauseA = primaryArticle.logicTree?.rootCause || '未显式提取根因（浅层条目）';
     const rootCauseB = secondaryArticle.logicTree?.rootCause || '未显式提取根因（浅层条目）';
 
-    // 视角偏差判定启发式
-    let divergenceLabel = '中度关联 · 互补补充';
-    let divergenceColor = 'text-blue-700 bg-blue-50 border-blue-200';
-    let biasInsight = '两篇报道在事实层面形成有效信息拼图，建议交叉通读。';
-
-    if (textSimilarity >= 45 || isSameSource) {
-      divergenceLabel = '同题印证 · 高度契合';
-      divergenceColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
-      biasInsight = '两篇文章对核心事件事实描述高度重叠，主要论断基调基本一致。';
-    } else if (primaryArticle.category !== secondaryArticle.category) {
-      divergenceLabel = '跨界穿透 · 异构视角';
-      divergenceColor = 'text-purple-700 bg-purple-50 border-purple-200';
-      biasInsight = `文章 A 聚焦于「${primaryArticle.category}」维度，而文章 B 则切入「${secondaryArticle.category}」，展现事件在不同领域的连锁扩散效应。`;
-    } else if (sharedEntities.length > 0) {
-      divergenceLabel = '同主体聚焦 · 观点分歧';
-      divergenceColor = 'text-amber-700 bg-amber-50 border-amber-200';
-      biasInsight = `两篇共同关注主体「${sharedEntities.slice(0, 2).join('、')}」，但侧重点和逻辑归因存在明显差异。`;
-    }
+    const catA = getArticleCanonicalCategory(primaryArticle);
+    const catB = getArticleCanonicalCategory(secondaryArticle);
+    const titleOverlapPct = Math.round(
+      titleBigramJaccard(primaryArticle.title || '', secondaryArticle.title || '') * 100
+    );
+    // 高度契合看全文重合；异题弱关联用标题重合兜底（禁止 ~4% 误标）
+    const div = compareDivergenceLabel({
+      textSimilarity,
+      isSameSource,
+      categoryA: catA,
+      categoryB: catB,
+      sharedEntities,
+    });
+    // 极低标题重合直接强制弱标签（即使正文碰巧撞词）
+    const weakByTitle = titleOverlapPct / 100 < COMPARE_WEAK_SIMILARITY && sharedEntities.length === 0;
+    const divergenceLabel = weakByTitle ? '异题弱关联 · 低重合' : div.label;
+    const divergenceColor = weakByTitle
+      ? 'text-stone-600 bg-stone-100 border-stone-300'
+      : div.color;
+    const biasInsight = weakByTitle
+      ? `标题重合约 ${titleOverlapPct}%、全文约 ${textSimilarity}%，未达同题门槛；请手动另选对比稿。`
+      : div.insight;
 
     return {
       textSimilarity,
+      titleOverlapPct,
       sharedEntities,
       uniqueToA,
       uniqueToB,
@@ -238,6 +248,7 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
       divergenceLabel,
       divergenceColor,
       biasInsight,
+      weakMatch: weakByTitle || div.weak,
     };
   }, [primaryArticle, secondaryArticle]);
 
@@ -816,7 +827,7 @@ export const ArticleCompareView: React.FC<ArticleCompareViewProps> = ({
               <Columns className="w-8 h-8 text-stone-400" />
               <h4 className="font-serif font-bold text-sm text-stone-700">尚未选择右栏对比文章</h4>
               <p className="text-xs text-stone-500 max-w-xs leading-relaxed font-sans">
-                请点击右上角「更换对比文章」按钮，从语料库中挑选任一报道进行双文并排剖析。
+                语料中暂无达到同题门槛的自动匹配稿（已避免弱 BM25 / 低重合误选）。请手动挑选一篇真正相关的报道进行并排剖析。
               </p>
               <button
                 onClick={() => setSelectorOpen(true)}

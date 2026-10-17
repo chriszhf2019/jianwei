@@ -131,6 +131,19 @@ export function formatDateOnly(ts: number): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+
+/** 详情页统一时间展示：相对时间 + 绝对发布日（有 publishedAt 时）。 */
+export function formatArticlePublishedMeta(a: ArticleTimeLike, now = Date.now()): string {
+  const relative = formatArticleTime(a, now);
+  const ts = articleSortTime(a);
+  if (!ts) return relative || '时间未知';
+  const absolute = formatDateOnly(ts);
+  // 相对已是 YYYY-MM-DD 时不必重复
+  if (!relative || relative === absolute) return absolute;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(relative)) return relative;
+  return `${relative} · ${absolute}`;
+}
+
 /** 旧闻判定：真实时间距今 > N 天（默认 30 天）→ 历史旧文，首页/列表应标注。 */
 export function isStaleArticle(a: ArticleTimeLike, maxDays = 30, now = Date.now()): boolean {
   const ts = articleSortTime(a);

@@ -33,7 +33,8 @@ import { EvidenceBadge } from '../common/EvidenceBadge';
 import { MethodBadge } from '../common/MethodBadge';
 import { FrameworkOverviewCard } from '../common/FrameworkOverviewCard';
 import { mergeDeepAnalysisFields } from '../../shared/analysisFramework';
-import { formatArticleTime } from '../../utils/articleTime';
+import { formatArticlePublishedMeta } from '../../utils/articleTime';
+import { getArticleCanonicalCategory, CATEGORY_THEMES } from '../../utils/categoryClassifier';
 import { composeModel, SEVEN_W_ITEMS } from '../../utils/sevenElementsBrief';
 import { downloadBriefingPng } from '../../utils/briefingImage';
 import { downloadMarkdownBriefing, exportBriefingAsPdf } from '../../utils/briefingReportExport';
@@ -75,12 +76,21 @@ import {
 
 
 // 浅层外部信源条目缺少深度认知字段时的优雅占位
-const MissingDeep: React.FC<{ feature: string; note?: string }> = ({ feature, note }) => (
-  <div className="p-10 text-center bg-white border-2 border-dashed border-stone-300 rounded-2xl space-y-2">
-    <p className="text-sm font-serif font-bold text-stone-700">本篇文章暂无「{feature}」深度认知数据</p>
+const MissingDeep: React.FC<{ feature: string; note?: string; collapsed?: boolean }> = ({
+  feature,
+  note,
+  collapsed,
+}) => (
+  <div
+    className={`text-center bg-white border border-dashed border-stone-300 rounded-xl space-y-1 ${
+      collapsed ? 'px-4 py-3' : 'p-8 border-2 rounded-2xl space-y-2'
+    }`}
+  >
+    <p className="text-sm font-serif font-bold text-stone-700">
+      {collapsed ? `「${feature}」尚未生成` : `本篇文章暂无「${feature}」深度认知数据`}
+    </p>
     <p className="text-xs text-stone-500">
-      {note ||
-        '该条目来自外部信源浅层摄取；配置 GEMINI_API_KEY 后可通过 AI 懒加载补全（见 DATA_PIPELINE_DESIGN.md §4）。'}
+      {note || '深度分析尚未生成。请点击上方「生成深度分析」后再查看本模块。'}
     </p>
   </div>
 );
@@ -264,6 +274,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const [probeFallback, setProbeFallback] = useState(false);
   const [probeLoading, setProbeLoading] = useState(false);
   const [copiedQuote, setCopiedQuote] = useState(false);
+  const [quoteFeedback, setQuoteFeedback] = useState<string | null>(null);
   const [showPrintCard, setShowPrintCard] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showProbe, setShowProbe] = useState(false);
@@ -533,11 +544,41 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     }
   };
 
-  const handleCopyQuote = () => {
-    const textToCopy = `“${article.oneSentenceVerdict || article.summary}” —— 见微 Genway ·《${article.title}》`;
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedQuote(true);
-    setTimeout(() => setCopiedQuote(false), 2500);
+  const handleCopyQuote = async () => {
+    const snippet = (article.oneSentenceVerdict || article.summary || '').trim();
+    if (!snippet) {
+      setQuoteFeedback('暂无可分享金句（需正文摘要或一句话判读）');
+      setCopiedQuote(false);
+      setTimeout(() => setQuoteFeedback(null), 2800);
+      return;
+    }
+    const textToCopy = `“${snippet}” —— 见微 Genway ·《${article.title}》`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = textToCopy;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (!ok) throw new Error('execCommand copy failed');
+      }
+      setCopiedQuote(true);
+      setQuoteFeedback('已复制到剪贴板');
+      setTimeout(() => {
+        setCopiedQuote(false);
+        setQuoteFeedback(null);
+      }, 2500);
+    } catch {
+      setCopiedQuote(false);
+      setQuoteFeedback('复制失败：浏览器未授权剪贴板，请手动选择正文金句');
+      setTimeout(() => setQuoteFeedback(null), 3200);
+    }
   };
 
   return (
@@ -698,13 +739,21 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           </button>
 
           <button
-            onClick={handleCopyQuote}
+            type="button"
+            onClick={() => void handleCopyQuote()}
             className="px-3 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-serif font-bold rounded-lg flex items-center space-x-1.5 transition-all shadow-xs"
+            title={quoteFeedback || '复制一句话判读到剪贴板'}
+            aria-live="polite"
           >
             {copiedQuote ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-            <span>{copiedQuote ? '已复制金句' : '分享金句'}</span>
+            <span>{copiedQuote ? '已复制金句' : quoteFeedback && !copiedQuote ? quoteFeedback : '分享金句'}</span>
           </button>
         </div>
+        {quoteFeedback && !copiedQuote && (
+          <div className="mt-2 text-[11px] font-mono text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+            {quoteFeedback}
+          </div>
+        )}
       </div>
 
       {/* 导出情报简报 Modal 对话框 */}
@@ -843,7 +892,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                 <span className="text-base font-black tracking-tight text-stone-950">见微 Genway · 七要素简报卡</span>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-xs font-mono text-stone-500">{formatArticleTime(article)}</div>
+                <div className="text-xs font-mono text-stone-500">{formatArticlePublishedMeta(article)}</div>
                 <div className="text-[10px] font-mono text-stone-400">{article.sourceName || ''}</div>
               </div>
             </div>
@@ -973,9 +1022,18 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         )}
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 break-words">
-          <span className="font-serif font-bold text-[#E3120B] bg-red-50 px-2.5 py-0.5 rounded border border-red-200">
-            {article.category}
-          </span>
+          {(() => {
+            const canonical = getArticleCanonicalCategory(article);
+            const theme = CATEGORY_THEMES[canonical] || CATEGORY_THEMES['科技'];
+            return (
+              <span
+                className={`font-serif font-bold px-2.5 py-0.5 rounded border ${theme.badgeCls}`}
+                title={article.category && article.category !== canonical ? `原始标注：${article.category}` : theme.desc}
+              >
+                {canonical}
+              </span>
+            );
+          })()}
           {article.isCustom && (
             <span
               className="font-mono text-[11px] px-2 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-900"
@@ -990,22 +1048,18 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               target="_blank"
               rel="noreferrer"
               className="font-mono text-[11px] px-2 py-0.5 rounded border border-stone-300 text-[#0284C7] hover:bg-blue-50 transition-colors"
+              title="在新标签打开信源原文以复核"
             >
               阅读原文 ↗
             </a>
           )}
-          {article.sourceUrl && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('deep_spectrum')}
-              className="font-mono text-[11px] px-2 py-0.5 rounded border border-stone-300 text-stone-700 hover:bg-stone-100 transition-colors"
-              title="在通读附录中核验来源页面与引句"
-            >
-              去复核原文
-            </button>
-          )}
           <span className="text-stone-300">·</span>
-          <span className="font-mono text-stone-700">{formatArticleTime(article)}</span>
+          <span
+            className="font-mono text-stone-700"
+            title={article.publishedAt || article.sourceDate || article.date || ''}
+          >
+            {formatArticlePublishedMeta(article)}
+          </span>
           <span className="text-stone-300">·</span>
           <EvidenceBadge article={article} corpus={contextArticles} />
           <MethodBadge methodId="model_interpretation" />
@@ -1388,10 +1442,22 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         onOpenTermExplain={onOpenTermExplain}
       />
 
-      {/* 事件全生命周期演变脉络 (垂直时序因果轴：前因 ➔ 当前 ➔ 未来) */}
-      <EventEvolutionTimeline article={article} />
+      {/* 浅层：时间轴模板默认折叠，避免空壳占版；深度分析后再展开完整模块 */}
+      {isShallow ? (
+        <details className="bg-stone-50 border border-dashed border-stone-300 rounded-xl px-4 py-3 font-sans group">
+          <summary className="cursor-pointer text-xs font-serif font-bold text-stone-700 list-none flex items-center justify-between gap-2">
+            <span>事件演变脉络 · 浅层占位（点击展开）</span>
+            <span className="text-[10px] font-mono text-stone-400 group-open:hidden">已折叠</span>
+          </summary>
+          <div className="mt-3">
+            <EventEvolutionTimeline article={article} />
+          </div>
+        </details>
+      ) : (
+        <EventEvolutionTimeline article={article} />
+      )}
 
-      {/* 🔗 基于 relatedNews 与上下文语料库的关系可视化 (D3 星轨图 & CSS Grid 矩阵) */}
+      {/* 🔗 相关图：弱 BM25 由组件内部门槛隐藏；浅层同样渲染（可能缩成一行提示） */}
       <RelatedNewsGraph
         article={article}
         contextArticles={contextArticles}
@@ -1458,7 +1524,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           </details>
         </div>
       )}
-      <div className="min-h-[400px]">
+      <div className={isShallow ? 'min-h-0' : 'min-h-[400px]'}>
         <React.Suspense fallback={
           <div className="flex flex-col items-center justify-center py-20 space-y-3">
             <RefreshCw className="w-8 h-8 text-stone-400 animate-spin" />
@@ -1473,6 +1539,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               contextArticles={contextArticles}
               onOpenArticle={onOpenArticle}
               onOpenTermExplain={onOpenTermExplain}
+              shallowMode={isShallow}
             />
           )}
 
@@ -1508,7 +1575,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               ) : article.logicTree ? (
                 <LogicTreeTab logicTree={article.logicTree} />
               ) : (
-                <MissingDeep feature="底层逻辑与因果树" note={deepNote} />
+                <MissingDeep feature="底层逻辑与因果树" note={deepNote} collapsed={isShallow} />
               )}
             </div>
           )}
@@ -1583,22 +1650,47 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             ((article.spectrumLayers && article.spectrumLayers.length > 0) ? (
               <DeepSpectrumTab article={article} initialRhythm={defaultRhythm} />
             ) : (
-              <MissingDeep feature="五层光谱深度全览" note={deepNote} />
+              <MissingDeep feature="五层光谱深度全览" note={deepNote} collapsed={isShallow} />
             ))}
         </React.Suspense>
       </div>
 
 
-      {/* Continuous Cognitive Progression Guide (Next-Step Journey Card) */}
+      {/* Continuous Cognitive Progression Guide — 浅层不宣称「已拆解完毕」 */}
       <div className="py-3.5 px-4 bg-white border-2 border-stone-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-sans shadow-xs">
         <div className="space-y-0.5">
           <div className="text-xs font-serif font-bold text-stone-900">
-            {activeTab === 'seven_elements' && '第一篇 事实已结构化拆解完毕 ➔ 下一步：进入「第二篇 · 底层逻辑与因果」，剖析始发根因与变量关系'}
-            {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') && '第二篇 因果链与博弈格局已摸清 ➔ 下一步：查阅「蝴蝶效应关联网」或「第三篇 · 未来推演与预测」'}
-            {activeTab === 'butterfly_effect' && '蝴蝶效应关联网为您拆解了多阶连锁影响与连带认知网 ➔ 下一步：进入「第三篇 · 未来推演与预测」'}
-            {activeTab === 'forecast_arena' && '第三篇 走势研判与预测对赌已确立 ➔ 下一步：进入「第四篇 · 切身决策与行动」，生成您的专属行动清单'}
-            {activeTab === 'relevance_identity' && '第四篇 决策行动清单已生成 ➔ 您已完成全部核心认知阶段拆解，可沉淀至「我的关注」'}
-            {activeTab === 'deep_spectrum' && '您正在查阅五层通读全览 ➔ 可随时切回核心逻辑拆解或前往「我的关注」'}
+            {isShallow ? (
+              <>
+                {activeTab === 'seven_elements' &&
+                  '本篇仍为浅层条目：事实框架待生成 ➔ 请先点击「生成深度分析」，再进入后续篇章'}
+                {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') &&
+                  '底层逻辑模块尚未生成 ➔ 完成深度分析后可查看因果树与架构全景'}
+                {activeTab === 'butterfly_effect' &&
+                  '蝴蝶效应关联网依赖深度字段 ➔ 请先生成深度分析'}
+                {activeTab === 'forecast_arena' &&
+                  '预测与推演模块尚未就绪 ➔ 请先生成深度分析'}
+                {activeTab === 'relevance_identity' &&
+                  '切身决策清单需深度研判支撑 ➔ 请先生成深度分析'}
+                {activeTab === 'deep_spectrum' &&
+                  '五层光谱尚未生成 ➔ 请先完成深度分析，或通过「阅读原文」复核信源'}
+              </>
+            ) : (
+              <>
+                {activeTab === 'seven_elements' &&
+                  '第一篇 事实已结构化拆解完毕 ➔ 下一步：进入「第二篇 · 底层逻辑与因果」，剖析始发根因与变量关系'}
+                {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') &&
+                  '第二篇 因果链与博弈格局已摸清 ➔ 下一步：查阅「蝴蝶效应关联网」或「第三篇 · 未来推演与预测」'}
+                {activeTab === 'butterfly_effect' &&
+                  '蝴蝶效应关联网为您拆解了多阶连锁影响与连带认知网 ➔ 下一步：进入「第三篇 · 未来推演与预测」'}
+                {activeTab === 'forecast_arena' &&
+                  '第三篇 走势研判与预测对赌已确立 ➔ 下一步：进入「第四篇 · 切身决策与行动」，生成您的专属行动清单'}
+                {activeTab === 'relevance_identity' &&
+                  '第四篇 决策行动清单已生成 ➔ 您已完成全部核心认知阶段拆解，可沉淀至「我的关注」'}
+                {activeTab === 'deep_spectrum' &&
+                  '您正在查阅五层通读全览 ➔ 可随时切回核心逻辑拆解或前往「我的关注」'}
+              </>
+            )}
           </div>
         </div>
 
