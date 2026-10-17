@@ -1676,8 +1676,17 @@ test('服务端知识库：路由与鉴权契约（源码）', () => {
   const prefs = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useUserPrefsStore.ts'), 'utf8');
   assert.match(prefs, /\/api\/knowledge/);
   assert.match(prefs, /syncKnowledge/);
+  assert.match(prefs, /知识库写入以服务端为准/);
+  assert.match(prefs, /Promise<boolean>/);
+  assert.match(prefs, /registration_required/);
+  // 不得在 POST 成功前乐观写入（旧 bug：游客 UI 假成功）
+  assert.equal(/setKnowledgeItems\(\(prev\) => \[item,/.test(prefs), false);
+
+  assert.match(panel, /沉淀知识库需要登录/);
+  assert.match(panel, /isWriting/);
 
   const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
   assert.match(detail, /深度分析已完成/);
   assert.match(detail, /存入知识库/);
+  assert.match(detail, /ok !== false/);
 });

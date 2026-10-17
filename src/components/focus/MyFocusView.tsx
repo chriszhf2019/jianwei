@@ -72,9 +72,9 @@ interface MyFocusViewProps {
   personalNotes: string;
   onPersonalNotesChange: (value: string) => void;
   knowledgeItems?: KnowledgeItem[];
-  onAddKnowledge?: (item: KnowledgeItem) => void;
-  onUpdateKnowledge?: (id: string, updates: Partial<KnowledgeItem>) => void;
-  onRemoveKnowledge?: (id: string) => void;
+  onAddKnowledge?: (item: KnowledgeItem) => boolean | Promise<boolean>;
+  onUpdateKnowledge?: (id: string, updates: Partial<KnowledgeItem>) => boolean | Promise<boolean>;
+  onRemoveKnowledge?: (id: string) => boolean | Promise<boolean>;
   onOpenArticleById?: (articleId: string) => void;
   onOpenTermExplain?: (term: string) => void;
 }

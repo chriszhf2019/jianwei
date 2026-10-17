@@ -220,7 +220,7 @@ interface NewsDetailViewProps {
   onOpenArticle?: (article: NewsArticle) => void;
   onOpenShareCard?: (article: NewsArticle) => void;
   isDepositedInKnowledge?: boolean;
-  onDepositToKnowledge?: (item: KnowledgeItem) => void;
+  onDepositToKnowledge?: (item: KnowledgeItem) => boolean | Promise<boolean>;
   predictionContracts?: PredictionContract[];
   onAppendActionMemo?: (entry: string) => void;
   readingDensity?: ReadingDensity;
@@ -274,8 +274,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     setDeposited(isDepositedInKnowledge);
   }, [isDepositedInKnowledge, article.id]);
 
-  const handleDeposit = () => {
-    if (!onDepositToKnowledge) return;
+  const handleDeposit = async () => {
+    if (!onDepositToKnowledge || deposited) return;
     const item: KnowledgeItem = {
       id: `kb-${article.id}`,
       articleId: article.id,
@@ -299,8 +299,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       createdAt: new Date().toISOString().slice(0, 10),
     };
 
-    onDepositToKnowledge(item);
-    setDeposited(true);
+    const ok = await onDepositToKnowledge(item);
+    if (ok !== false) setDeposited(true);
   };
 
   // 离线持久化状态（存储至 IndexedDB）
