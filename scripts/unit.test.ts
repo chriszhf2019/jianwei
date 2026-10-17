@@ -1502,3 +1502,92 @@ test('AnalysisFramework: enrich/analyze 共用同一 prompt 构建器与深度 s
   assert.match(modal, /mergeDeepAnalysisFields/);
 });
 
+
+// —— 切片 2：优质源预设 + AI 独立分类 ——
+test('qualityFeedPresets: 覆盖财经/科技/AI 且 URL 唯一', async () => {
+  const {
+    QUALITY_FEED_PRESETS,
+    defaultEnabledFeedUrls,
+    mergeEnableFeedUrls,
+    mergeDisableFeedUrls,
+    getQualityPresetByUrl,
+    getDefaultCategoryForFeedUrl,
+    normalizeFeedUrlKey,
+  } = await import('../src/shared/qualityFeedPresets');
+
+  const cats = new Set(QUALITY_FEED_PRESETS.map((p) => p.category));
+  assert.ok(cats.has('财经'));
+  assert.ok(cats.has('科技'));
+  assert.ok(cats.has('AI'));
+  assert.equal(cats.has('IT' as any), false);
+
+  const keys = QUALITY_FEED_PRESETS.map((p) => normalizeFeedUrlKey(p.url));
+  assert.equal(keys.length, new Set(keys).size);
+
+  const defaults = defaultEnabledFeedUrls();
+  assert.ok(defaults.length >= 3);
+  assert.ok(defaults.every((u) => getQualityPresetByUrl(u)));
+
+  const custom = ['https://example.com/my-custom.xml'];
+  const merged = mergeEnableFeedUrls(custom, defaults);
+  assert.ok(merged.includes(custom[0]));
+  assert.equal(merged.length, custom.length + defaults.length);
+  // 再次启用不重复追加
+  assert.equal(mergeEnableFeedUrls(merged, defaults).length, merged.length);
+
+  const trimmed = mergeDisableFeedUrls(merged, [defaults[0]]);
+  assert.equal(trimmed.includes(defaults[0]), false);
+  assert.ok(trimmed.includes(custom[0]));
+
+  assert.equal(getDefaultCategoryForFeedUrl('https://rss.arxiv.org/rss/cs.AI'), 'AI');
+  assert.equal(getDefaultCategoryForFeedUrl('https://feeds.a.dj.com/rss/RSSMarketsMain.xml'), '财经');
+  assert.equal(getDefaultCategoryForFeedUrl('https://techcrunch.com/feed/'), '科技');
+});
+
+test('getArticleCanonicalCategory: AI 从 IT 独立；源级 feedUrl 优先', async () => {
+  const { getArticleCanonicalCategory } = await import('../src/utils/categoryClassifier');
+
+  assert.equal(
+    getArticleCanonicalCategory({ title: 'OpenAI 发布新一代 GPT 推理模型', summary: '大语言模型突破' }),
+    'AI'
+  );
+  assert.equal(
+    getArticleCanonicalCategory({ title: 'Kubernetes 集群运维最佳实践', summary: '云原生与微服务部署' }),
+    'IT'
+  );
+  assert.equal(
+    getArticleCanonicalCategory({ title: '美联储暗示降息路径', summary: '国债收益率回落' }),
+    '财经'
+  );
+  assert.equal(
+    getArticleCanonicalCategory({ category: 'AI 前沿', title: '无关标题' }),
+    'AI'
+  );
+  assert.equal(
+    getArticleCanonicalCategory({ category: '金融', title: '无关标题' }),
+    '财经'
+  );
+  // 源级默认：即使标题偏金融，订阅源为 arXiv AI 时归 AI
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: 'Some market note',
+      feedUrl: 'https://rss.arxiv.org/rss/cs.AI',
+    }),
+    'AI'
+  );
+});
+
+test('settings 默认 feeds 使用优质源子集且不含已知坏链', async () => {
+  const settingsSrc = fs.readFileSync(path.join(process.cwd(), 'src/server/settings.ts'), 'utf8');
+  assert.match(settingsSrc, /defaultEnabledFeedUrls/);
+  assert.equal(settingsSrc.includes('https://36kr.com/feed'), false);
+  assert.equal(settingsSrc.includes('https://www.ftchinese.com/rss/feed'), false);
+
+  const feedsTab = fs.readFileSync(path.join(process.cwd(), 'src/components/admin/tabs/FeedsTab.tsx'), 'utf8');
+  assert.match(feedsTab, /QUALITY_FEED_PRESETS/);
+  assert.match(feedsTab, /一键启用全部优质源/);
+  assert.match(feedsTab, /FeedHealthPanel/);
+
+  const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
+  assert.match(home, /'AI'/);
+});

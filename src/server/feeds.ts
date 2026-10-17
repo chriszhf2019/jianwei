@@ -19,6 +19,8 @@ export interface RawFeedItem {
   link: string;
   pubDate?: string;
   description?: string;
+  /** 条目来自哪条订阅 URL（源级默认分类） */
+  feedUrl?: string;
 }
 
 /** 标题去重键：忽略大小写、标点、空白，避免同稿换标点后重复入库。 */
@@ -310,7 +312,7 @@ export async function ingestAllFeeds(
           continue;
         }
         seen.add(urlKey);
-        items.push(raw);
+        items.push({ ...raw, feedUrl: item.url });
       }
     } catch (e: any) {
       errors.push(`${item.url}: ${e?.message || e}`);
