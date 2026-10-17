@@ -90,6 +90,22 @@ export function useUserPrefsStore() {
         entityId: item.id,
         metadata: { title: item.title, category: item.category },
       });
+      void fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      })
+        .then(async (res) => {
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data?.item) {
+            setKnowledgeItems((prev) => [
+              data.item,
+              ...prev.filter((i) => i.id !== data.item.id && i.title !== data.item.title),
+            ]);
+          }
+        })
+        .catch(() => undefined);
     },
     [setKnowledgeItems]
   );
@@ -97,6 +113,19 @@ export function useUserPrefsStore() {
   const handleUpdateKnowledge = useCallback(
     (id: string, updates: Partial<KnowledgeItem>) => {
       setKnowledgeItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+      void fetch(`/api/knowledge/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+        .then(async (res) => {
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data?.item) {
+            setKnowledgeItems((prev) => prev.map((item) => (item.id === id ? data.item : item)));
+          }
+        })
+        .catch(() => undefined);
     },
     [setKnowledgeItems]
   );
@@ -104,6 +133,7 @@ export function useUserPrefsStore() {
   const handleRemoveKnowledge = useCallback(
     (id: string) => {
       setKnowledgeItems((prev) => prev.filter((item) => item.id !== id));
+      void fetch(`/api/knowledge/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => undefined);
     },
     [setKnowledgeItems]
   );
@@ -310,6 +340,47 @@ export function useUserPrefsStore() {
     };
   }, []);
 
+  // 服务端知识库：拉取已沉淀条目，并将本机 localStorage 遗留条目一次性迁移上去。
+  useEffect(() => {
+    let alive = true;
+    const syncKnowledge = async () => {
+      try {
+        const response = await fetch('/api/knowledge?limit=500');
+        if (!response.ok) return;
+        const data = await response.json();
+        const serverItems: KnowledgeItem[] = Array.isArray(data?.items) ? data.items : [];
+        const merged = new Map(serverItems.map((item) => [item.id, item]));
+        for (const local of knowledgeItems) {
+          if (merged.has(local.id)) continue;
+          try {
+            const registered = await fetch('/api/knowledge', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(local),
+            });
+            const registeredData = await registered.json();
+            if (registered.ok && registeredData?.item) {
+              merged.set(registeredData.item.id, registeredData.item);
+              continue;
+            }
+          } catch {
+            /* keep local offline copy */
+          }
+          merged.set(local.id, { ...local, ledger: 'local' });
+        }
+        if (alive) setKnowledgeItems([...merged.values()]);
+      } catch {
+        /* offline */
+      }
+    };
+    void syncKnowledge();
+    return () => {
+      alive = false;
+    };
+    // 仅启动时同步；之后以服务端写穿为主
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const preferencesHydratedRef = useRef(false);
   const preferencesVersionRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
@@ -370,7 +441,7 @@ export function useUserPrefsStore() {
         interestGroups,
         nickname,
         personalNotes,
-        knowledgeItems,
+        // knowledgeItems 已迁至 /api/knowledge，不再写入 preferences 大包
         readingDensity,
         defaultRhythm,
       };
@@ -402,7 +473,6 @@ export function useUserPrefsStore() {
     interestGroups,
     nickname,
     personalNotes,
-    knowledgeItems,
     readingDensity,
     defaultRhythm,
   ]);

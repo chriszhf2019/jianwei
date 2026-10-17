@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { KnowledgeItem } from '../../types';
+import { HOME_TOPIC_CATEGORIES } from '../../shared/qualityFeedPresets';
 import {
   BookOpen,
   Search,
@@ -49,20 +50,29 @@ export const KnowledgeBasePanel: React.FC<KnowledgeBasePanelProps> = ({
 
   // Manual Add Form State
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('AI 与半导体');
+  const [newCategory, setNewCategory] = useState<string>('AI');
   const [newVerdict, setNewVerdict] = useState('');
   const [newTakeaways, setNewTakeaways] = useState('');
   const [newNote, setNewNote] = useState('');
   const [newTags, setNewTags] = useState('战略, 核心沉淀');
 
-  // Categories list
+  // Categories：财经/科技/AI 预设 + 条目中出现的其它赛道
   const categories = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>([...HOME_TOPIC_CATEGORIES]);
     knowledgeItems.forEach((item) => {
       if (item.category) set.add(item.category);
     });
     return Array.from(set);
   }, [knowledgeItems]);
+
+  const serverCount = useMemo(
+    () => knowledgeItems.filter((item) => item.ledger === 'server').length,
+    [knowledgeItems]
+  );
+  const localOnlyCount = useMemo(
+    () => knowledgeItems.filter((item) => item.ledger === 'local').length,
+    [knowledgeItems]
+  );
 
   // Filtered list
   const filteredItems = useMemo(() => {
@@ -197,6 +207,20 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
         </div>
       </div>
 
+      {/* 相对旧 localStorage 的轻量迁移说明 */}
+      <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-3 text-xs text-stone-700 space-y-1">
+        <p className="font-serif font-bold text-stone-900">服务端知识库已启用</p>
+        <p>
+          沉淀条目写入 SQLite <code className="font-mono text-[11px]">knowledge_items</code>
+          （已沉淀知识），与 <code className="font-mono text-[11px]">articles</code> 运行语料分离。
+          本机旧 key <code className="font-mono text-[11px]">jianwei:jianwei-knowledge-ledger</code>
+          会在登录后自动尝试同步到服务端；同步成功后仍可保留本机副本作离线兜底。
+        </p>
+        <p className="font-mono text-[11px] text-stone-500">
+          服务端 {serverCount} 条 · 仅本机 {localOnlyCount} 条 · 游客只读、登录可写
+        </p>
+      </div>
+
       {/* Stats and Filter Bar */}
       <div className="bg-white border-2 border-stone-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -262,7 +286,7 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
             {searchQuery || selectedCategory !== 'all' ? '未找到符合条件的知识条目' : '知识库暂未沉淀内容'}
           </h3>
           <p className="text-xs text-stone-500 max-w-md mx-auto">
-            在浏览新闻详情时，点击顶部的「📥 沉淀到知识库」按钮，即可将关键事实、推演逻辑与决策启示永久归档至此。
+            在浏览新闻详情或深度分析完成后，点击「沉淀到知识库」，即可将关键事实、推演逻辑与决策启示写入服务端可检索库。
           </p>
         </div>
       ) : (
@@ -504,11 +528,13 @@ ${item.personalNote ? `**个人备忘批注**:\n> ${item.personalNote}\n` : ''}
                     onChange={(e) => setNewCategory(e.target.value)}
                     className="w-full p-2 bg-stone-50 border border-stone-300 rounded-lg focus:outline-hidden focus:border-stone-900"
                   >
+                    <option value="财经">财经</option>
+                    <option value="科技">科技</option>
+                    <option value="AI">AI</option>
+                    <option value="综合战略">综合战略</option>
                     <option value="AI 与半导体">AI 与半导体</option>
                     <option value="新能源与出海">新能源与出海</option>
                     <option value="宏观金融与政策">宏观金融与政策</option>
-                    <option value="消费电子与数码">消费电子与数码</option>
-                    <option value="商业模式与战略">商业模式与战略</option>
                   </select>
                 </div>
 

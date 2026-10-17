@@ -757,6 +757,10 @@ export interface KnowledgeItem {
   decisionImplication?: string;
   personalNote?: string;
   createdAt: string;
+  /** 服务端知识库回写时出现；local 表示仍仅本机 localStorage */
+  updatedAt?: string;
+  ownerUserId?: string;
+  ledger?: 'server' | 'local';
 }
 
 // ==========================================

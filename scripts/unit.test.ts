@@ -1591,3 +1591,93 @@ test('settings 默认 feeds 使用优质源子集且不含已知坏链', async (
   const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
   assert.match(home, /'AI'/);
 });
+
+test('服务端知识库：save / list / search 按用户隔离，与 articles 分离', async () => {
+  const database = await import('../src/server/database');
+  const owner = `kb-owner-${Date.now()}`;
+  const other = `kb-other-${Date.now()}`;
+  const id1 = `kb-test-${Date.now()}-1`;
+  const id2 = `kb-test-${Date.now()}-2`;
+  try {
+    const saved = database.saveKnowledgeItem(
+      {
+        id: id1,
+        title: '美联储利率决议与科技股估值',
+        category: '财经',
+        tags: ['利率', '估值'],
+        oneSentenceVerdict: '降息预期推高成长股风险偏好。',
+        keyTakeaways: ['期限利差走阔', 'AI 资本开支仍坚挺'],
+        articleId: 'art-fed-1',
+      },
+      owner
+    );
+    assert.equal(saved.ledger, 'server');
+    assert.equal(saved.category, '财经');
+    assert.equal(saved.ownerUserId, owner);
+
+    const listed = database.listKnowledgeItems({ ownerUserId: owner, category: '财经' });
+    assert.ok(listed.total >= 1);
+    assert.equal(listed.items.some((item) => item.id === id1), true);
+
+    const searched = database.searchKnowledgeItems('降息预期', { ownerUserId: owner });
+    assert.equal(searched.items.some((item) => item.id === id1), true);
+
+    database.saveKnowledgeItem(
+      {
+        id: id2,
+        title: '开源模型推理成本',
+        category: 'AI',
+        tags: ['推理'],
+        oneSentenceVerdict: '推理单价下降改变产品毛利结构。',
+        keyTakeaways: ['批处理吞吐'],
+      },
+      owner
+    );
+    const byAi = database.listKnowledgeItems({ ownerUserId: owner, category: 'AI' });
+    assert.equal(byAi.items.some((item) => item.id === id2), true);
+    assert.equal(byAi.items.every((item) => item.category === 'AI'), true);
+
+    const updated = database.updateKnowledgeItem(id1, { personalNote: '关注下一次点阵图' }, owner);
+    assert.ok(updated);
+    assert.equal(updated?.personalNote, '关注下一次点阵图');
+
+    assert.equal(database.listKnowledgeItems({ ownerUserId: other }).items.some((i) => i.id === id1), false);
+    assert.equal(database.deleteKnowledgeItem(id2, other), false);
+    assert.equal(database.deleteKnowledgeItem(id2, owner), true);
+  } finally {
+    database.deleteKnowledgeItem(id1, owner, true);
+    database.deleteKnowledgeItem(id2, owner, true);
+  }
+});
+
+test('服务端知识库：路由与鉴权契约（源码）', () => {
+  const routes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/knowledgeRoutes.ts'), 'utf8');
+  assert.match(routes, /\/api\/knowledge/);
+  assert.match(routes, /\/api\/knowledge\/search/);
+  assert.match(routes, /registration_required/);
+  assert.match(routes, /knowledge\.deposit/);
+
+  const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
+  assert.match(serverSrc, /registerKnowledgeRoutes/);
+
+  const conn = fs.readFileSync(path.join(process.cwd(), 'src/server/database/connection.ts'), 'utf8');
+  assert.match(conn, /CREATE TABLE IF NOT EXISTS knowledge_items/);
+  assert.match(conn, /已沉淀知识/);
+
+  const auth = fs.readFileSync(path.join(process.cwd(), 'src/server/authMiddleware.ts'), 'utf8');
+  assert.match(auth, /pathname === "\/knowledge"/);
+  assert.match(auth, /startsWith\("\/knowledge"\)/);
+
+  const panel = fs.readFileSync(path.join(process.cwd(), 'src/components/focus/KnowledgeBasePanel.tsx'), 'utf8');
+  assert.match(panel, /服务端知识库已启用/);
+  assert.match(panel, /jianwei:jianwei-knowledge-ledger/);
+  assert.match(panel, /HOME_TOPIC_CATEGORIES/);
+
+  const prefs = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useUserPrefsStore.ts'), 'utf8');
+  assert.match(prefs, /\/api\/knowledge/);
+  assert.match(prefs, /syncKnowledge/);
+
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  assert.match(detail, /深度分析已完成/);
+  assert.match(detail, /存入知识库/);
+});

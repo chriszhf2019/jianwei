@@ -8,3 +8,4 @@ export * from "./users";
 export * from "./evaluation";
 export * from "./backups";
 export * from "./analyses";
+export * from "./knowledge";

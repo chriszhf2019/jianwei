@@ -246,6 +246,32 @@ export function openDatabase(): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_created
       ON prediction_ledger_snapshots(created_at DESC);
+
+    -- 已沉淀知识（与 articles 运行语料分离）
+    CREATE TABLE IF NOT EXISTS knowledge_items (
+      id TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL DEFAULT 'local',
+      article_id TEXT,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT '',
+      tags TEXT NOT NULL DEFAULT '[]',
+      source_name TEXT,
+      published_at TEXT,
+      one_sentence_verdict TEXT NOT NULL DEFAULT '',
+      key_takeaways TEXT NOT NULL DEFAULT '[]',
+      core_mechanisms TEXT,
+      decision_implication TEXT,
+      personal_note TEXT,
+      payload TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_owner_created
+      ON knowledge_items(owner_user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_owner_category
+      ON knowledge_items(owner_user_id, category);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_article
+      ON knowledge_items(owner_user_id, article_id);
   `);
   const predictionColumns = db.prepare("PRAGMA table_info(prediction_contracts)").all() as Array<{ name: string }>;
   if (!predictionColumns.some((column) => column.name === "owner_user_id")) {

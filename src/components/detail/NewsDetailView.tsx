@@ -1325,6 +1325,32 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       {/* AI 技能条：一句话解读 / 趋势预测 / 风险挑刺 / 大白话 / 脱水 / 关联背景 */}
       {/*（7W/趋势/风险入口已整合进首页卡片分析盒，见 StandardModeFeed/CardInsightBox）*/}
 
+      {enrichPhase === 'done' && onDepositToKnowledge && (
+        <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-serif font-bold text-stone-900">深度分析已完成</div>
+            <p className="text-xs text-stone-600 mt-0.5">
+              {deposited
+                ? '本篇已写入服务端知识库，可在「我的关注 · 战略知识库」检索。'
+                : '可将研判要点一键存入服务端知识库（与运行语料分离，登录后可跨设备检索）。'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleDeposit}
+            disabled={deposited}
+            className={`px-4 py-2.5 rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              deposited
+                ? 'bg-emerald-600 text-white opacity-90'
+                : 'bg-stone-900 hover:bg-[#E3120B] text-white'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{deposited ? '已存入知识库' : '存入知识库'}</span>
+          </button>
+        </div>
+      )}
+
       {isShallow && enrichPhase !== 'done' && (
         <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
