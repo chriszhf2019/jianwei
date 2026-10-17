@@ -1131,6 +1131,22 @@ test('预设管理员：须由环境变量显式配置，无写死凭据', async
   assert.match(detail, /ArticleCompareView/);
   assert.match(detail, /offlineStorage/);
   assert.match(detail, /shallowMode=\{isShallow\}/);
+  // 浅层仅保留主 CTA「生成深度分析」：金句卡与关联「AI 补充」在浅层隐藏
+  assert.match(detail, /onOpenShareCard && !isShallow/);
+  assert.match(detail, /生成洞察金句卡/);
+  const relatedGraph = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/detail/RelatedNewsGraph.tsx'),
+    'utf8'
+  );
+  assert.match(relatedGraph, /shallowMode\?: boolean/);
+  assert.match(relatedGraph, /onRunSkill && !shallowMode/);
+  assert.match(relatedGraph, /AI 补充相关线索/);
+  const sevenTab = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/detail/SevenElementsTab.tsx'),
+    'utf8'
+  );
+  assert.match(sevenTab, /onRunSkill && !shallowMode/);
+  assert.match(sevenTab, /补充 AI 相关线索/);
 
   const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
   assert.match(header, /isAdmin/);

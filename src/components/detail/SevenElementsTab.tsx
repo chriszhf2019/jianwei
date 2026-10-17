@@ -636,24 +636,30 @@ export const SevenElementsTab: React.FC<SevenElementsTabProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-4 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>语料中暂无同题材文章。点击右侧按钮，让 AI 从知识里补充值得一并阅读的相关报道线索。</span>
+              <span>
+                {shallowMode
+                  ? '语料中暂无同题材文章。请先完成上方「生成深度分析」，再补充相关报道线索。'
+                  : '语料中暂无同题材文章。点击右侧按钮，让 AI 从知识里补充值得一并阅读的相关报道线索。'}
+              </span>
             </div>
-            <button
-              onClick={async () => {
-                if (!onRunSkill || relBusy) return;
-                setRelBusy(true);
-                try {
-                  await onRunSkill('relatednews', article);
-                } finally {
-                  setRelBusy(false);
-                }
-              }}
-              disabled={!onRunSkill || relBusy}
-              className="inline-flex items-center gap-1.5 shrink-0 justify-center px-3 py-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-serif font-bold rounded-lg border border-sky-600/60 transition-all"
-            >
-              {relBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Newspaper className="w-3.5 h-3.5" />}
-              {relBusy ? 'AI 正在补充相关线索…（10-30 秒）' : '补充 AI 相关线索'}
-            </button>
+            {onRunSkill && !shallowMode && (
+              <button
+                onClick={async () => {
+                  if (!onRunSkill || relBusy) return;
+                  setRelBusy(true);
+                  try {
+                    await onRunSkill('relatednews', article);
+                  } finally {
+                    setRelBusy(false);
+                  }
+                }}
+                disabled={!onRunSkill || relBusy}
+                className="inline-flex items-center gap-1.5 shrink-0 justify-center px-3 py-1.5 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-serif font-bold rounded-lg border border-sky-600/60 transition-all"
+              >
+                {relBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Newspaper className="w-3.5 h-3.5" />}
+                {relBusy ? 'AI 正在补充相关线索…（10-30 秒）' : '补充 AI 相关线索'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
