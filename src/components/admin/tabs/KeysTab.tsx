@@ -11,6 +11,9 @@ import { SECTOR_TAXONOMY_DEFAULT } from '../../../utils/sectorTaxonomy';
 import { AiCostPanel } from '../AiCostPanel';
 import type { AdminTabScope } from './scope';
 
+/** 密钥必须为可见 ASCII，否则会在上游请求的 HTTP 头触发编码错误（与 /api/settings 的服务端校验一致）。 */
+const hasNonAscii = (value: string) => /[^\x20-\x7e]/.test(value);
+
 export function KeysTab({ s }: { s: AdminTabScope }) {
   const { aiChoice, deepseekBaseUrlInput, deepseekKeyInput, deepseekModelInput, geminiKeyInput, geminiModelInput, handleSaveSettings, handleTestAi, setAiChoice, setDeepseekBaseUrlInput, setDeepseekKeyInput, setDeepseekModelInput, setGeminiKeyInput, setGeminiModelInput, setShowDeepseekKey, setShowGeminiKey, settings, showDeepseekKey, showGeminiKey, status, testResult, testingAi } = s;
   return (
@@ -113,6 +116,9 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                     {showGeminiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
+                {hasNonAscii(geminiKeyInput) && (
+                  <p className="text-[10px] text-red-700">密钥含非 ASCII 字符（如全角括号/空格），请粘贴纯 ASCII 密钥。</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -158,6 +164,9 @@ export function KeysTab({ s }: { s: AdminTabScope }) {
                     {showDeepseekKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
+                {hasNonAscii(deepseekKeyInput) && (
+                  <p className="text-[10px] text-red-700">密钥含非 ASCII 字符（如全角括号/空格），请粘贴纯 ASCII 密钥。</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
