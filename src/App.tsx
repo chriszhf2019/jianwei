@@ -120,6 +120,8 @@ export const App: React.FC = () => {
     handleAnalysisComplete: storageHandleAnalysisComplete,
     runNewsSkill,
     runPersonaForecast,
+    corpusReady,
+    ensureArticleById,
   } = useAppStorage();
 
   const {
@@ -128,11 +130,12 @@ export const App: React.FC = () => {
     selectedArticle,
     setSelectedArticle,
     detailInitialTab,
+    deepLinkStatus,
     handleSelectArticle,
     handleSelectArticleWithTab,
     handleBackToList,
     goTab,
-  } = useAppRouter(articles, articlesRef);
+  } = useAppRouter(articles, articlesRef, { corpusReady, ensureArticleById });
 
   const modals = useModalStack();
   const { authUser } = useAuth();
@@ -239,6 +242,28 @@ export const App: React.FC = () => {
                 setPersonalNotes((prev) => (prev ? `${prev.trim()}\n${entry}` : entry))
               }
             />
+          )}
+
+          {activeTab === 'detail' && !selectedArticle && (
+            <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center space-y-4">
+              {deepLinkStatus === 'not_found' ? (
+                <>
+                  <p className="text-sm font-serif font-bold text-stone-800">未找到该文章</p>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    该条目可能已从公开语料下架，或不在当前可访问范围内。你可以返回首页继续浏览。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleBackToList}
+                    className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold transition-colors cursor-pointer"
+                  >
+                    返回首页
+                  </button>
+                </>
+              ) : (
+                <p className="text-xs text-stone-400 font-sans">正在加载文章…</p>
+              )}
+            </div>
           )}
 
           {activeTab === 'home' && (

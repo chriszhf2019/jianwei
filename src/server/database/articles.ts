@@ -106,6 +106,28 @@ export function queryArticlesPage(input: {
   }
 }
 
+/** 按 id 取单篇（供深链 / 游客硬刷新，不受列表 limit 截断）。 */
+export function queryArticleById(id: string): any | null {
+  const articleId = String(id || "").trim();
+  if (!articleId || !fs.existsSync(DB_FILE)) return null;
+  const db = openDatabase();
+  try {
+    const row = db.prepare("SELECT payload FROM articles WHERE id = ?").get(articleId) as
+      | { payload?: string }
+      | undefined;
+    if (!row?.payload) return null;
+    try {
+      return JSON.parse(row.payload);
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
 export function persistArticlesToDatabase(articles: any[]): void {
   const db = openDatabase();
   try {
