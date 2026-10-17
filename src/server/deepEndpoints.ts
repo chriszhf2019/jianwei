@@ -113,6 +113,17 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
     const wasCached = generated.cached || generated.deduped;
     const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich);
 
+    // 游客深度解读额度：成功后原子扣减；并发竞态落败时不再写回语料、直接 403。
+    if (isGuest && !NO_PERSIST) {
+      const committed = consumeGuestDeepRead(auth.guestId, GUEST_DEEP_READ_LIMIT);
+      if (!committed.allowed) {
+        return res.status(403).json({
+          error: "guest_deep_read_limit",
+          message: "游客只能使用一次深度解读，请注册并等待管理员审批。",
+        });
+      }
+    }
+
     // 深度解析结果写回语料：刷新后仍算“已深度解读”（当日口径的“深度解读”计数因此持久）
     if (articleId) {
       if (target) {
@@ -133,9 +144,6 @@ backstoryTimeline：给出今天这篇之前的 3-6 个关键相关节点（时�
       }
     }
 
-    if (isGuest && !NO_PERSIST) {
-      consumeGuestDeepRead(auth.guestId, GUEST_DEEP_READ_LIMIT);
-    }
     res.json({
       enriched: true,
       cached: wasCached,
