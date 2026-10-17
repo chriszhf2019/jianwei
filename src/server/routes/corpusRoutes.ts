@@ -38,11 +38,12 @@ export function registerCorpusRoutes(app: Express, applyRateLimit: RateLimiter):
   let snapshotCache: { key: string; at: number; payload: any } | null = null;
 
   // Intelligence snapshot derivation skeleton (derives honest aggregates from the corpus)
-  app.get("/api/snapshot", (_req, res) => {
+  app.get("/api/snapshot", (req, res) => {
     res.setHeader("Cache-Control", "private, max-age=15, must-revalidate");
     try {
       const arts: any[] = serverCorpus;
-      const cacheKey = `${getCorpusRevision()}:${feedUrls().length}:${DEMO_DATA_ENABLED ? 1 : 0}`;
+      const isGuest = Boolean((req as any).auth?.isGuest);
+      const cacheKey = `${getCorpusRevision()}:${feedUrls().length}:${DEMO_DATA_ENABLED ? 1 : 0}:${isGuest ? 1 : 0}`;
       if (
         snapshotCache &&
         snapshotCache.key === cacheKey &&
@@ -100,6 +101,7 @@ export function registerCorpusRoutes(app: Express, applyRateLimit: RateLimiter):
           corpus: feedUrls().length > 0 ? "live" : arts.length > 0 ? "runtime" : "empty",
           corpusSize: arts.length,
           demo: DEMO_DATA_ENABLED,
+          guestArticleLimit: isGuest ? GUEST_ARTICLE_LIMIT : undefined,
           note:
             feedUrls().length > 0
               ? "已配置真实信源，snapshot 基于服务端运行时语料派生。"

@@ -770,6 +770,8 @@ export interface SnapshotMeta {
   corpusSize: number;
   demo: boolean; // 无真实信源/无 Key 时为 true
   note?: string;
+  /** 游客可读文章数上限（仅游客可见）；用于区分全库篇数与游客可读范围 */
+  guestArticleLimit?: number;
 }
 
 export interface SnapshotDerived {
