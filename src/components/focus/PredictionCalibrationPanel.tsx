@@ -2,12 +2,32 @@ import React, { useMemo } from 'react';
 import type { PredictionContract } from '../../types';
 import { Activity, AlertTriangle, Scale } from 'lucide-react';
 import {
+  ResponsiveContainer,
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine,
+} from 'recharts';
+import {
   calibrationBuckets,
   collectCalibrationSample,
   forecastMetrics,
   MIN_CALIBRATION_SAMPLE,
   monthlyCalibration,
 } from '../../utils/predictionCalibration';
+
+/** 散点大小/透明度随样本量变化：样本少的区间更弱，避免误读成可靠校准。 */
+function renderCalibrationDot(color: string) {
+  return (props: any) => {
+    const n = Number(props?.payload?.n ?? props?.n ?? 0);
+    const r = n >= 10 ? 5 : 3.5;
+    const opacity = n >= 10 ? 1 : 0.55;
+    return <circle cx={props.cx} cy={props.cy} r={r} fill={color} fillOpacity={opacity} />;
+  };
+}
 
 interface PredictionCalibrationPanelProps {
   contracts: PredictionContract[];
@@ -28,6 +48,27 @@ export const PredictionCalibrationPanel: React.FC<PredictionCalibrationPanelProp
     buckets: calibrationBuckets(collected.user, collected.ai),
     months: monthlyCalibration(collected),
   }), [collected]);
+
+  const userPoints = useMemo(
+    () =>
+      data.buckets
+        .filter((b) => b.userObserved !== null)
+        .map((b) => {
+          const lo = parseInt(b.label, 10);
+          return { x: Number.isFinite(lo) ? lo + 10 : 0, y: b.userObserved as number, n: b.userCount };
+        }),
+    [data.buckets],
+  );
+  const aiPoints = useMemo(
+    () =>
+      data.buckets
+        .filter((b) => b.aiObserved !== null)
+        .map((b) => {
+          const lo = parseInt(b.label, 10);
+          return { x: Number.isFinite(lo) ? lo + 10 : 0, y: b.aiObserved as number, n: b.aiCount };
+        }),
+    [data.buckets],
+  );
 
   const sample = data.user.count;
   const missingEvidence = collected.missingEvidence;
@@ -80,6 +121,56 @@ export const PredictionCalibrationPanel: React.FC<PredictionCalibrationPanelProp
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[11px] font-serif font-bold text-stone-200">校准曲线</div>
+            <div className="h-60">
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 8, right: 16, bottom: 4, left: -4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#44403C" />
+                  <XAxis
+                    type="number"
+                    dataKey="x"
+                    domain={[0, 100]}
+                    ticks={[0, 20, 40, 60, 80, 100]}
+                    tick={{ fill: '#A8A29E', fontSize: 10 }}
+                    tickFormatter={(v: number) => `${v}%`}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="y"
+                    domain={[0, 100]}
+                    ticks={[0, 20, 40, 60, 80, 100]}
+                    tick={{ fill: '#A8A29E', fontSize: 10 }}
+                    tickFormatter={(v: number) => `${v}%`}
+                  />
+                  <Tooltip
+                    content={({ active, payload }: any) =>
+                      active && payload && payload.length ? (
+                        <div className="bg-stone-950 text-white text-xs font-mono p-2.5 rounded-lg border border-stone-700 shadow-xl space-y-1">
+                          {payload.map((entry: any) => (
+                            <div key={String(entry.name)} style={{ color: entry.color }}>
+                              {entry.name}：报 {entry.payload.x}% · 实际命中 {entry.payload.y}% · N={entry.payload.n}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null
+                    }
+                  />
+                  <ReferenceLine
+                    segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]}
+                    stroke="#78716C"
+                    strokeDasharray="4 4"
+                  />
+                  <Scatter name="用户" data={userPoints} shape={renderCalibrationDot('#F87171')} />
+                  <Scatter name="模型" data={aiPoints} shape={renderCalibrationDot('#FBBF24')} />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-[10px] text-stone-500 leading-relaxed">
+              读法：对角线 = 完美校准。点在对角线上方 = 实际命中高于你报的置信度（偏保守/自信不足）；在下方 = 偏乐观（过度自信）。点越大越实 = 该区间样本越多；样本少的区间命中率噪声大，仅作参考。
+            </p>
           </div>
 
           {!enough && (
