@@ -2,8 +2,13 @@ export * from './sevenElementsPrompt';
 export * from './causalTreePrompt';
 export * from './personaPrompt';
 export * from './forecastPrompt';
+export * from './analysisFrameworkPrompt';
 
 export const UNIFIED_PROMPT_REGISTRY = {
+  analysisFramework: {
+    version: 'analysis-framework-2026-10-17-v1',
+    description: '详情 enrich 与贴链 analyze 共用的统一深度分析框架（摘要/定性/7W/影响/风险/证据链）',
+  },
   sevenElements: {
     version: 'seven-elements-2026-10-06-v3',
     description: '7W 核心认知拆解、大白话速懂与专业行话生活类比词典',
