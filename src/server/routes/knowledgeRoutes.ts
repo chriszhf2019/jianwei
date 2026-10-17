@@ -9,6 +9,10 @@ import {
 } from "../database";
 import { NO_PERSIST } from "../settings";
 import type { RequestAuth } from "./authRoutes";
+import {
+  isRegisteredKnowledgeWriter,
+  registrationRequiredPayload,
+} from "../authMiddleware";
 
 export type RateLimiter = (req: Request, res: Response, next: () => void) => void;
 
@@ -73,14 +77,11 @@ export function registerKnowledgeRoutes(app: Express, applyRateLimit: RateLimite
   app.post("/api/knowledge", applyRateLimit, (req, res) => {
     if (NO_PERSIST) return res.status(503).json({ error: "knowledge_persistence_disabled" });
     const auth = (req as any).auth as RequestAuth;
-    if (auth?.isGuest) {
-      return res.status(401).json({
-        error: "registration_required",
-        message: "沉淀知识库需要登录。游客可浏览公开语料，写入需注册并审批。",
-      });
+    if (!isRegisteredKnowledgeWriter(auth)) {
+      return res.status(401).json(registrationRequiredPayload("沉淀知识库需要登录。游客可浏览公开语料，写入需注册并审批。"));
     }
     try {
-      const item = saveKnowledgeItem(req.body || {}, auth?.userId || "local");
+      const item = saveKnowledgeItem(req.body || {}, auth.userId);
       recordAuditEvent({
         actor: actorFromAuth(auth),
         action: "knowledge.deposit",
@@ -104,17 +105,14 @@ export function registerKnowledgeRoutes(app: Express, applyRateLimit: RateLimite
   app.patch("/api/knowledge/:id", applyRateLimit, (req, res) => {
     if (NO_PERSIST) return res.status(503).json({ error: "knowledge_persistence_disabled" });
     const auth = (req as any).auth as RequestAuth;
-    if (auth?.isGuest) {
-      return res.status(401).json({
-        error: "registration_required",
-        message: "更新知识库需要登录。",
-      });
+    if (!isRegisteredKnowledgeWriter(auth)) {
+      return res.status(401).json(registrationRequiredPayload("更新知识库需要登录。"));
     }
     const updated = updateKnowledgeItem(
       String(req.params.id || ""),
       req.body || {},
-      auth?.userId || "local",
-      auth?.role === "admin"
+      auth.userId,
+      auth.role === "admin"
     );
     if (!updated) return res.status(404).json({ error: "knowledge_item_not_found" });
     recordAuditEvent({
@@ -130,16 +128,13 @@ export function registerKnowledgeRoutes(app: Express, applyRateLimit: RateLimite
   app.delete("/api/knowledge/:id", applyRateLimit, (req, res) => {
     if (NO_PERSIST) return res.status(503).json({ error: "knowledge_persistence_disabled" });
     const auth = (req as any).auth as RequestAuth;
-    if (auth?.isGuest) {
-      return res.status(401).json({
-        error: "registration_required",
-        message: "删除知识库条目需要登录。",
-      });
+    if (!isRegisteredKnowledgeWriter(auth)) {
+      return res.status(401).json(registrationRequiredPayload("删除知识库条目需要登录。"));
     }
     const ok = deleteKnowledgeItem(
       String(req.params.id || ""),
-      auth?.userId || "local",
-      auth?.role === "admin"
+      auth.userId,
+      auth.role === "admin"
     );
     if (!ok) return res.status(404).json({ error: "knowledge_item_not_found" });
     recordAuditEvent({

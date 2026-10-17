@@ -53,6 +53,15 @@ function ensureGuestId(req: Request, res: Response): string {
   return guestId;
 }
 
+/** True when path is under /knowledge (list/search/item). */
+export function isKnowledgeApiPath(pathname: string): boolean {
+  return (
+    pathname === "/knowledge" ||
+    pathname === "/knowledge/search" ||
+    pathname.startsWith("/knowledge/")
+  );
+}
+
 function isGuestReadRoute(pathname: string): boolean {
   return (
     pathname === "/corpus" ||
@@ -60,9 +69,7 @@ function isGuestReadRoute(pathname: string): boolean {
     pathname === "/auth/me" ||
     pathname === "/preferences" ||
     pathname === "/predictions" ||
-    pathname === "/knowledge" ||
-    pathname === "/knowledge/search" ||
-    pathname.startsWith("/knowledge/")
+    isKnowledgeApiPath(pathname)
   );
 }
 
@@ -160,8 +167,14 @@ export function requestAuth(req: Request, authToken: string): RequestAuth | null
       mustChangePassword: false,
     };
   }
-  if (bearer.startsWith("jw_")) {
-    const user = resolveUserSession(bearer);
+  // Resolve session from either Authorization or x-jianwei-token (proxies may strip one).
+  const sessionToken = bearer.startsWith("jw_")
+    ? bearer
+    : headerToken.startsWith("jw_")
+      ? headerToken
+      : "";
+  if (sessionToken) {
+    const user = resolveUserSession(sessionToken);
     return user
       ? {
           userId: user.id,
@@ -174,6 +187,29 @@ export function requestAuth(req: Request, authToken: string): RequestAuth | null
   }
   return null;
 }
+
+/**
+ * Knowledge writes require a registered (non-guest) session.
+ * Rejects: missing auth, isGuest, guest:* userIds, username "guest".
+ * Allows: approved user-* sessions, legacy token admin, and local (auth disabled).
+ */
+export function isRegisteredKnowledgeWriter(auth: RequestAuth | undefined | null): boolean {
+  if (!auth) return false;
+  if (auth.isGuest) return false;
+  if (auth.guestId) return false;
+  const userId = String(auth.userId || "").trim();
+  if (!userId || userId.startsWith("guest:")) return false;
+  if (String(auth.username || "").trim().toLowerCase() === "guest") return false;
+  return true;
+}
+
+export function registrationRequiredPayload(message?: string) {
+  return {
+    error: "registration_required" as const,
+    message: message || "该功能需要注册并完成审批。",
+  };
+}
+
 
 /** 挂载 /api 鉴权、游客限流与角色门禁。 */
 export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
@@ -206,6 +242,15 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
         guestId,
       };
       (req as any).auth = guestAuth;
+      // Guests may read knowledge; never mutate (POST/PUT/PATCH/DELETE).
+      if (
+        isKnowledgeApiPath(req.path) &&
+        !["GET", "HEAD", "OPTIONS"].includes(req.method)
+      ) {
+        return res.status(401).json(
+          registrationRequiredPayload("沉淀知识库需要登录。游客可浏览公开语料，写入需注册并审批。")
+        );
+      }
       if (["GET", "HEAD", "OPTIONS"].includes(req.method) && isGuestReadRoute(req.path)) {
         return next();
       }
@@ -227,10 +272,7 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
         }
         return next();
       }
-      return res.status(401).json({
-        error: "registration_required",
-        message: "该功能需要注册并完成审批。",
-      });
+      return res.status(401).json(registrationRequiredPayload());
     }
     (req as any).auth = auth;
     const passwordChangeAllowed =
@@ -247,11 +289,21 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
     if (adminOnly && auth.role !== "admin") {
       return res.status(403).json({ error: "forbidden: admin role required" });
     }
+    // Defense: guest-shaped sessions must never mutate knowledge even if mis-tagged.
+    if (
+      isKnowledgeApiPath(req.path) &&
+      !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
+      !isRegisteredKnowledgeWriter(auth)
+    ) {
+      return res.status(401).json(
+        registrationRequiredPayload("沉淀知识库需要登录。游客可浏览公开语料，写入需注册并审批。")
+      );
+    }
     if (
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
       !req.path.startsWith("/auth/") &&
       req.path !== "/preferences" &&
-      !req.path.startsWith("/knowledge") &&
+      !isKnowledgeApiPath(req.path) &&
       auth.role === "viewer"
     ) {
       return res.status(403).json({ error: "forbidden: editor role required" });
