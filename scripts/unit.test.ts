@@ -1654,7 +1654,8 @@ test('服务端知识库：路由与鉴权契约（源码）', () => {
   const routes = fs.readFileSync(path.join(process.cwd(), 'src/server/routes/knowledgeRoutes.ts'), 'utf8');
   assert.match(routes, /\/api\/knowledge/);
   assert.match(routes, /\/api\/knowledge\/search/);
-  assert.match(routes, /registration_required/);
+  assert.match(routes, /isRegisteredKnowledgeWriter/);
+  assert.match(routes, /registrationRequiredPayload/);
   assert.match(routes, /knowledge\.deposit/);
 
   const serverSrc = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
@@ -1665,8 +1666,10 @@ test('服务端知识库：路由与鉴权契约（源码）', () => {
   assert.match(conn, /已沉淀知识/);
 
   const auth = fs.readFileSync(path.join(process.cwd(), 'src/server/authMiddleware.ts'), 'utf8');
-  assert.match(auth, /pathname === "\/knowledge"/);
-  assert.match(auth, /startsWith\("\/knowledge"\)/);
+  assert.match(auth, /isKnowledgeApiPath/);
+  assert.match(auth, /isRegisteredKnowledgeWriter/);
+  assert.match(auth, /Guests may read knowledge; never mutate/);
+  assert.match(auth, /startsWith\("\/knowledge\/"\)/);
 
   const panel = fs.readFileSync(path.join(process.cwd(), 'src/components/focus/KnowledgeBasePanel.tsx'), 'utf8');
   assert.match(panel, /服务端知识库已启用/);
@@ -1690,3 +1693,87 @@ test('服务端知识库：路由与鉴权契约（源码）', () => {
   assert.match(detail, /存入知识库/);
   assert.match(detail, /ok !== false/);
 });
+
+test('知识库写入鉴权：isRegisteredKnowledgeWriter 拒绝游客与 guest 形态会话', async () => {
+  const {
+    isRegisteredKnowledgeWriter,
+    isKnowledgeApiPath,
+    registrationRequiredPayload,
+  } = await import('../src/server/authMiddleware');
+
+  assert.equal(isKnowledgeApiPath('/knowledge'), true);
+  assert.equal(isKnowledgeApiPath('/knowledge/search'), true);
+  assert.equal(isKnowledgeApiPath('/knowledge/kb-1'), true);
+  assert.equal(isKnowledgeApiPath('/preferences'), false);
+
+  assert.equal(isRegisteredKnowledgeWriter(null), false);
+  assert.equal(isRegisteredKnowledgeWriter(undefined), false);
+  assert.equal(
+    isRegisteredKnowledgeWriter({
+      userId: 'guest:guest_abcdef0123456789abcdef01',
+      username: 'guest',
+      role: 'viewer',
+      legacyToken: false,
+      mustChangePassword: false,
+      isGuest: true,
+      guestId: 'guest_abcdef0123456789abcdef01',
+    }),
+    false
+  );
+  // isGuest 漏标但仍是 guest 形态
+  assert.equal(
+    isRegisteredKnowledgeWriter({
+      userId: 'guest:guest_abcdef0123456789abcdef01',
+      username: 'guest',
+      role: 'viewer',
+      legacyToken: false,
+      mustChangePassword: false,
+    }),
+    false
+  );
+  assert.equal(
+    isRegisteredKnowledgeWriter({
+      userId: 'user-8bf6c7fa10595adde94da05c',
+      username: 'guest',
+      role: 'viewer',
+      legacyToken: false,
+      mustChangePassword: false,
+    }),
+    false
+  );
+  assert.equal(
+    isRegisteredKnowledgeWriter({
+      userId: 'user-8bf6c7fa10595adde94da05c',
+      username: 'alice',
+      role: 'viewer',
+      legacyToken: false,
+      mustChangePassword: false,
+    }),
+    true
+  );
+  assert.equal(
+    isRegisteredKnowledgeWriter({
+      userId: 'local',
+      username: 'local',
+      role: 'admin',
+      legacyToken: false,
+      mustChangePassword: false,
+    }),
+    true
+  );
+  assert.equal(
+    isRegisteredKnowledgeWriter({
+      userId: 'legacy-token',
+      username: 'token-admin',
+      role: 'admin',
+      legacyToken: true,
+      mustChangePassword: false,
+    }),
+    true
+  );
+
+  const payload = registrationRequiredPayload('沉淀知识库需要登录。');
+  assert.equal(payload.error, 'registration_required');
+  assert.match(payload.message, /登录/);
+});
+

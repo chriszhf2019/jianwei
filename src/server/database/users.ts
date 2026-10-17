@@ -337,12 +337,18 @@ export function resolveUserSession(token: string): {
   const db = openDatabase();
   try {
     const row = db.prepare(`
-      SELECT u.id, u.username, u.role, u.active, u.must_change_password, s.expires_at
+      SELECT u.id, u.username, u.role, u.active, u.must_change_password, u.approval_status, s.expires_at
       FROM user_sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ?
     `).get(sessionTokenHash(token)) as any;
-    if (!row || Number(row.active) !== 1 || Date.parse(String(row.expires_at)) <= Date.now()) {
+    const approval = String(row?.approval_status || "approved");
+    if (
+      !row ||
+      Number(row.active) !== 1 ||
+      approval !== "approved" ||
+      Date.parse(String(row.expires_at)) <= Date.now()
+    ) {
       if (row) db.prepare("DELETE FROM user_sessions WHERE token_hash = ?").run(sessionTokenHash(token));
       return null;
     }
