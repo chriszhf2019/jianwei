@@ -39,6 +39,8 @@ interface RelatedNewsGraphProps {
   onOpenArticle?: (article: NewsArticle) => void;
   onOpenTermExplain?: (term: string) => void;
   onRunSkill?: (skill: 'relatednews', article: NewsArticle) => Promise<NewsArticle | null>;
+  /** 浅层条目：隐藏「AI 补充相关线索」等次级 CTA，避免与「生成深度分析」抢注意力 */
+  shallowMode?: boolean;
 }
 
 type ViewMode = 'd3-graph' | 'css-grid';
@@ -84,6 +86,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
   onOpenArticle,
   onOpenTermExplain,
   onRunSkill,
+  shallowMode = false,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('d3-graph');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -433,7 +436,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
   const strongCount = combinedItems.filter((i) => !i.weak).length;
   const allWeakOrEmpty = combinedItems.length === 0 || strongCount === 0;
 
-  // 无过门槛关联：隐藏整块拓扑（浅层 / 异题弱匹配不占版面）；仍保留 AI 刷新入口
+  // 无过门槛关联：隐藏整块拓扑（浅层 / 异题弱匹配不占版面）；浅层再隐藏 AI 补充 CTA
   if (allWeakOrEmpty) {
     const hasCurated = (article.relatedNews || []).length > 0;
     if (!hasCurated && combinedItems.length === 0) {
@@ -444,7 +447,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
             <span className="mx-1.5 text-stone-300">·</span>
             语料中暂无达到同题门槛的相关稿（已过滤弱 BM25 / 异题命中）。
           </div>
-          {onRunSkill && (
+          {onRunSkill && !shallowMode && (
             <button
               type="button"
               onClick={handleGenerateRelatedNews}
@@ -468,7 +471,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
               <span className="mx-1.5 text-stone-300">·</span>
               检出 {combinedItems.length} 条低重合候选，已降级展示（不宣称同题印证）。
             </div>
-            {onRunSkill && (
+            {onRunSkill && !shallowMode && (
               <button
                 type="button"
                 onClick={handleGenerateRelatedNews}
@@ -516,7 +519,7 @@ export const RelatedNewsGraph: React.FC<RelatedNewsGraphProps> = ({
 
         {/* View mode switcher & AI refresh */}
         <div className="flex items-center space-x-2 shrink-0 self-start sm:self-auto">
-          {onRunSkill && (
+          {onRunSkill && !shallowMode && (
             <button
               onClick={handleGenerateRelatedNews}
               disabled={isGenerating}

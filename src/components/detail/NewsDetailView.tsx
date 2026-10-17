@@ -702,8 +702,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             </button>
           )}
 
-          {onOpenShareCard && (
-
+          {/* 浅层空态：不与唯一主 CTA「生成深度分析」抢注意力；深析完成（有 spectrumLayers）后再露出 */}
+          {onOpenShareCard && !isShallow && (
             <button
               onClick={() => onOpenShareCard(article)}
               className="px-3 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors shadow-2xs"
@@ -1463,6 +1463,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         contextArticles={contextArticles}
         onOpenArticle={onOpenArticle}
         onOpenTermExplain={onOpenTermExplain}
+        shallowMode={isShallow}
         onRunSkill={onRunSkill ? (skill, art) => onRunSkill(skill, art) : undefined}
       />
 
