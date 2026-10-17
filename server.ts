@@ -7,6 +7,7 @@ import { registerAnalysisRoutes } from "./src/server/routes/analysisRoutes";
 import { registerEvaluationRoutes } from "./src/server/routes/evaluationRoutes";
 import { registerAuthRoutes } from "./src/server/routes/authRoutes";
 import { registerPredictionRoutes } from "./src/server/routes/predictionRoutes";
+import { registerKnowledgeRoutes } from "./src/server/routes/knowledgeRoutes";
 import { registerAiChatRoutes } from "./src/server/routes/aiChatRoutes";
 import { registerAdminRoutes } from "./src/server/routes/adminRoutes";
 import { registerCorpusRoutes } from "./src/server/routes/corpusRoutes";
@@ -112,6 +113,7 @@ registerAnalysisRoutes(app, applyRateLimit);
 registerEvaluationRoutes(app, applyRateLimit);
 registerAuthRoutes(app, applyRateLimit, { authToken: AUTH_TOKEN, safeTokenEqual });
 registerPredictionRoutes(app, applyRateLimit);
+registerKnowledgeRoutes(app, applyRateLimit);
 registerHealthRoutes(app, {
   authToken: AUTH_TOKEN,
   authEnabled: AUTH_ENABLED,

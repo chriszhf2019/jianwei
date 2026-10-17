@@ -59,7 +59,10 @@ function isGuestReadRoute(pathname: string): boolean {
     pathname === "/snapshot" ||
     pathname === "/auth/me" ||
     pathname === "/preferences" ||
-    pathname === "/predictions"
+    pathname === "/predictions" ||
+    pathname === "/knowledge" ||
+    pathname === "/knowledge/search" ||
+    pathname.startsWith("/knowledge/")
   );
 }
 
@@ -248,6 +251,7 @@ export function mountAuthMiddleware(app: Express, config: AuthConfig): void {
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
       !req.path.startsWith("/auth/") &&
       req.path !== "/preferences" &&
+      !req.path.startsWith("/knowledge") &&
       auth.role === "viewer"
     ) {
       return res.status(403).json({ error: "forbidden: editor role required" });
