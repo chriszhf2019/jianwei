@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import type { ServerSettings } from '../adminTypes';
 import type { ShowToast } from './useAdminKeys';
+import {
+  QUALITY_FEED_PRESETS,
+  type QualityFeedCategory,
+  listPresetsByCategory,
+  mergeDisableFeedUrls,
+  mergeEnableFeedUrls,
+  normalizeFeedUrlKey,
+  presetCategoryLabel,
+} from '../../../shared/qualityFeedPresets';
 
-/** 信源列表与手动摄取。 */
+/** 信源列表与手动摄取；预设启用与用户自定义合并，不覆盖清空。 */
 export function useAdminFeeds(deps: {
   showToast: ShowToast;
   saveWithFeeds: (feeds: string[]) => Promise<void>;
@@ -23,33 +32,65 @@ export function useAdminFeeds(deps: {
       showToast('error', '请输入有效的 HTTP/HTTPS RSS 地址');
       return;
     }
-    if (feedList.includes(newFeedUrl.trim())) {
+    const trimmed = newFeedUrl.trim();
+    if (feedList.some((f) => normalizeFeedUrlKey(f) === normalizeFeedUrlKey(trimmed))) {
       showToast('error', '该信源地址已存在');
       return;
     }
-    const updated = [...feedList, newFeedUrl.trim()];
+    const updated = mergeEnableFeedUrls(feedList, [trimmed]);
     setFeedList(updated);
     setNewFeedUrl('');
     void saveWithFeeds(updated);
   };
 
   const handleTogglePresetFeed = (url: string) => {
-    const updated = feedList.includes(url)
-      ? feedList.filter((f) => f !== url)
-      : [...feedList, url];
+    const key = normalizeFeedUrlKey(url);
+    const exists = feedList.some((f) => normalizeFeedUrlKey(f) === key);
+    const updated = exists
+      ? mergeDisableFeedUrls(feedList, [url])
+      : mergeEnableFeedUrls(feedList, [url]);
     setFeedList(updated);
     void saveWithFeeds(updated);
   };
 
+  /** 一键启用某一类优质源：仅合并追加，不删除自定义或其他类已启用源。 */
+  const handleEnablePresetCategory = (category: QualityFeedCategory) => {
+    const urls = listPresetsByCategory(category).map((p) => p.url);
+    const updated = mergeEnableFeedUrls(feedList, urls);
+    const added = updated.length - feedList.length;
+    setFeedList(updated);
+    void saveWithFeeds(updated);
+    showToast(
+      'success',
+      added > 0
+        ? `已合并启用「${presetCategoryLabel(category)}」${added} 个优质源（自定义源保留）`
+        : `「${presetCategoryLabel(category)}」优质源均已在列表中`
+    );
+  };
+
+  /** 一键启用全部优质预设：合并追加，不清空自定义。 */
+  const handleEnableAllQualityPresets = () => {
+    const urls = QUALITY_FEED_PRESETS.map((p) => p.url);
+    const updated = mergeEnableFeedUrls(feedList, urls);
+    const added = updated.length - feedList.length;
+    setFeedList(updated);
+    void saveWithFeeds(updated);
+    showToast(
+      'success',
+      added > 0
+        ? `已合并启用 ${added} 个优质源（自定义源保留）`
+        : '全部优质源均已在列表中'
+    );
+  };
+
   const handleRemoveFeed = (url: string) => {
-    const updated = feedList.filter((f) => f !== url);
+    const updated = mergeDisableFeedUrls(feedList, [url]);
     setFeedList(updated);
     void saveWithFeeds(updated);
   };
 
   const handleRemoveMultipleFeeds = (urls: string[]) => {
-    const drop = new Set(urls);
-    const updated = feedList.filter((f) => !drop.has(f));
+    const updated = mergeDisableFeedUrls(feedList, urls);
     setFeedList(updated);
     void saveWithFeeds(updated);
   };
@@ -78,6 +119,8 @@ export function useAdminFeeds(deps: {
     hydrateFromSettings,
     handleAddFeed,
     handleTogglePresetFeed,
+    handleEnablePresetCategory,
+    handleEnableAllQualityPresets,
     handleRemoveFeed,
     handleRemoveMultipleFeeds,
     handleTriggerIngest,

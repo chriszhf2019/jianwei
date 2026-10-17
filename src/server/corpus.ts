@@ -282,8 +282,9 @@ function withCanonicalCategory(items: any[]): any[] {
     if (
       !article.category ||
       article.category === "外部信源" ||
-      (article.category === "科技" && (canonical === "教育" || canonical === "IT")) ||
-      (article.category === "IT" && canonical === "教育")
+      (article.category === "科技" && (canonical === "教育" || canonical === "IT" || canonical === "AI")) ||
+      (article.category === "IT" && (canonical === "教育" || canonical === "AI")) ||
+      (article.category === "AI 前沿" && canonical === "AI")
     ) {
       return { ...article, category: canonical };
     }
@@ -312,6 +313,7 @@ export function toFeedArticle(raw: RawFeedItem, index: number): any {
     summary,
     sourceUrl: raw.link,
     sourceName,
+    feedUrl: raw.feedUrl,
   });
   return {
     id: `feed-${Date.now()}-${index}`,
@@ -319,6 +321,7 @@ export function toFeedArticle(raw: RawFeedItem, index: number): any {
     subtitle: "",
     oneSentenceVerdict: "",
     category: inferredCategory || "外部信源",
+    feedUrl: raw.feedUrl || undefined,
     tags: [],
     date: zhFullDate(new Date()),
     timeAgo: "刚刚",

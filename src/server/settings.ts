@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import dotenv from "dotenv";
+import { defaultEnabledFeedUrls } from "../shared/qualityFeedPresets";
 
 dotenv.config();
 
@@ -68,14 +69,7 @@ function defaultSettings(): RuntimeSettings {
       .map((u) => u.trim())
       .filter(Boolean).length > 0
       ? (process.env.NEWS_FEED_URLS || "").split(",").map((u) => u.trim()).filter(Boolean)
-      : [
-          "https://36kr.com/feed",
-          "https://www.solidot.org/index.rss",
-          "https://sspai.com/feed",
-          "https://www.ftchinese.com/rss/feed",
-          "https://rss.sciencedaily.com/education_learning.xml",
-          "https://rss.arxiv.org/rss/cs.AI",
-        ],
+      : defaultEnabledFeedUrls(),
     userName: "",
     sectorOverrides: {},
   };

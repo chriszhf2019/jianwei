@@ -228,6 +228,8 @@ export function useAdminConsoleState() {
     hasInvalidKeyAscii: keys.hasInvalidKeyAscii,
     handleTestAi: keys.handleTestAi,
     handleTogglePresetFeed: feeds.handleTogglePresetFeed,
+    handleEnablePresetCategory: feeds.handleEnablePresetCategory,
+    handleEnableAllQualityPresets: feeds.handleEnableAllQualityPresets,
     handleTriggerIngest: feeds.handleTriggerIngest,
     handleUpdateUser: users.handleUpdateUser,
     handleViewAnalysisDetail: database.handleViewAnalysisDetail,

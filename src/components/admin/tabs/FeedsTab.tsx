@@ -1,127 +1,59 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
-  ShieldCheck, Key, Users, Rss, FileText, RefreshCw, Plus, Trash2, Lock, Eye, EyeOff,
-  CheckCircle2, AlertCircle, Sparkles, Server, Activity, UserPlus, Edit2, Database,
-  HardDrive, Zap, Cpu, RotateCcw, Sliders, Radio, Download, Search, Check, X,
-  ExternalLink, Clock, BarChart3, Calendar, LogIn, BookOpen, Crosshair, Lightbulb,
-  TrendingUp, Filter, ChevronLeft, ChevronRight, UserCheck, Layers, HelpCircle, Globe,
-  SlidersHorizontal,
+  RefreshCw, Plus, Trash2, Globe,
 } from 'lucide-react';
-import { SECTOR_TAXONOMY_DEFAULT } from '../../../utils/sectorTaxonomy';
-import { AiCostPanel } from '../AiCostPanel';
 import { FeedHealthPanel } from '../FeedHealthPanel';
 import type { AdminTabScope } from './scope';
+import {
+  QUALITY_FEED_PRESETS,
+  type QualityFeedCategory,
+  presetCategoryLabel,
+  normalizeFeedUrlKey,
+} from '../../../shared/qualityFeedPresets';
 
-const PRESET_SOURCES = [
-  {
-    name: '36氪 · 深度商业与科技创新',
-    url: 'https://feed.36kr.com/feed',
-    category: '科技',
-    desc: '前沿科技突破、硬核技术、投融资动态与新质生产力',
-  },
-  {
-    name: '财联社 · 宏观与资本市场快讯',
-    url: 'https://rss.cls.cn/rss/feed',
-    category: '财经',
-    desc: '央行货币政策、股市流动性、外汇汇率与宏观财经数据',
-  },
-  {
-    name: '华尔街日报 WSJ · 全球资本市场 (英文原源)',
-    url: 'https://feeds.a.dj.com/rss/RSSMarketsMain.xml',
-    category: '全球金融 (EN)',
-    desc: 'The Wall Street Journal 全球资本市场、利率与宏观流动性',
-  },
-  {
-    name: 'Financial Times · 全球政经要闻 (英文原源)',
-    url: 'https://www.ft.com/rss/world',
-    category: '全球政经 (EN)',
-    desc: '英国金融时报顶级跨国地缘政经与多边贸易深度研判',
-  },
-  {
-    name: 'TechCrunch · 硅谷前沿科技与创投 (英文原源)',
-    url: 'https://techcrunch.com/feed/',
-    category: '硅谷科技 (EN)',
-    desc: '全球 AI 智能体、SaaS 突破与硅谷顶尖创投融资现场',
-  },
-  {
-    name: 'The Economist · 经济学人商业与产业 (英文原源)',
-    url: 'https://www.economist.com/business/rss.xml',
-    category: '宏观经济 (EN)',
-    desc: '经济学人商业纵深、全球供应链格局与跨国公司战略',
-  },
-  {
-    name: 'Harvard Business Review · 战略与管理 (英文原源)',
-    url: 'https://hbr.org/rss/topic/strategy',
-    category: '商业战略 (EN)',
-    desc: '哈佛商业评论商业模式创新、企业组织重构与领导力',
-  },
-  {
-    name: 'IEEE Spectrum · 顶级工程与硬核科技 (英文原源)',
-    url: 'https://spectrum.ieee.org/rss/index.xml',
-    category: '硬核工程 (EN)',
-    desc: 'IEEE 国际电气电子工程师学会半导体、量子与机器人前沿',
-  },
-  {
-    name: 'ArXiv AI · 全球 AI 前沿学术论文 (英文原源)',
-    url: 'https://rss.arxiv.org/rss/cs.AI',
-    category: '学术前沿 (EN)',
-    desc: 'ArXiv 全球顶尖 AI 算法、推理大模型与 Agent 架构预印本',
-  },
-  {
-    name: '36氪 · 科技商业与教育创新',
-    url: 'https://36kr.com/feed',
-    category: '科技',
-    desc: '大模型、智能硬件、产教融合、EdTech与新经济独家洞察',
-  },
-  {
-    name: 'Solidot · 奇客技术与IT开源',
-    url: 'https://www.solidot.org/index.rss',
-    category: 'IT',
-    desc: '开源软件、操作系统、算法伦理、高校科研与留学动态',
-  },
-  {
-    name: '少数派 · 软件工程与数字生产力',
-    url: 'https://sspai.com/feed',
-    category: 'IT',
-    desc: '效率工具、软件开发生态、AI 辅助编程与数字工作流',
-  },
-  {
-    name: 'ScienceDaily · 前沿教育与学习科学 (英文原源)',
-    url: 'https://rss.sciencedaily.com/education_learning.xml',
-    category: '教育',
-    desc: '全球顶尖高等教育、学习认知科学与智能化教学科研前沿',
-  },
-  {
-    name: 'FT 中文网 · 全球财经与政经观察',
-    url: 'https://www.ftchinese.com/rss/feed',
-    category: '财经',
-    desc: '英国金融时报权威全球政经评论与资本流动分析',
-  },
-  {
-    name: '晚点 LatePost · 软件与大厂商业战略',
-    url: 'https://www.latepost.com/rss',
-    category: 'IT',
-    desc: '软件工程、云计算生态、大厂组织变革与商业战役独家复盘',
-  },
-  {
-    name: 'MIT 科技评论 · 突破性工程技术 (英文原源)',
-    url: 'https://www.technologyreview.com/feed/',
-    category: '硬核工程 (EN)',
-    desc: '麻省理工科技评论全球十大突破性技术与工程前沿',
-  },
-  {
-    name: '路透社 · 全球商业与金融要闻 (英文原源)',
-    url: 'https://feeds.feedburner.com/reuters/businessNews',
-    category: '国际金融 (EN)',
-    desc: '路透社全球金融市场、外汇大汇率与跨国投资快讯',
-  },
-];
+const CATEGORY_ORDER: QualityFeedCategory[] = ['财经', '科技', 'AI'];
+
+const CATEGORY_BADGE: Record<QualityFeedCategory, string> = {
+  '财经': 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  '科技': 'bg-sky-100 text-sky-800 border-sky-300',
+  'AI': 'bg-violet-100 text-violet-800 border-violet-300',
+};
 
 export function FeedsTab({ s }: { s: AdminTabScope }) {
-  const { feedList, handleAddFeed, handleRemoveFeed, handleRemoveMultipleFeeds, handleTogglePresetFeed, handleTriggerIngest, ingesting, newFeedUrl, renderCorpusHealthModule, setNewFeedUrl, showToast } = s;
+  const {
+    feedList,
+    handleAddFeed,
+    handleRemoveFeed,
+    handleRemoveMultipleFeeds,
+    handleTogglePresetFeed,
+    handleEnablePresetCategory,
+    handleEnableAllQualityPresets,
+    handleTriggerIngest,
+    ingesting,
+    newFeedUrl,
+    renderCorpusHealthModule,
+    setNewFeedUrl,
+    showToast,
+  } = s;
+
+  const subscribedKeys = useMemo(
+    () => new Set(feedList.map((u: string) => normalizeFeedUrlKey(u))),
+    [feedList]
+  );
+
+  const grouped = useMemo(() => {
+    return CATEGORY_ORDER.map((category) => ({
+      category,
+      presets: QUALITY_FEED_PRESETS.filter((p) => p.category === category),
+      enabledCount: QUALITY_FEED_PRESETS.filter(
+        (p) => p.category === category && subscribedKeys.has(normalizeFeedUrlKey(p.url))
+      ).length,
+    }));
+  }, [subscribedKeys]);
+
   return (
         <div className="space-y-6">
-          {/* main 上新增的信源健康面板：并入 Feeds 标签，避免丢失 */}
+          {/* 信源健康面板：坏链在此暴露 */}
           <FeedHealthPanel
             feedList={feedList}
             onRemoveFeed={handleRemoveFeed}
@@ -129,7 +61,6 @@ export function FeedsTab({ s }: { s: AdminTabScope }) {
             onShowToast={showToast}
           />
 
-          {/* 语料健康度模块 */}
           {renderCorpusHealthModule()}
 
           <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
@@ -139,53 +70,87 @@ export function FeedsTab({ s }: { s: AdminTabScope }) {
                 全局外部信源管道与实时调度中枢
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                支持一键订阅主流权威通讯社 RSS 源、管理自定义数据源，并执行定时爬取与全量语料摄取。
+                内置财经 / 科技 / AI 优质 RSS 预设（公开可达）。一键启用不清空已有自定义源；坏链由上方健康面板暴露。
               </p>
             </div>
 
-            <button
-              onClick={handleTriggerIngest}
-              disabled={ingesting || feedList.length === 0}
-              className="px-4 py-2 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${ingesting ? 'animate-spin' : ''}`} />
-              <span>{ingesting ? '正在执行全局摄取…' : '立即触发手动摄取'}</span>
-            </button>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleEnableAllQualityPresets?.()}
+                className="px-3 py-2 bg-violet-700 hover:bg-violet-800 text-white rounded-xl text-xs font-serif font-bold cursor-pointer"
+              >
+                一键启用全部优质源
+              </button>
+              <button
+                onClick={handleTriggerIngest}
+                disabled={ingesting || feedList.length === 0}
+                className="px-4 py-2 bg-stone-900 hover:bg-[#E3120B] text-white rounded-xl text-xs font-serif font-bold flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${ingesting ? 'animate-spin' : ''}`} />
+                <span>{ingesting ? '正在执行全局摄取…' : '立即触发手动摄取'}</span>
+              </button>
+            </div>
           </div>
 
-          {/* Preset Authoritative Sources */}
-          <div className="space-y-3">
+          {/* Quality presets by category */}
+          <div className="space-y-5">
             <h3 className="text-xs font-serif font-bold text-stone-900 flex items-center gap-1.5">
               <Globe className="w-4 h-4 text-blue-600" />
-              <span>主流权威智库与通讯社预置信源 (点击一键订阅/取消)</span>
+              <span>优质信源预设 · 财经 / 科技 / AI（点击单卡订阅/取消；分类按钮合并启用）</span>
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {PRESET_SOURCES.map((ps, idx) => {
-                const isSubscribed = feedList.includes(ps.url);
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => handleTogglePresetFeed(ps.url)}
-                    className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                      isSubscribed
-                        ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs'
-                        : 'border-stone-200 hover:border-stone-400 bg-white'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-serif font-bold text-xs text-stone-900">{ps.name}</span>
-                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${isSubscribed ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'}`}>
-                          {isSubscribed ? '✓ 已订阅' : '+ 未启用'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 mt-1 leading-relaxed">{ps.desc}</p>
-                    </div>
-                    <div className="text-[10px] font-mono text-stone-400 mt-2 truncate">{ps.url}</div>
+
+            {grouped.map(({ category, presets, enabledCount }) => (
+              <div key={category} className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${CATEGORY_BADGE[category]}`}>
+                      {presetCategoryLabel(category)}
+                    </span>
+                    <span className="text-[11px] text-stone-500 font-mono">
+                      已启用 {enabledCount}/{presets.length}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => handleEnablePresetCategory?.(category)}
+                    className="text-[11px] font-serif font-bold px-2.5 py-1 rounded-lg border border-stone-300 hover:border-stone-800 hover:bg-stone-50 cursor-pointer"
+                  >
+                    一键启用本类
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {presets.map((ps) => {
+                    const isSubscribed = subscribedKeys.has(normalizeFeedUrlKey(ps.url));
+                    return (
+                      <div
+                        key={ps.id}
+                        onClick={() => handleTogglePresetFeed(ps.url)}
+                        className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                          isSubscribed
+                            ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs'
+                            : 'border-stone-200 hover:border-stone-400 bg-white'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-serif font-bold text-xs text-stone-900">{ps.name}</span>
+                            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold shrink-0 ${isSubscribed ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-600'}`}>
+                              {isSubscribed ? '✓ 已订阅' : '+ 未启用'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-stone-500 mt-1 leading-relaxed">{ps.desc}</p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mt-2">
+                          <div className="text-[10px] font-mono text-stone-400 truncate">{ps.url}</div>
+                          <span className="text-[9px] font-mono text-stone-400 uppercase shrink-0">{ps.lang}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Custom Feed Input */}
@@ -220,13 +185,24 @@ export function FeedsTab({ s }: { s: AdminTabScope }) {
             </div>
             {feedList.length === 0 ? (
               <div className="p-8 border-2 border-dashed border-stone-300 rounded-xl text-center text-xs text-stone-500">
-                暂未配置外部 RSS 信源，系统将仅使用运行时内置预置情报语料。
+                暂未配置外部 RSS 信源。可使用上方「一键启用全部优质源」，或逐条添加自定义地址。
               </div>
             ) : (
               <div className="divide-y divide-stone-100 border border-stone-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                {feedList.map((url: string, idx: number) => (
-                  <div key={idx} className="p-3 flex items-center justify-between text-xs hover:bg-stone-50">
-                    <span className="font-mono text-stone-800 truncate pr-4">{url}</span>
+                {feedList.map((url: string, idx: number) => {
+                  const preset = QUALITY_FEED_PRESETS.find(
+                    (p) => normalizeFeedUrlKey(p.url) === normalizeFeedUrlKey(url)
+                  );
+                  return (
+                  <div key={idx} className="p-3 flex items-center justify-between text-xs hover:bg-stone-50 gap-2">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-mono text-stone-800 truncate block">{url}</span>
+                      {preset && (
+                        <span className={`inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded border ${CATEGORY_BADGE[preset.category]}`}>
+                          {presetCategoryLabel(preset.category)} · {preset.name}
+                        </span>
+                      )}
+                    </div>
                     <button
                       onClick={() => handleRemoveFeed(url)}
                       className="text-stone-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
@@ -235,7 +211,8 @@ export function FeedsTab({ s }: { s: AdminTabScope }) {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
