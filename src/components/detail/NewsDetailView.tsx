@@ -401,6 +401,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const enrichAbortRef = useRef<AbortController | null>(null);
 
   // 文章切换时，用写回文章状态的深度分析错误恢复提示，避免静默回到「尚未生成」。
+  // 只监听 article.id：写回 deepAnalysisError 会换新对象但 id 不变，此处不应再次覆盖。
   useEffect(() => {
     setEnrichPhase(article.deepAnalysisError ? 'error' : 'idle');
     setEnrichError(article.deepAnalysisError || null);

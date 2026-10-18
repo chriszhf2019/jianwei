@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
 import { MethodBadge } from '../common/MethodBadge';
+import { classifyEvidence, EVIDENCE_STATE_META } from '../../utils/evidenceReceipt';
 
 interface DeepSpectrumTabProps {
   article: NewsArticle;
@@ -240,32 +241,22 @@ export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article, initi
             </div>
           </div>
 
+          <p className="text-[11px] text-stone-500 leading-relaxed">
+            证据收据三态：<b className="text-emerald-700">已定位来源</b>（有链接或已匹配原文引句，可核验）·
+            <b className="text-amber-700"> 仅模型推断</b>（原文未提供可核验来源，不当作事实）·
+            <b className="text-stone-600"> 未找到依据</b>（无支撑）。所有结论未经独立事实核查，模型自评分数未校准。
+          </p>
+
           <div className="space-y-4">
             {article.evidenceChain && article.evidenceChain.length > 0 ? (
               article.evidenceChain.map((ev) => (
                 <div key={ev.id} className="p-4 bg-stone-50 rounded-xl border border-stone-300 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-serif font-bold text-stone-950">{ev.claim}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className={`font-mono px-2 py-0.5 rounded border ${
-                        ev.verificationNote?.includes('精确匹配')
-                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                          : ev.verificationStatus === 'linked'
-                            ? 'text-sky-700 bg-sky-50 border-sky-200'
-                            : 'text-amber-700 bg-amber-50 border-amber-200'
-                      }`}>
-                        {ev.verificationNote?.includes('精确匹配')
-                          ? '引句已匹配'
-                          : ev.verificationStatus === 'linked'
-                            ? '模型附链接 · 待核验'
-                            : ev.quote
-                              ? '未附来源链接'
-                              : '引句未匹配'}
-                      </span>
-                      <span className="font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        模型自评 {ev.confidenceScore}/100 · 未校准
-                      </span>
-                    </div>
+                    <span className={`shrink-0 inline-flex items-center gap-1.5 font-mono px-2 py-0.5 rounded border ${EVIDENCE_STATE_META[classifyEvidence(ev)].badgeCls}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${EVIDENCE_STATE_META[classifyEvidence(ev)].dotCls}`} />
+                      {EVIDENCE_STATE_META[classifyEvidence(ev)].label}
+                    </span>
                   </div>
                   <p className="text-xs text-stone-700">
                     <strong>事实依据：</strong>{ev.sourceFact}
@@ -276,7 +267,7 @@ export const DeepSpectrumTab: React.FC<DeepSpectrumTabProps> = ({ article, initi
                     </blockquote>
                   )}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-stone-500 font-mono">
-                    <span>模型自述可靠性依据：{ev.reliability}</span>
+                    <span>可靠性：{ev.reliability}</span>
                     {ev.sourceName && <span>来源：{ev.sourceName}</span>}
                     {ev.publishedAt && <span>发布时间：{ev.publishedAt}</span>}
                     {ev.sourceUrl && (

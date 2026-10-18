@@ -132,7 +132,9 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
                 : '未连接'}
             </div>
             <div className="text-[10px] text-stone-400">
-              {isGuest ? `全库 ${totalCorpusCount} · 游客可读 4 条` : `全库 ${totalCorpusCount} · 首页看板看当日`}
+              {isGuest
+                ? `全库 ${totalCorpusCount} · 游客可读 ${snapshot?.meta?.guestArticleLimit ?? 4} 条`
+                : `全库 ${totalCorpusCount} · 首页看板看当日`}
             </div>
           </div>
         </div>

@@ -72,6 +72,7 @@ import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
+import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
   assert.equal(parseArticleDate('Fri, 04 Sep 2026 02:33:08 +0000')! > 0, true);
@@ -1907,4 +1908,22 @@ test('深链: GET /api/corpus/item/:id 与游客可读 /corpus/', () => {
   const app = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
   assert.match(app, /未找到该文章/);
   assert.match(app, /正在加载文章/);
+});
+
+test('classifyEvidence: 证据收据三态（已定位来源 / 仅模型推断 / 未找到依据）', () => {
+  // 有来源链接 → 已定位来源
+  assert.equal(classifyEvidence({ sourceUrl: 'https://example.com/a', sourceFact: 'x' }), 'located');
+  // 引句已与抓取正文精确匹配 → 已定位来源
+  assert.equal(classifyEvidence({ verificationNote: '精确匹配', quote: '原句' }), 'located');
+  // 只有模型给出的依据/引句、无链接 → 仅模型推断
+  assert.equal(classifyEvidence({ sourceFact: '模型依据', quote: '引句' }), 'inferred');
+  assert.equal(classifyEvidence({ quote: '仅引句' }), 'inferred');
+  // 没有任何支撑 → 未找到依据
+  assert.equal(classifyEvidence({}), 'missing');
+  assert.equal(classifyEvidence({ sourceFact: '', quote: '' }), 'missing');
+
+  // 三态元信息齐备且标签互斥
+  const labels = new Set(Object.values(EVIDENCE_STATE_META).map((m) => m.label));
+  assert.equal(labels.size, 3);
+  assert.ok(labels.has('已定位来源') && labels.has('仅模型推断') && labels.has('未找到依据'));
 });
