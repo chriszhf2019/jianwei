@@ -10,7 +10,8 @@ import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
 import { TopicClusterSection } from './TopicClusterSection';
-import { UserCheck, ShieldCheck, Bookmark, Radio, Target, Sparkles, Link2, FileText } from 'lucide-react';
+import { FirstExperienceSample } from './FirstExperienceSample';
+import { UserCheck, ShieldCheck, Bookmark, Radio, Target, Sparkles } from 'lucide-react';
 import { deriveFromList } from '../../utils/corpusMetrics';
 import { articleSortTime, parseArticleDate, filterTodayBoardArticles } from '../../utils/articleTime';
 import { detectBreaking } from '../../utils/todayBrief';
@@ -399,41 +400,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans ${readingDensity === 'compact' ? 'py-3' : 'py-6'}`}>
       {articles.length === 0 ? (
-        <section className="mb-8 rounded-2xl border-2 border-stone-900 bg-[#FAF8F5] overflow-hidden">
-          <div className="bg-stone-900 text-stone-100 px-6 py-5 sm:px-8">
-            <p className="text-xs font-mono tracking-wide text-stone-400 mb-1">见微 · 主循环</p>
-            <h2 className="text-2xl sm:text-3xl font-serif font-black tracking-tight">读懂新闻</h2>
-            <p className="mt-2 text-sm text-stone-300 max-w-xl leading-relaxed">
-              贴链接抓取正文，或直接粘贴内容，生成结构化拆解。输出是模型推断，不是已核验事实。
-            </p>
-          </div>
-          <div className="px-6 py-6 sm:px-8 sm:py-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-            <div className="flex-1 space-y-2 text-sm text-stone-600">
-              <div className="flex items-start gap-2">
-                <Link2 className="w-4 h-4 mt-0.5 text-[#E3120B] shrink-0" />
-                <span>进料：链接或正文</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <FileText className="w-4 h-4 mt-0.5 text-[#E3120B] shrink-0" />
-                <span>拆解：七要素与证据线索</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <Target className="w-4 h-4 mt-0.5 text-[#E3120B] shrink-0" />
-                <span>切身与复核：对照原文，不把推断当真相</span>
-              </div>
-            </div>
-            {onOpenAnalyze && (
-              <button
-                type="button"
-                onClick={onOpenAnalyze}
-                className="shrink-0 inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#E3120B] hover:bg-red-700 text-white text-sm font-serif font-bold rounded-xl shadow-sm transition-all active:scale-[0.98]"
-              >
-                <Sparkles className="w-4 h-4" />
-                开始读懂新闻
-              </button>
-            )}
-          </div>
-        </section>
+        <FirstExperienceSample onOpenAnalyze={onOpenAnalyze} onOpenSettings={onOpenSettings} />
       ) : (
         <>
           {/* 有语料时仍把「读懂新闻」放在第一视口，统计墙默认折叠 */}
