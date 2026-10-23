@@ -2009,3 +2009,68 @@ test('topicDossiers: App/Detail 不再消费静态 TOPIC_CLUSTERS 空数组', ()
   assert.match(topics, /buildMatchedTopicDossiers/);
   assert.match(topics, /buildTopicClusters/);
 });
+
+test('enrichDetailUx: 进度文案、done note、quota hint、浅层 CTA 门控', async () => {
+  const {
+    enrichProgressLabel,
+    enrichProgressPercent,
+    enrichDeepNote,
+    shouldShowShallowEnrichCta,
+    formatGuestQuotaHint,
+    formatPostEnrichQuotaNote,
+    POST_ENRICH_LANDING_TAB,
+    ENRICH_ETA_SECONDS,
+  } = await import('../src/utils/enrichDetailUx');
+
+  assert.equal(ENRICH_ETA_SECONDS, 45);
+  assert.match(enrichProgressLabel(3), /获取原文/);
+  assert.match(enrichProgressLabel(12), /调用模型/);
+  assert.match(enrichProgressLabel(25), /结构化/);
+  assert.match(enrichProgressLabel(50), /稍候/);
+  assert.ok(enrichProgressPercent(0) >= 1);
+  assert.ok(enrichProgressPercent(45) <= 95);
+  assert.ok(enrichProgressPercent(90) <= 95);
+
+  assert.match(enrichDeepNote({ phase: 'loading', elapsedSec: 10 }), /已等待 10s/);
+  assert.match(enrichDeepNote({ phase: 'done' }), /已生成/);
+  assert.doesNotMatch(enrichDeepNote({ phase: 'done' }), /尚未生成/);
+  assert.match(enrichDeepNote({ phase: 'error', error: '失败原因X' }), /失败原因X/);
+  assert.match(enrichDeepNote({ phase: 'idle' }), /尚未生成/);
+
+  assert.equal(shouldShowShallowEnrichCta(true, 'idle'), true);
+  assert.equal(shouldShowShallowEnrichCta(true, 'loading'), true);
+  assert.equal(shouldShowShallowEnrichCta(true, 'done'), false);
+  assert.equal(shouldShowShallowEnrichCta(false, 'idle'), false);
+
+  assert.match(formatGuestQuotaHint({ remaining: 1, limit: 1 }) || '', /剩余 1\/1/);
+  assert.equal(formatGuestQuotaHint(null), null);
+  assert.match(formatPostEnrichQuotaNote({ remaining: 0, charged: true }) || '', /剩余 0/);
+  assert.match(formatPostEnrichQuotaNote({ remaining: 1, charged: false }) || '', /未额外扣次/);
+  assert.equal(POST_ENRICH_LANDING_TAB, 'seven_elements');
+});
+
+test('detail deep-analysis UX: 成功落地、进度条、额度写回、浅层仅主 CTA', () => {
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  const auth = fs.readFileSync(path.join(process.cwd(), 'src/hooks/useAuthSession.ts'), 'utf8');
+
+  assert.match(detail, /enrichDetailUx/);
+  assert.match(detail, /landOnUnlockedModules/);
+  assert.match(detail, /POST_ENRICH_LANDING_TAB/);
+  assert.match(detail, /detail-tabs-container/);
+  assert.match(detail, /查看已解锁模块/);
+  assert.match(detail, /enrichProgressPercent/);
+  assert.match(detail, /shouldShowShallowEnrichCta/);
+  assert.match(detail, /applyGuestQuota/);
+  assert.match(detail, /guestQuotaHint/);
+  assert.match(detail, /先生成深度分析/);
+  // 保留 #28–#30：浅层不露出金句卡 / AI 线索主路径
+  assert.match(detail, /onOpenShareCard && !isShallow/);
+  assert.match(detail, /shallowMode=\{isShallow\}/);
+  // done 横幅不依赖 onDepositToKnowledge 才出现
+  assert.match(detail, /enrichPhase === 'done' && \(/);
+  assert.doesNotMatch(detail, /enrichPhase === 'done' && onDepositToKnowledge &&/);
+
+  assert.match(auth, /applyGuestQuota/);
+  assert.match(auth, /guestQuota/);
+});
+

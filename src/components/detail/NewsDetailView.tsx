@@ -40,6 +40,18 @@ import { downloadBriefingPng } from '../../utils/briefingImage';
 import { downloadMarkdownBriefing, exportBriefingAsPdf } from '../../utils/briefingReportExport';
 import { CERTIFICATION_STANDARDS } from '../../utils/methodRegistry';
 import { classifyAiClientError } from '../../utils/aiClientErrors';
+import {
+  ENRICH_ETA_SECONDS,
+  enrichDeepNote,
+  enrichProgressLabel,
+  enrichProgressPercent,
+  formatGuestQuotaHint,
+  formatPostEnrichQuotaNote,
+  POST_ENRICH_LANDING_TAB,
+  shouldShowShallowEnrichCta,
+  type EnrichPhase,
+} from '../../utils/enrichDetailUx';
+import { useAuth } from '../../state/AuthContext';
 import { saveArticleOffline, removeArticleOffline, isArticleOffline } from '../../utils/offlineStorage';
 
 import { 
@@ -393,18 +405,35 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
   // —— 浅层外部信源条目：深层认知 AI 懒加载补全 ——
   const isShallow = !article.spectrumLayers || article.spectrumLayers.length === 0;
-  const [enrichPhase, setEnrichPhase] = useState<'idle' | 'loading' | 'done' | 'unavailable' | 'error'>(
+  const { authUser, applyGuestQuota } = useAuth();
+  const [enrichPhase, setEnrichPhase] = useState<EnrichPhase>(
     article.deepAnalysisError ? 'error' : 'idle'
   );
   const [enrichError, setEnrichError] = useState<string | null>(article.deepAnalysisError || null);
   const [enrichElapsed, setEnrichElapsed] = useState(0);
+  const [postEnrichQuotaNote, setPostEnrichQuotaNote] = useState<string | null>(null);
   const enrichAbortRef = useRef<AbortController | null>(null);
+  const enrichCtaRef = useRef<HTMLDivElement | null>(null);
+
+  const guestQuotaHint = formatGuestQuotaHint(
+    authUser?.isGuest ? authUser?.guestQuota : null
+  );
+
+  const landOnUnlockedModules = () => {
+    setActiveTab(POST_ENRICH_LANDING_TAB);
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById('detail-tabs-container')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   // 文章切换时，用写回文章状态的深度分析错误恢复提示，避免静默回到「尚未生成」。
   // 只监听 article.id：写回 deepAnalysisError 会换新对象但 id 不变，此处不应再次覆盖。
   useEffect(() => {
     setEnrichPhase(article.deepAnalysisError ? 'error' : 'idle');
     setEnrichError(article.deepAnalysisError || null);
+    setPostEnrichQuotaNote(null);
   }, [article.id]);
 
   useEffect(() => {
@@ -437,6 +466,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     enrichAbortRef.current = controller;
     setEnrichPhase('loading');
     setEnrichError(null);
+    setPostEnrichQuotaNote(null);
+    enrichCtaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const response = await fetch('/api/enrich', {
         method: 'POST',
@@ -455,8 +486,14 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       const json = await response.json().catch(() => ({}));
       if (json?.enriched && json.overrides && onEnrichArticle) {
         onEnrichArticle({ ...mergeDeep(article, json.overrides), deepAnalysisError: undefined });
+        if (json.guestQuota) {
+          applyGuestQuota(json.guestQuota);
+          setPostEnrichQuotaNote(formatPostEnrichQuotaNote(json.guestQuota));
+        }
         setEnrichPhase('done');
         setEnrichError(null);
+        // 成功后直接落到已解锁的第一篇，避免用户停在空深 Tab / MissingDeep
+        landOnUnlockedModules();
       } else if (json?.reason === 'no_api_key') {
         setEnrichPhase('unavailable');
         persistEnrichError(classifyAiClientError({ status: response.status, payload: json }));
@@ -475,17 +512,12 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     }
   };
 
-  // 浅层占位提示文案随补全状态变化
-  const deepNote =
-    enrichPhase === 'loading'
-      ? `正在请求深度分析… 已等待 ${enrichElapsed}s / 约 45s`
-      : enrichPhase === 'unavailable'
-        ? enrichError ||
-          'AI 懒加载补全暂不可用：服务端未配置 Gemini 或 DeepSeek Key；配置后重新打开本页即可。'
-        : enrichPhase === 'error'
-          ? enrichError || '深度分析生成失败，请稍后重试。'
-          : enrichError ||
-            '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
+  // 浅层占位提示文案随补全状态变化（done 不再误说「尚未生成」）
+  const deepNote = enrichDeepNote({
+    phase: enrichPhase,
+    error: enrichError,
+    elapsedSec: enrichElapsed,
+  });
 
   // 语料驱动：从 contextArticles 派生所属专题（无命中则为 null）
   const relatedTopic = findRelatedUiTopic(article, contextArticles || []);
@@ -1377,60 +1409,119 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       {/* AI 技能条：一句话解读 / 趋势预测 / 风险挑刺 / 大白话 / 脱水 / 关联背景 */}
       {/*（7W/趋势/风险入口已整合进首页卡片分析盒，见 StandardModeFeed/CardInsightBox）*/}
 
-      {enrichPhase === 'done' && onDepositToKnowledge && (
-        <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-serif font-bold text-stone-900">深度分析已完成</div>
-            <p className="text-xs text-stone-600 mt-0.5">
-              {deposited
-                ? '本篇已写入服务端知识库，可在「我的关注 · 战略知识库」检索。'
-                : '可将研判要点一键存入服务端知识库（与运行语料分离，登录后可跨设备检索）。'}
-            </p>
+      {enrichPhase === 'done' && (
+        <div
+          id="enrich-success-banner"
+          className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-serif font-bold text-stone-900">深度分析已完成</div>
+              <p className="text-xs text-stone-600 mt-0.5">
+                已解锁事实全貌、框架总览与深度篇章。
+                {postEnrichQuotaNote ? ` ${postEnrichQuotaNote}。` : ''}
+                {onDepositToKnowledge
+                  ? deposited
+                    ? ' 本篇已写入服务端知识库。'
+                    : ' 可将研判要点存入服务端知识库（登录后可跨设备检索）。'
+                  : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={landOnUnlockedModules}
+                className="px-4 py-2.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <ArrowRight className="w-3.5 h-3.5" />
+                <span>查看已解锁模块</span>
+              </button>
+              {onDepositToKnowledge && (
+                <button
+                  type="button"
+                  onClick={handleDeposit}
+                  disabled={deposited}
+                  className={`px-4 py-2.5 rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    deposited
+                      ? 'bg-emerald-600 text-white opacity-90'
+                      : 'bg-white border border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{deposited ? '已存入知识库' : '存入知识库'}</span>
+                </button>
+              )}
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleDeposit}
-            disabled={deposited}
-            className={`px-4 py-2.5 rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              deposited
-                ? 'bg-emerald-600 text-white opacity-90'
-                : 'bg-stone-900 hover:bg-[#E3120B] text-white'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>{deposited ? '已存入知识库' : '存入知识库'}</span>
-          </button>
         </div>
       )}
 
-      {isShallow && enrichPhase !== 'done' && (
-        <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <div className="text-sm font-serif font-bold text-stone-900">深度分析</div>
-            <p className="text-xs text-stone-500 mt-0.5">
-              {deepNote}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => void handleGenerateDeepAnalysis()}
-              disabled={enrichPhase === 'loading'}
-              className="px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
-            >
-              {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {enrichPhase === 'loading' ? `生成中 ${enrichElapsed}s` : '生成深度分析'}
-            </button>
-            {enrichPhase === 'loading' && (
+      {shouldShowShallowEnrichCta(isShallow, enrichPhase) && (
+        <div
+          ref={enrichCtaRef}
+          id="enrich-cta-banner"
+          className={`rounded-xl px-4 py-3 flex flex-col gap-2 border ${
+            enrichPhase === 'loading'
+              ? 'bg-amber-50 border-amber-300'
+              : enrichPhase === 'error' || enrichPhase === 'unavailable'
+                ? 'bg-red-50/70 border-red-200'
+                : 'bg-amber-50/60 border-amber-200'
+          }`}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-serif font-bold text-stone-900">深度分析</div>
+              <p className="text-xs text-stone-600 mt-0.5">
+                {deepNote}
+              </p>
+              {guestQuotaHint && enrichPhase !== 'loading' && (
+                <p className="text-[11px] text-stone-500 mt-1 font-mono">{guestQuotaHint}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={handleCancelEnrich}
-                className="px-3 py-2.5 border border-red-300 bg-red-50 text-red-800 rounded-lg text-xs font-serif font-bold"
+                onClick={() => void handleGenerateDeepAnalysis()}
+                disabled={enrichPhase === 'loading'}
+                className="px-4 py-2.5 bg-[#E3120B] hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5"
               >
-                取消
+                {enrichPhase === 'loading' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {enrichPhase === 'loading'
+                  ? `生成中 ${enrichElapsed}s`
+                  : enrichPhase === 'error' || enrichPhase === 'unavailable'
+                    ? '重试深度分析'
+                    : '生成深度分析'}
               </button>
-            )}
+              {enrichPhase === 'loading' && (
+                <button
+                  type="button"
+                  onClick={handleCancelEnrich}
+                  className="px-3 py-2.5 border border-red-300 bg-red-50 text-red-800 rounded-lg text-xs font-serif font-bold"
+                >
+                  取消
+                </button>
+              )}
+            </div>
           </div>
+          {enrichPhase === 'loading' && (
+            <div className="space-y-1.5" aria-live="polite">
+              <div className="flex items-center justify-between text-[11px] font-mono text-stone-500">
+                <span>{enrichProgressLabel(enrichElapsed)}</span>
+                <span>
+                  {enrichElapsed}s / 约 {ENRICH_ETA_SECONDS}s
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-amber-100 overflow-hidden">
+                <div
+                  className="h-full bg-[#E3120B]/80 transition-[width] duration-1000 ease-linear"
+                  style={{ width: `${enrichProgressPercent(enrichElapsed)}%` }}
+                />
+              </div>
+              {guestQuotaHint && (
+                <p className="text-[11px] text-stone-500">生成成功后才会扣次 · {guestQuotaHint}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1695,6 +1786,15 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
         <button
           onClick={() => {
+            // 浅层：不推进空深 Tab，引导回到唯一主 CTA
+            if (isShallow && enrichPhase !== 'done') {
+              if (enrichPhase === 'loading') {
+                enrichCtaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              } else {
+                enrichCtaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+              return;
+            }
             if (activeTab === 'seven_elements') setActiveTab('logic_tree');
             else if (activeTab === 'logic_tree' || activeTab === 'architecture_diagram') setActiveTab('butterfly_effect');
             else if (activeTab === 'butterfly_effect') setActiveTab('forecast_arena');
@@ -1709,12 +1809,20 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           className="px-3.5 py-2 bg-stone-900 hover:bg-[#E3120B] text-white text-xs font-serif font-bold rounded-lg transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
         >
           <span>
-            {activeTab === 'seven_elements' && '进入第二篇：底层逻辑与因果 ➔'}
-            {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') && '进入蝴蝶效应认知关联网 ➔'}
-            {activeTab === 'butterfly_effect' && '进入第三篇：未来推演与预测 ➔'}
-            {activeTab === 'forecast_arena' && '进入第四篇：切身决策与行动 ➔'}
-            {activeTab === 'relevance_identity' && '完成认知拆解 · 沉淀至我的关注 ➔'}
-            {activeTab === 'deep_spectrum' && '前往决策与对账台账 ➔'}
+            {isShallow && enrichPhase !== 'done'
+              ? enrichPhase === 'loading'
+                ? '深度分析生成中…'
+                : '先生成深度分析 ➔'
+              : (
+                <>
+                  {activeTab === 'seven_elements' && '进入第二篇：底层逻辑与因果 ➔'}
+                  {(activeTab === 'logic_tree' || activeTab === 'architecture_diagram') && '进入蝴蝶效应认知关联网 ➔'}
+                  {activeTab === 'butterfly_effect' && '进入第三篇：未来推演与预测 ➔'}
+                  {activeTab === 'forecast_arena' && '进入第四篇：切身决策与行动 ➔'}
+                  {activeTab === 'relevance_identity' && '完成认知拆解 · 沉淀至我的关注 ➔'}
+                  {activeTab === 'deep_spectrum' && '前往决策与对账台账 ➔'}
+                </>
+              )}
           </span>
           <ArrowRight className="w-4 h-4" />
         </button>
