@@ -195,6 +195,27 @@ export function useAuthSession() {
     }
   }, [authPassword, newPassword]);
 
+  /** 详情 enrich / skill 成功后写回游客额度，避免横幅仍显示旧剩余次数。 */
+  const applyGuestQuota = useCallback(
+    (guestQuota: { remaining?: number; deepReads?: number; limit?: number; charged?: boolean } | null | undefined) => {
+      if (!guestQuota || typeof guestQuota.remaining !== 'number') return;
+      setAuthUser((prev: any) => {
+        if (!prev?.isGuest) return prev;
+        const prevQ = prev.guestQuota || {};
+        return {
+          ...prev,
+          guestQuota: {
+            ...prevQ,
+            remaining: guestQuota.remaining,
+            ...(typeof guestQuota.deepReads === 'number' ? { deepReads: guestQuota.deepReads } : {}),
+            ...(typeof guestQuota.limit === 'number' ? { limit: guestQuota.limit } : {}),
+          },
+        };
+      });
+    },
+    []
+  );
+
   return {
     authRequired,
     mustChangePassword,
@@ -225,6 +246,7 @@ export function useAuthSession() {
     submitAuth,
     submitRegistration,
     submitRequiredPasswordChange,
+    applyGuestQuota,
   };
 }
 
