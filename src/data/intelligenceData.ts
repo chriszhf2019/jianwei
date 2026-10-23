@@ -190,7 +190,7 @@ const LEGACY_TOMORROW_FORECASTS: TomorrowForecastItem[] = [
   }
 ];
 
-/** 专题必须来自真实策展或语料聚类；没有时保持空，不展示虚构时间轴。 */
+/** @deprecated 请用 `deriveUiTopicClusters(articles)`（`utils/topicDossiers.ts`）。静态空数组仅兼容占位，UI 勿直接消费。 */
 export const TOPIC_CLUSTERS: TopicCluster[] = [];
 
 export const CROSS_EVENT_SYNERGIES: CrossEventSynergy[] = [];

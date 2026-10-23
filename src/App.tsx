@@ -1,7 +1,7 @@
-import React, { lazy, Suspense, useEffect, useCallback } from 'react';
+import React, { lazy, Suspense, useEffect, useCallback, useMemo } from 'react';
 import { NewsArticle } from './types';
 
-import { TOPIC_CLUSTERS } from './data/intelligenceData';
+import { deriveUiTopicClusters } from './utils/topicDossiers';
 import { Header } from './components/Header';
 import { HomeView } from './components/home/HomeView';
 import { AuthGate } from './components/AuthGate';
@@ -186,6 +186,8 @@ export const App: React.FC = () => {
   );
 
   const { snapshot, status: snapshotStatus, refresh: refreshSnapshot } = useSnapshot();
+
+  const liveTopicClusters = useMemo(() => deriveUiTopicClusters(articles), [articles]);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-900 font-sans flex flex-col selection:bg-red-100 selection:text-red-950">
@@ -458,7 +460,7 @@ export const App: React.FC = () => {
             onClose={() => modals.setIsSearchOpen(false)}
             articles={articles}
             radarKeywords={radarKeywords}
-            topics={TOPIC_CLUSTERS}
+            topics={liveTopicClusters}
             onSelectArticle={handleSelectArticle}
             onSelectTopic={() => {
               goTab('topics');

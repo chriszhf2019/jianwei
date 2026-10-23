@@ -73,6 +73,13 @@ import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
+import {
+  buildMatchedTopicDossiers,
+  deriveUiTopicClusters,
+  findRelatedUiTopic,
+  matchArticlesForSeed,
+  TOPIC_SEEDS,
+} from '../src/utils/topicDossiers';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
   assert.equal(parseArticleDate('Fri, 04 Sep 2026 02:33:08 +0000')! > 0, true);
@@ -1926,4 +1933,79 @@ test('classifyEvidence: 证据收据三态（已定位来源 / 仅模型推断 /
   const labels = new Set(Object.values(EVIDENCE_STATE_META).map((m) => m.label));
   assert.equal(labels.size, 3);
   assert.ok(labels.has('已定位来源') && labels.has('仅模型推断') && labels.has('未找到依据'));
+});
+
+test('topicDossiers: 空语料不编造专题；命中种子才返回档案', () => {
+  assert.deepEqual(buildMatchedTopicDossiers([]), []);
+  assert.deepEqual(deriveUiTopicClusters([]), []);
+
+  const now = Date.parse('2026-10-20T12:00:00+08:00');
+  const articles = [
+    {
+      id: 'a1',
+      title: '英伟达 GPU 算力与电网供电瓶颈加剧',
+      summary: '数据中心变压器交付周期拉长，CPO 光互连推进',
+      tags: ['算力', '芯片'],
+      category: '科技',
+      publishedAt: '2026-10-19T08:00:00+08:00',
+      sourceName: 'TechCrunch',
+    },
+    {
+      id: 'a2',
+      title: '高校认知科学研究与教育科技课程改革',
+      summary: '大学跨学科育人试点',
+      tags: ['教育'],
+      category: '教育',
+      publishedAt: '2026-10-18T08:00:00+08:00',
+      sourceName: 'ScienceDaily',
+    },
+    {
+      id: 'a3',
+      title: '无关天气短讯',
+      summary: '今日晴朗',
+      tags: [],
+      category: '其他',
+      publishedAt: '2026-10-17T08:00:00+08:00',
+      sourceName: 'Local',
+    },
+  ] as any[];
+
+  const dossiers = buildMatchedTopicDossiers(articles, { now });
+  assert.ok(dossiers.length >= 1);
+  assert.ok(dossiers.every((d) => d.articles.length > 0));
+  assert.ok(dossiers.some((d) => d.id === 'dossier_ai_compute'));
+  // 未命中的种子（如无电池相关文）不应出现
+  assert.equal(dossiers.some((d) => d.id === 'dossier_solid_battery'), false);
+
+  const computeSeed = TOPIC_SEEDS.find((s) => s.id === 'dossier_ai_compute')!;
+  assert.ok(matchArticlesForSeed(computeSeed, articles).some((a) => a.id === 'a1'));
+
+  const ui = deriveUiTopicClusters(articles);
+  assert.ok(ui.some((t) => t.id === 'dossier_ai_compute' && t.articleCount >= 1));
+  assert.ok(ui.every((t) => t.articleIds.length > 0));
+
+  const related = findRelatedUiTopic(articles[0], articles);
+  assert.ok(related);
+  assert.ok(related!.articleIds.includes('a1'));
+
+  // 无标签且未入任何专题 id 列表的文章 → null
+  const orphan = findRelatedUiTopic(
+    { id: 'orphan', title: '完全无关', tags: [], category: '其他' } as any,
+    [{ id: 'orphan', title: '完全无关', tags: [], category: '其他' } as any],
+  );
+  assert.equal(orphan, null);
+});
+
+test('topicDossiers: App/Detail 不再消费静态 TOPIC_CLUSTERS 空数组', () => {
+  const app = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.match(app, /deriveUiTopicClusters/);
+  assert.doesNotMatch(app, /TOPIC_CLUSTERS/);
+
+  const detail = fs.readFileSync(path.join(process.cwd(), 'src/components/detail/NewsDetailView.tsx'), 'utf8');
+  assert.match(detail, /findRelatedUiTopic/);
+  assert.doesNotMatch(detail, /TOPIC_CLUSTERS/);
+
+  const topics = fs.readFileSync(path.join(process.cwd(), 'src/components/topics/TopicsView.tsx'), 'utf8');
+  assert.match(topics, /buildMatchedTopicDossiers/);
+  assert.match(topics, /buildTopicClusters/);
 });
