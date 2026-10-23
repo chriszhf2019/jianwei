@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem, ReadingDensity, DefaultReadingRhythm } from '../../types';
-import { TOPIC_CLUSTERS } from '../../data/intelligenceData';
+import { findRelatedUiTopic } from '../../utils/topicDossiers';
 import { SevenElementsTab } from './SevenElementsTab';
 const LogicTreeTab = React.lazy(() => import('./LogicTreeTab').then(m => ({ default: m.LogicTreeTab })));
 const RelevanceIdentityTab = React.lazy(() => import('./RelevanceIdentityTab').then(m => ({ default: m.RelevanceIdentityTab })));
@@ -487,11 +487,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           : enrichError ||
             '深度分析尚未生成。只有点击“生成深度分析”后才会调用模型。';
 
-  // Find related topic cluster if any
-  const relatedTopic = TOPIC_CLUSTERS.find(t => 
-    t.articleIds?.includes(article.id) || 
-    t.tags.some(tag => article.tags?.includes(tag))
-  );
+  // 语料驱动：从 contextArticles 派生所属专题（无命中则为 null）
+  const relatedTopic = findRelatedUiTopic(article, contextArticles || []);
   const latestAiMeta = Object.entries(article.aiFieldMeta || {})
     .sort((a, b) => String(b[1]?.generatedAt || '').localeCompare(String(a[1]?.generatedAt || '')))[0];
 
