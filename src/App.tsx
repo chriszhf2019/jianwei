@@ -336,6 +336,7 @@ export const App: React.FC = () => {
                 const matched = articles.find((a) => a.id === artId);
                 if (matched) handleSelectArticle(matched);
               }}
+              onBackToIntelligence={() => goTab('intelligence')}
             />
           )}
 
