@@ -19,7 +19,7 @@ import {
   sanitizeEnrichPayload,
 } from "./aiValidation";
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
-import { findSpecificityIssues } from "./aiSpecificity";
+import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 const HARDWARE_ANALYSIS_RULE = `【硬件/产品新闻专用规则】
 1. 涉及硬件参数（屏幕、芯片、电池、影像、快充等）时，必须把参数翻译成用户可感知的体验或代价（例如：2K+185Hz → DDIC 功耗与续航下降、主流手游原生帧率上限、MEMC 插帧延迟与伪影；大电池 → 机身重量/厚度）。
@@ -99,7 +99,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       }
       return sanitizeEnrichPayload(parsed);
     }, { force });
-    const parsed = generated.data;
+    // 字段级具体性清洗：只置空「过泛」的字段，不整篇拒收。
+    const { payload: parsed, strippedFields } = stripGenericFields(generated.data, effectiveContent);
     const wasCached = generated.cached || generated.deduped;
     const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich);
 
@@ -131,6 +132,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       contentBasis,
       overrides: { ...parsed, contentBasis, ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}) },
       fieldMeta,
+      ...(strippedFields.length > 0 ? { specificity: { strippedFields } } : {}),
       ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
   } catch (err: any) {
