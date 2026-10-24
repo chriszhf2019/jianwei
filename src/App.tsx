@@ -22,9 +22,6 @@ const TopicsView = lazy(() =>
 const MyFocusView = lazy(() =>
   import('./components/focus/MyFocusView').then((module) => ({ default: module.MyFocusView }))
 );
-const RegionIntelligencePage = lazy(() =>
-  import('./components/RegionIntelligencePage').then((module) => ({ default: module.RegionIntelligencePage }))
-);
 const NewsDetailView = lazy(() =>
   import('./components/detail/NewsDetailView').then((module) => ({ default: module.NewsDetailView }))
 );
@@ -152,6 +149,11 @@ export const App: React.FC = () => {
     [predictionContracts]
   );
   const [activeIntelligenceTool, setActiveIntelligenceTool] = React.useState<IntelligenceToolType | null>(null);
+
+  // 地区情报已并入情报中心：旧链接/旧 tab 统一重定向到情报中心。
+  useEffect(() => {
+    if (activeTab === 'region') goTab('intelligence');
+  }, [activeTab, goTab]);
 
   useEffect(() => {
     if (activeTab === 'admin' && !isAdmin) {
@@ -338,24 +340,12 @@ export const App: React.FC = () => {
                 const matched = articles.find((a) => a.id === artId);
                 if (matched) handleSelectArticle(matched);
               }}
-              onGoRegion={() => goTab('region')}
               isGuest={!!authUser?.isGuest}
             />
           )}
 
           {activeTab === 'topics' && (
             <TopicsView articles={articles} onSelectArticle={handleSelectArticle} />
-          )}
-
-          {activeTab === 'region' && (
-            <RegionIntelligencePage
-              articles={articles}
-              onOpenArticleById={(artId) => {
-                const matched = articles.find((a) => a.id === artId);
-                if (matched) handleSelectArticle(matched);
-              }}
-              onBackToIntelligence={() => goTab('intelligence')}
-            />
           )}
 
           {activeTab === 'my_focus' && (

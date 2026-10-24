@@ -31,6 +31,8 @@ interface RegionIntelligencePageProps {
   onOpenArticleById?: (articleId: string) => void;
   /** 返回情报中心（地区情报已从主导航降为情报中心子页）。 */
   onBackToIntelligence?: () => void;
+  /** 内嵌在情报中心「地缘观察」中时隐藏独立页标题，仅保留工作台。 */
+  embedded?: boolean;
 }
 
 interface AnnotationTask {
@@ -61,6 +63,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
   articles,
   onOpenArticleById,
   onBackToIntelligence,
+  embedded = false,
 }) => {
   // 页面级筛选：时间范围 + AI 模型自评分阈值（非校准概率）
   const [range, setRange] = useState<'all' | '7d' | '30d'>('all');
@@ -300,31 +303,45 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
 
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8">
-      <div className="bg-stone-900 text-stone-100 rounded-2xl p-6 sm:p-8 border-2 border-stone-950 shadow-md">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
-            <MapPin className="w-5 h-5 text-[#0284C7]" />
-            <span className="text-xs font-mono font-bold text-[#38BDF8] uppercase tracking-wider">
-              地区情报页
-            </span>
+    <div className={embedded ? 'font-sans space-y-6' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8'}>
+      <div className={embedded
+        ? 'bg-stone-900 text-stone-100 rounded-xl p-4 sm:p-5 border border-stone-800 shadow-sm'
+        : 'bg-stone-900 text-stone-100 rounded-2xl p-6 sm:p-8 border-2 border-stone-950 shadow-md'}>
+        {embedded ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center space-x-2">
+              <MapPin className="w-4 h-4 text-[#38BDF8]" />
+              <span className="text-sm font-serif font-black text-white">地区深潜工作台</span>
+              <span className="text-[10px] font-mono text-stone-400">矩阵 / 流动 / 主体 / 下钻 / 聚合</span>
+            </div>
           </div>
-          {onBackToIntelligence && (
-            <button
-              type="button"
-              onClick={onBackToIntelligence}
-              className="text-[11px] font-serif font-bold text-stone-300 hover:text-white border border-stone-600 hover:border-stone-400 rounded-lg px-2.5 py-1 transition-colors"
-            >
-              ← 返回情报中心
-            </button>
-          )}
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white mt-2">
-          按涉事地区读世界
-        </h1>
-        <p className="text-xs sm:text-sm text-stone-300 font-sans max-w-3xl mt-1">
-          按真实语料和 AI 地区标注进行矩阵浏览、主体抽样与组合下钻。
-        </p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-5 h-5 text-[#0284C7]" />
+                <span className="text-xs font-mono font-bold text-[#38BDF8] uppercase tracking-wider">
+                  地区情报页
+                </span>
+              </div>
+              {onBackToIntelligence && (
+                <button
+                  type="button"
+                  onClick={onBackToIntelligence}
+                  className="text-[11px] font-serif font-bold text-stone-300 hover:text-white border border-stone-600 hover:border-stone-400 rounded-lg px-2.5 py-1 transition-colors"
+                >
+                  ← 返回情报中心
+                </button>
+              )}
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-serif font-black tracking-tight text-white mt-2">
+              按涉事地区读世界
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-300 font-sans max-w-3xl mt-1">
+              按真实语料和 AI 地区标注进行矩阵浏览、主体抽样与组合下钻。
+            </p>
+          </>
+        )}
 
         {needsAnnotation && (
           <div className="mt-4 rounded-xl border border-sky-500/40 bg-sky-950/40 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -454,7 +471,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
         />
       )}
 
-      <div className="sticky top-[6.5rem] sm:top-[7rem] z-20 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-stone-200 bg-[#FAF8F5]/95 backdrop-blur-md py-2 -mx-1 px-1">
+      <div className={`${embedded ? "" : "sticky top-[6.5rem] sm:top-[7rem] z-20 "}flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-stone-200 bg-[#FAF8F5]/95 backdrop-blur-md py-2 -mx-1 px-1`}>
         {sections.map((item) => (
           <button
             key={item.id}

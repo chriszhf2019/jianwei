@@ -16,6 +16,7 @@ import { TodayBlindspotWidget } from './TodayBlindspotWidget';
 import { TomorrowWatchlistWidget } from './TomorrowWatchlistWidget';
 import { CrossEventNexusPanel } from './CrossEventNexusPanel';
 import { AIStrategicAdvisor } from './AIStrategicAdvisor';
+import { RegionIntelligencePage } from '../RegionIntelligencePage';
 import { DynamicHeatTrendChart } from './DynamicHeatTrendChart';
 import { DynamicSentimentTrendChart } from './DynamicSentimentTrendChart';
 import { StrategicThreeTierCenter } from './StrategicThreeTierCenter';
@@ -51,8 +52,6 @@ interface IntelligenceHubViewProps {
   onSelectArticleTitle?: (title: string) => void;
   onOpenArticleById?: (articleId: string) => void;
   predictionContracts?: PredictionContract[];
-  /** 跳转「地区情报」深潜工作台（主体×矩阵×三级下钻×组合） */
-  onGoRegion?: () => void;
   /** 游客：全库篇数与游客可读篇数需区分标注。 */
   isGuest?: boolean;
 }
@@ -67,7 +66,6 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   onSelectArticleTitle,
   onOpenArticleById,
   predictionContracts = [],
-  onGoRegion,
   isGuest = false,
 }) => {
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
@@ -426,21 +424,15 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {section === 'regions' && (
       <>
-      {/* 5.0 地区维度入口：三件套（标注/预警/覆盖趋势）在此，深潜去「地区情报」页 */}
+      {/* 5.0 地区维度：标注/预警/覆盖趋势 + 深潜工作台（已合并，不再跳转独立页） */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-[#0284C7]/30 bg-sky-50/70 px-4 sm:px-5 py-3">
         <div className="text-[12px] text-sky-950 leading-relaxed">
-          <b className="text-[#0369A1] font-serif">地区维度 · 统计三件套</b>
-          <span className="text-sky-800/90"> —— AI 涉事地区标注 / 依赖预警 / 覆盖·去重·近7天趋势（与「地区情报」页原重复面板合并于此）。</span>
+          <b className="text-[#0369A1] font-serif">地区维度 · 统计三件套 + 深潜工作台</b>
+          <span className="text-sky-800/90"> —— AI 涉事地区标注 / 依赖预警 / 覆盖趋势；下方可直接进入矩阵、流动、主体、下钻与聚合。</span>
         </div>
-        {onGoRegion && (
-          <button
-            type="button"
-            onClick={onGoRegion}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0D9488] hover:bg-teal-700 text-white text-xs font-serif font-bold transition-colors"
-          >
-            去地区深潜（主体×矩阵×下钻×组合） →
-          </button>
-        )}
+        <span className="shrink-0 text-[10px] font-mono text-sky-700 bg-white/70 border border-sky-200 rounded-lg px-2 py-1">
+          深潜工作台在下方 ↓
+        </span>
       </div>
 
       {/* 5.1 内容涉事地区 · AI 标注（抽样） */}
@@ -451,6 +443,13 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {/* 5.3 地区情报：覆盖/去重度/近7天 */}
       <RegionIntelligencePanel articles={recentArticles} />
+
+      {/* 5.4 地区深潜工作台：原「地区情报」页整体内嵌，不再独立跳转 */}
+      <RegionIntelligencePage
+        articles={contextArticles}
+        onOpenArticleById={onOpenArticleById}
+        embedded
+      />
 
       {/* 6. 2-Columns: Today's Blindspots + Tomorrow's Watchlist */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
