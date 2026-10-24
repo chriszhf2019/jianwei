@@ -295,14 +295,22 @@ export function useCorpusStore() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const pageSize = 200;
+    // 首屏先取 60 篇尽快可读；其余在浏览器空闲时按 200 篇/页续载，避免与首屏争带宽/主线程。
+    const FIRST_PAGE_SIZE = 60;
+    const PAGE_SIZE = 200;
     const maxLoaded = 10000;
+    let cancelled = false;
+    const scheduleIdle = (fn: () => void) => {
+      const ric = (window as any).requestIdleCallback;
+      if (typeof ric === 'function') ric(fn, { timeout: 2000 });
+      else window.setTimeout(fn, 300);
+    };
     let loadedCount = 0;
 
-    const loadPage = async (offset: number): Promise<void> => {
+    const loadPage = async (offset: number, limit: number): Promise<void> => {
       setActiveRequests((c) => c + 1);
       try {
-        const res = await fetch(`/api/corpus?limit=${pageSize}&offset=${offset}`, {
+        const res = await fetch(`/api/corpus?limit=${limit}&offset=${offset}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`corpus ${res.status}`);
@@ -329,8 +337,11 @@ export function useCorpusStore() {
             return next;
           });
         }
-        if (json?.meta?.hasMore && page.length > 0 && loadedCount < maxLoaded) {
-          await loadPage(offset + page.length);
+        if (!cancelled && json?.meta?.hasMore && page.length > 0 && loadedCount < maxLoaded) {
+          const nextOffset = offset + page.length;
+          scheduleIdle(() => {
+            if (!cancelled) void loadPage(nextOffset, PAGE_SIZE);
+          });
         }
       } finally {
         setActiveRequests((c) => Math.max(0, c - 1));
@@ -338,10 +349,13 @@ export function useCorpusStore() {
       }
     };
 
-    loadPage(0).catch(() => {
+    loadPage(0, FIRST_PAGE_SIZE).catch(() => {
       setCorpusReady(true);
     });
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const derived = useMemo(() => {
