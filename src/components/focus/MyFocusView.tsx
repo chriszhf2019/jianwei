@@ -473,18 +473,68 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
         </div>
 
         {dueContractCount > 0 && (
-          <div className="rounded-lg border border-amber-700/60 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-200">
-            有 {dueContractCount} 条预测已进入到期提醒范围。系统只标记待办，不会自动填写结果或改变契约状态。
+          <div className="rounded-xl border border-amber-700/60 bg-amber-950/30 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-serif font-bold text-amber-200">
+                到期回测待办（{dueContractCount}）
+              </span>
+              <span className="text-[10px] font-mono text-amber-400">只提醒，不自动裁决</span>
+            </div>
+            <div className="space-y-1.5">
+              {contractsWithDue
+                .filter(
+                  (c) =>
+                    c.status === 'pending' &&
+                    ['overdue', 'due_today', 'due_soon'].includes(c.dueState)
+                )
+                .slice(0, 5)
+                .map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="min-w-0">
+                      <span className="text-amber-100 font-serif font-bold line-clamp-1">{c.question}</span>
+                      <span className="ml-2 text-amber-400 font-mono">{c.dueLabel}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResolvingContractId(c.id);
+                        setOutcomeText('');
+                        setOutcomeSourceUrl('');
+                        setReviewerName('');
+                        setResolutionError('');
+                      }}
+                      className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 text-[11px] font-serif font-bold"
+                    >
+                      录入结果
+                    </button>
+                  </div>
+                ))}
+            </div>
           </div>
         )}
 
-        {/* 🧠 超级预测者认知偏差与胜率雷达 */}
-        <CognitiveBiasRadarPanel contracts={predictionContracts} />
+        {/* 校准与偏差：需要积累样本，默认折叠，避免每次进页都占满 */}
+        <details className="rounded-xl border border-stone-800 bg-stone-900/60">
+          <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-2 text-xs font-serif font-bold text-stone-200 hover:bg-stone-900 rounded-xl">
+            <span>校准与认知偏差（需积累样本）</span>
+            <span className="text-[10px] font-mono text-stone-500">点击展开</span>
+          </summary>
+          <div className="px-3 pb-4 space-y-4">
+            <CognitiveBiasRadarPanel contracts={predictionContracts} />
+            <PredictionCalibrationPanel contracts={predictionContracts} />
+          </div>
+        </details>
 
-        <PredictionCalibrationPanel contracts={predictionContracts} />
-
-        {/* 📋 判断履历：已回测判断按时间倒序复盘 */}
-        <JudgmentLedgerPanel contracts={predictionContracts} />
+        {/* 判断履历：已回测记录，按需查看 */}
+        <details className="rounded-xl border border-stone-800 bg-stone-900/60">
+          <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-2 text-xs font-serif font-bold text-stone-200 hover:bg-stone-900 rounded-xl">
+            <span>判断履历（已回测）</span>
+            <span className="text-[10px] font-mono text-stone-500">点击展开</span>
+          </summary>
+          <div className="px-3 pb-4">
+            <JudgmentLedgerPanel contracts={predictionContracts} />
+          </div>
+        </details>
 
         {predictionContracts.length === 0 ? (
           <div className="py-8 text-center text-stone-500 text-xs font-sans">
