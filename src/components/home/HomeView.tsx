@@ -10,6 +10,7 @@ import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
 import { TopicClusterSection } from './TopicClusterSection';
+import { TodayTopThree } from './TodayTopThree';
 import { FirstExperienceSample } from './FirstExperienceSample';
 import { UserCheck, ShieldCheck, Bookmark, Radio, Target } from 'lucide-react';
 import { deriveFromList } from '../../utils/corpusMetrics';
@@ -453,6 +454,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
           </details>
         </>
+      )}
+
+      {/* 首屏结论：今天最值得看的 3 件事（多源优先） */}
+      {articles.length > 0 && (
+        <TodayTopThree articles={articles} onSelectArticle={onSelectArticle} />
       )}
 
       {/* 跨源事件聚合：把「事件」提为首页主对象，单篇报道降为事件内来源 */}
