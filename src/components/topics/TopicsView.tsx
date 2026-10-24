@@ -401,7 +401,10 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
             </div>
           </div>
 
-          {/* 专题档案卡片矩阵 (Topic Dossier Selector Cards with Follow Switch) */}
+          {/* 桌面端：左侧专题列表 / 右侧详情；移动端上下排列 */}
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] gap-6 items-start">
+            <div className="space-y-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1">
+                    {/* 专题档案卡片矩阵 (Topic Dossier Selector Cards with Follow Switch) */}
           {filteredDossiers.length === 0 ? (
             <div className="bg-white border-2 border-dashed border-stone-300 rounded-xl p-10 text-center space-y-2">
               <AlertCircle className="w-8 h-8 text-stone-300 mx-auto" />
@@ -415,7 +418,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
               </p>
             </div>
           ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
             {filteredDossiers.map((topic) => {
               const isSelected = activeTopic?.id === topic.id;
               const isFollowed = followedTopicIds.includes(topic.id);
@@ -495,7 +498,9 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
           </div>
           )}
 
-          {/* 选中专题全景深度研判档案展示 (Selected Topic Dossier Showcase) */}
+            </div>
+            <div className="min-w-0">
+                    {/* 选中专题全景深度研判档案展示 (Selected Topic Dossier Showcase) */}
           {activeTopic && (
             <div className="bg-white border-2 border-stone-900 rounded-2xl p-6 sm:p-8 space-y-7 shadow-sm font-sans">
               {/* 专题头部：标题、阶段徽章与关注开关、一键导出按钮 */}
@@ -744,6 +749,8 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ articles, onSelectArticl
               </div>
             </div>
           )}
+            </div>
+          </div>
         </>
       )}
 
