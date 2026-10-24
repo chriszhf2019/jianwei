@@ -391,6 +391,10 @@ export interface AiFieldMeta {
   provider: 'gemini' | 'deepseek' | 'unknown';
   model: string;
   promptVersion: string;
+  /** 生成时使用的温度（可复现性审计）。 */
+  temperature?: number;
+  /** 实际提示词内容的短指纹（sha256 前 16 位）。 */
+  promptHash?: string;
   method: 'ai_generation' | 'legacy_unknown';
   certificationStandard: 'ai_single' | 'ai_consensus' | 'scenario' | 'unverified';
   calibrationStatus: 'uncalibrated';

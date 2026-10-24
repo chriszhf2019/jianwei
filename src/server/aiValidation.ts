@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { AiFieldMeta, EvidenceItem, GrayscaleAssessment, NewsArticle } from "../types";
 import type { AIProvider } from "./ai";
 
@@ -268,17 +269,25 @@ export function createFieldMeta(
   provider: AIProvider,
   model: string,
   promptVersion: string,
-  certificationStandard: AiFieldMeta["certificationStandard"] = "ai_single"
+  certificationStandard: AiFieldMeta["certificationStandard"] = "ai_single",
+  extra: Pick<AiFieldMeta, "temperature" | "promptHash"> = {}
 ): AiFieldMeta {
   return {
     generatedAt: new Date().toISOString(),
     provider,
     model,
     promptVersion,
+    ...(typeof extra.temperature === "number" ? { temperature: extra.temperature } : {}),
+    ...(extra.promptHash ? { promptHash: extra.promptHash } : {}),
     method: "ai_generation",
     certificationStandard,
     calibrationStatus: "uncalibrated",
   };
+}
+
+/** 提示词内容指纹（sha256 前 16 位），用于复现与回归定位。 */
+export function promptFingerprint(prompt: string): string {
+  return crypto.createHash("sha256").update(String(prompt || ""), "utf8").digest("hex").slice(0, 16);
 }
 
 export function attachFieldMeta(

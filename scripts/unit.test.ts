@@ -25,6 +25,8 @@ import {
   sanitizeGrayscaleAssessment,
   sanitizeRegionImpact,
   PROMPT_VERSIONS,
+  promptFingerprint,
+  createFieldMeta,
 } from '../src/server/aiValidation';
 import {
   ANALYSIS_FRAMEWORK_VERSION,
@@ -2236,4 +2238,20 @@ test('enrichQuality: 逐句标出未接地数字', () => {
   assert.equal(sentences.length, 1);
   assert.equal(sentences[0].field, '摘要');
   assert.ok(sentences[0].numbers.includes('62.4%'));
+});
+
+test('aiValidation: 提示词指纹稳定 + 字段元数据记录温度与指纹', () => {
+  const a = promptFingerprint('同一段提示词');
+  const b = promptFingerprint('同一段提示词');
+  assert.equal(a, b);
+  assert.equal(a.length, 16);
+  assert.notEqual(a, promptFingerprint('另一段提示词'));
+
+  const meta = createFieldMeta('gemini', 'gemini-2.5-flash', 'v1', 'ai_single', {
+    temperature: 0.2,
+    promptHash: a,
+  });
+  assert.equal(meta.temperature, 0.2);
+  assert.equal(meta.promptHash, a);
+  assert.equal(meta.calibrationStatus, 'uncalibrated');
 });
