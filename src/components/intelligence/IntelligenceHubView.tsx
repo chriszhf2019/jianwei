@@ -100,6 +100,13 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
     regions: 'intelligence-regions',
     advisor: 'intelligence-advisor',
   };
+  const sectionHints: Record<HubSection, string> = {
+    overview: '近 7 日语料的总量与结构：先看这里，再进具体信号。',
+    signals: '热力、共振与情绪都是文本统计，不是市场热度或因果强度。',
+    sources: '来源健康度、实体覆盖与转载合并：判断信息是否可追溯。',
+    regions: 'AI 涉事地区标注、依赖预警与覆盖趋势；需要先跑全量标注。',
+    advisor: '基于当前语料回答你的战略问题；结论为模型推断、未校准。',
+  };
 
 
   return (
@@ -167,6 +174,8 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
           </button>
         ))}
       </div>
+
+      <p className="text-[11px] text-stone-500 -mt-4 leading-relaxed">{sectionHints[section]}</p>
 
       <FeatureSummary featureId={sectionFeatureId[section]} compact />
 

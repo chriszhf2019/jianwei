@@ -289,6 +289,13 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
     drill: 'region-drill',
     aggregate: 'region-aggregate',
   };
+  const sectionHints: Record<RegionSection, string> = {
+    matrix: '地区 × 赛道矩阵：先看哪些格子有真实条目，再点进下钻。',
+    flow: '跨区流动与阻尼：基于语料共现的启发式信号，不是真实物流或资金流。',
+    entities: '主体抽样：仅统计已写入语料的实体标注，未标注条目不会出现。',
+    drill: '三级下钻：地区 → 赛道 → 单篇报道，逐层核对。',
+    aggregate: '组合聚合：把多个地区/赛道合起来看覆盖与缺口。',
+  };
 
 
   return (
@@ -444,6 +451,8 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
           </button>
         ))}
       </div>
+
+      <p className="text-[11px] text-stone-500 -mt-4 leading-relaxed">{sectionHints[section]}</p>
 
       <FeatureSummary featureId={sectionFeatureId[section]} compact />
 

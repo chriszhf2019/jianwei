@@ -139,6 +139,12 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
     contracts: 'focus-contracts',
     watchlist: 'focus-watchlist',
   };
+  const sectionHints: Record<FocusSection, string> = {
+    overview: '你的身份透镜、关键数字与行动备忘录；蝴蝶效应会商折叠在页面底部。',
+    knowledge: '沉淀过的判断与知识图谱：先存进来，才能被检索和连线。',
+    contracts: '签下判断 → 到期回测 → 看校准曲线；命中率不等于校准度。',
+    watchlist: '关注对象、雷达关键词与收藏：告诉系统你长期在意什么。',
+  };
 
 
 
@@ -320,6 +326,8 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
           </button>
         ))}
       </div>
+
+      <p className="text-[11px] text-stone-500 -mt-4 leading-relaxed">{sectionHints[section]}</p>
 
       <FeatureSummary featureId={sectionFeatureId[section]} compact />
 
