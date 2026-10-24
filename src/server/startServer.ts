@@ -38,6 +38,7 @@ export async function startServer(options: StartServerOptions): Promise<void> {
       const accept = String(req.headers["accept-encoding"] || "").toLowerCase();
       const useBrotli = accept.includes("br");
       const acceptsGzip = accept.split(",").some((item) => item.trim().toLowerCase().startsWith("gzip"));
+      if (req.path === "/sw.js") return next();
       if ((!useBrotli && !acceptsGzip) || !/\.(?:js|css)$/i.test(req.path || "")) return next();
       const filePath = path.resolve(distRoot, `.${decodeURIComponent(req.path || "")}`);
       if (!filePath.startsWith(`${distRoot}${path.sep}`)) return next();
@@ -87,7 +88,7 @@ export async function startServer(options: StartServerOptions): Promise<void> {
         maxAge: "1y",
         immutable: true,
         setHeaders(res, filePath) {
-          if (filePath.endsWith("index.html")) {
+          if (filePath.endsWith("index.html") || filePath.endsWith("sw.js")) {
             res.setHeader("Cache-Control", "no-cache");
             return;
           }

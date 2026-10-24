@@ -65,6 +65,13 @@ try {
   }
 }
 
+// 生产环境注册静态资源缓存：重复访问时 /assets/* 直接命中本地缓存。
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProviders>
