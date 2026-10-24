@@ -40,7 +40,7 @@ import {
   GitMerge
 } from 'lucide-react';
 
-type FocusSection = 'overview' | 'butterfly' | 'knowledge' | 'graph' | 'contracts' | 'watchlist' | 'evaluation';
+type FocusSection = 'overview' | 'knowledge' | 'contracts' | 'watchlist';
 
 
 interface MyFocusViewProps {
@@ -108,6 +108,8 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
   onOpenTermExplain,
 }) => {
   const [section, setSection] = useState<FocusSection>('overview');
+  /** 「知识」页内的二级视图：知识库 / 知识图谱。 */
+  const [knowledgeView, setKnowledgeView] = useState<'base' | 'graph'>('base');
 
   // Verification resolving modal/drawer state
   const [resolvingContractId, setResolvingContractId] = useState<string | null>(null);
@@ -127,21 +129,15 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
 
   const sections: Array<{ id: FocusSection; label: string; icon: React.ReactNode }> = [
     { id: 'overview', label: '个人概览', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'butterfly', label: '蝴蝶效应与演进会商', icon: <GitMerge className="w-4 h-4 text-amber-500" /> },
-    { id: 'knowledge', label: '战略知识库', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'graph', label: '知识图谱', icon: <Network className="w-4 h-4" /> },
-    { id: 'contracts', label: '预测契约', icon: <Crosshair className="w-4 h-4" /> },
+    { id: 'knowledge', label: '知识', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'contracts', label: '预测与复盘', icon: <Crosshair className="w-4 h-4" /> },
     { id: 'watchlist', label: '关注与收藏', icon: <Radio className="w-4 h-4" /> },
-    { id: 'evaluation', label: '评测中心', icon: <FlaskConical className="w-4 h-4" /> },
   ];
   const sectionFeatureId: Record<FocusSection, FeatureSummaryId> = {
     overview: 'focus-overview',
-    butterfly: 'focus-watchlist',
     knowledge: 'focus-watchlist',
-    graph: 'focus-watchlist',
     contracts: 'focus-contracts',
     watchlist: 'focus-watchlist',
-    evaluation: 'focus-evaluation',
   };
 
 
@@ -334,7 +330,7 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
           { id: 'contracts' as const, label: '到期待办', value: dueContractCount, icon: <Crosshair className="w-4 h-4" /> },
           { id: 'watchlist' as const, label: '监控词', value: radarKeywords.length, icon: <Radio className="w-4 h-4" /> },
           { id: 'watchlist' as const, label: '收藏', value: bookmarkedArticles.length, icon: <Bookmark className="w-4 h-4" /> },
-          { id: 'evaluation' as const, label: '人工评测', value: '进入', icon: <FlaskConical className="w-4 h-4" /> },
+          { id: 'contracts' as const, label: '人工评测', value: '进入', icon: <FlaskConical className="w-4 h-4" /> },
         ].map((item, index) => (
           <button
             key={`${item.id}-${index}`}
@@ -873,7 +869,21 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
         </div>
       )}
 
-      {section === 'evaluation' && <EvaluationLabPanel />}
+      {/* 评测中心：并入「预测与复盘」，默认折叠 */}
+      {section === 'contracts' && (
+        <details className="rounded-xl border border-stone-200 bg-white">
+          <summary className="cursor-pointer list-none px-5 py-3 flex items-center justify-between gap-3 text-sm font-serif font-bold text-stone-800 hover:bg-stone-50 rounded-xl">
+            <span className="flex items-center gap-1.5">
+              <FlaskConical className="w-4 h-4 text-stone-600" />
+              人工评测中心
+            </span>
+            <span className="text-[10px] font-mono text-stone-400">点击展开</span>
+          </summary>
+          <div className="px-3 pb-4 sm:px-4">
+            <EvaluationLabPanel />
+          </div>
+        </details>
+      )}
 
       {section === 'watchlist' && (
       <>
@@ -1026,34 +1036,45 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
       </>
       )}
 
-      {section === 'butterfly' && (
-        <ButterflyRoundtablePanel
-          knowledgeItems={knowledgeItems}
-          bookmarkedArticles={bookmarkedArticles}
-          articles={articles}
-          onOpenArticleById={onOpenArticleById}
-          onOpenTermExplain={onOpenTermExplain}
-          onUpdateKnowledge={onUpdateKnowledge}
-        />
-      )}
-
       {section === 'knowledge' && (
-        <KnowledgeBasePanel
-          knowledgeItems={knowledgeItems}
-          onAddKnowledge={onAddKnowledge}
-          onUpdateKnowledge={onUpdateKnowledge}
-          onRemoveKnowledge={onRemoveKnowledge}
-          onOpenArticleById={onOpenArticleById}
-          onOpenTermExplain={onOpenTermExplain}
-        />
-      )}
-
-      {section === 'graph' && (
-        <KnowledgeGraphView
-          knowledgeItems={knowledgeItems}
-          onOpenArticleById={onOpenArticleById}
-          onOpenTermExplain={onOpenTermExplain}
-        />
+        <>
+          <div className="flex items-center gap-1.5">
+            {([
+              { id: 'base' as const, label: '知识库', icon: <BookOpen className="w-3.5 h-3.5" /> },
+              { id: 'graph' as const, label: '知识图谱', icon: <Network className="w-3.5 h-3.5" /> },
+            ]).map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                onClick={() => setKnowledgeView(view.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-serif font-bold border transition-colors ${
+                  knowledgeView === view.id
+                    ? 'bg-stone-900 text-white border-stone-900'
+                    : 'bg-white text-stone-600 border-stone-300 hover:bg-stone-100'
+                }`}
+              >
+                {view.icon}
+                {view.label}
+              </button>
+            ))}
+          </div>
+          {knowledgeView === 'base' ? (
+            <KnowledgeBasePanel
+              knowledgeItems={knowledgeItems}
+              onAddKnowledge={onAddKnowledge}
+              onUpdateKnowledge={onUpdateKnowledge}
+              onRemoveKnowledge={onRemoveKnowledge}
+              onOpenArticleById={onOpenArticleById}
+              onOpenTermExplain={onOpenTermExplain}
+            />
+          ) : (
+            <KnowledgeGraphView
+              knowledgeItems={knowledgeItems}
+              onOpenArticleById={onOpenArticleById}
+              onOpenTermExplain={onOpenTermExplain}
+            />
+          )}
+        </>
       )}
 
       {section === 'overview' && (
@@ -1085,6 +1106,27 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
           已自动保存在本机浏览器
         </div>
       </div>
+
+      {/* 蝴蝶效应与演进会商：编辑情景沙盘，默认折叠，避免占满概览 */}
+      <details className="rounded-xl border border-stone-200 bg-white">
+        <summary className="cursor-pointer list-none px-5 py-3 flex items-center justify-between gap-3 text-sm font-serif font-bold text-stone-800 hover:bg-stone-50 rounded-xl">
+          <span className="flex items-center gap-1.5">
+            <GitMerge className="w-4 h-4 text-amber-500" />
+            蝴蝶效应与演进会商（编辑情景）
+          </span>
+          <span className="text-[10px] font-mono text-stone-400">点击展开</span>
+        </summary>
+        <div className="px-3 pb-4 sm:px-4">
+          <ButterflyRoundtablePanel
+            knowledgeItems={knowledgeItems}
+            bookmarkedArticles={bookmarkedArticles}
+            articles={articles}
+            onOpenArticleById={onOpenArticleById}
+            onOpenTermExplain={onOpenTermExplain}
+            onUpdateKnowledge={onUpdateKnowledge}
+          />
+        </div>
+      </details>
       </>
       )}
     </div>
