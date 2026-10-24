@@ -63,6 +63,11 @@ async function main() {
   check('D1 /api/ask-nuance 无 Key 时明确未生成', nu.data.fallback === true && nu.data.answer === null);
   const ad2 = await post('/api/strategic-advisor', { question: '今天最值得注意的变化是什么？', userPersona: '测试用户', contextArticles: [] });
   check('D2 /api/strategic-advisor 无 Key 时明确未生成', ad2.data.answer === null && Array.isArray(ad2.data.citations));
+  // 情绪四分类：端点在无 Key 时必须明确 no_api_key（不能 404 静默失败）
+  const sent400 = await post('/api/sentiment/classify', {});
+  check('D3 /api/sentiment/classify 空文本 400', sent400.status === 400);
+  const sent = await post('/api/sentiment/classify', { title: '某公司净利润同比增长 37.9%', summary: '业绩超出市场预期。' });
+  check('D4 /api/sentiment/classify 无 Key 明确 no_api_key', sent.status === 200 && sent.data.ok === false && sent.data.reason === 'no_api_key', JSON.stringify(sent.data));
 
   // —— E. 预测擂台端点 ——
   const p400 = await post('/api/predict', {});

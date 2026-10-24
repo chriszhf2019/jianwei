@@ -475,4 +475,57 @@ export function registerAiChatRoutes(app: Express, applyRateLimit: RateLimiter):
     }
   });
 
+  // —— 情绪四分类（标题/摘要）：模型推断、未校准；只摘录输入中出现的原文依据 ——
+  app.post("/api/sentiment/classify", applyRateLimit, async (req, res) => {
+    const title = String(req.body?.title || "").trim().slice(0, 300);
+    const summary = String(req.body?.summary || "").trim().slice(0, 1200);
+    if (!title && !summary) {
+      return res.status(400).json({ ok: false, reason: "empty_text" });
+    }
+    const provider = activeProvider();
+    if (!provider) {
+      return res.json({ ok: false, reason: "no_api_key" });
+    }
+    const prompt = `你是新闻情绪分类员。请只对给定文本做四分类，严格只输出 JSON：
+{"label":"positive|negative|neutral|mixed","evidence":"原文中支持该判断的一句原话；没有就留空"}
+判定口径：positive=整体指向利好/积极；negative=整体指向利空/消极；mixed=正负并存且都显著；neutral=无明显倾向或仅客观陈述。
+标题：${title}
+摘要：${summary}
+要求：evidence 必须逐字摘自上面的标题或摘要，不得改写或补充；无法摘出则返回空字符串。`;
+    try {
+      const text = await callAI(prompt, { json: true, temperature: 0.1 });
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = JSON.parse(String(text).replace(/```json/g, "").replace(/```/g, "").trim());
+      }
+      const label = String(parsed?.label || "").toLowerCase();
+      if (!["positive", "negative", "neutral", "mixed"].includes(label)) {
+        return res.json({ ok: false, reason: "invalid_model_output" });
+      }
+      const evidence = String(parsed?.evidence || "").trim();
+      const corpusText = `${title}\n${summary}`;
+      const evidenceStatus = !evidence
+        ? "absent"
+        : corpusText.includes(evidence)
+          ? "quoted"
+          : "discarded";
+      res.json({
+        ok: true,
+        classification: {
+          label,
+          calibrationStatus: "uncalibrated",
+          evidence: evidenceStatus === "quoted" ? evidence : null,
+          evidenceStatus,
+          provider,
+          model: providerModel(provider),
+        },
+      });
+    } catch (err: any) {
+      console.error("Sentiment classify error:", err);
+      res.json({ ok: false, reason: "invalid_model_output" });
+    }
+  });
+
 }
