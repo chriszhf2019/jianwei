@@ -120,6 +120,8 @@ export const App: React.FC = () => {
     handleAnalysisComplete: storageHandleAnalysisComplete,
     runNewsSkill,
     runPersonaForecast,
+    skillError,
+    clearSkillError,
     corpusReady,
     ensureArticleById,
   } = useAppStorage();
@@ -214,6 +216,22 @@ export const App: React.FC = () => {
       />
 
       <AuthGate />
+
+      {skillError && (
+        <div className="fixed bottom-6 right-6 z-[60] max-w-sm rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-3 shadow-xl space-y-1.5">
+          <div className="text-xs font-serif font-bold text-amber-950">本次没有采用 AI 输出</div>
+          <p className="text-[11px] text-amber-900 leading-relaxed">{skillError}</p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={clearSkillError}
+              className="text-[11px] font-serif font-bold text-amber-900 underline"
+            >
+              知道了
+            </button>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1">
         <Suspense fallback={<ViewLoading />}>

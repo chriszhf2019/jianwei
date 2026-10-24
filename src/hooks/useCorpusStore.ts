@@ -80,6 +80,8 @@ export function mergeSkillArticle(article: NewsArticle, overrides: Record<string
 /** 语料库：IndexedDB 缓存、服务端分页拉取、技能写回与派生统计。 */
 export function useCorpusStore() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
+  /** 技能被服务端拒收时的可见提示（如输出过于笼统）。 */
+  const [skillError, setSkillError] = useState<string | null>(null);
   const articlesRef = useRef<NewsArticle[]>(articles);
   useEffect(() => {
     articlesRef.current = articles;
@@ -200,7 +202,13 @@ export function useCorpusStore() {
           if (json?.ok && json.overrides) {
             const updated = mergeSkillArticle(article, json.overrides);
             handleEnrichArticle(updated);
+            setSkillError(null);
             return updated;
+          }
+          if (json?.reason === 'insufficient_specificity') {
+            setSkillError(
+              json?.message || '模型输出过于笼统，缺少原文中的具体事实，已拒绝采用。请补充正文或重试。'
+            );
           }
           return null;
         } catch {
@@ -348,6 +356,8 @@ export function useCorpusStore() {
     handleAnalysisComplete,
     runNewsSkill,
     runPersonaForecast,
+    skillError,
+    clearSkillError: () => setSkillError(null),
   };
 }
 
