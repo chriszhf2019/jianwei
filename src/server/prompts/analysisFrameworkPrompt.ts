@@ -220,10 +220,21 @@ export function buildAnalysisFrameworkPrompt(input: AnalysisPromptInput): string
 `
       : '';
 
+  const auditSection =
+    input.mode === 'enrich'
+      ? `
+自审要求（必须与深度字段放在同一个 JSON 内；该字段仅用于系统记录，不展示给用户）：
+"audit": {
+  "unsupportedClaims": ["上面输出中找不到输入材料依据的结论，最多 5 条；没有则空数组"],
+  "contradictions": ["上面输出与输入材料相矛盾的表述，最多 3 条；没有则空数组"]
+}
+`
+      : '';
+
   return `${role}
 框架版本：${ANALYSIS_FRAMEWORK_VERSION}
 ${ANALYSIS_SHARED_RULES}
-${shellSchema}
+${shellSchema}${auditSection}
 深度字段 JSON 结构必须严格符合：
 ${ANALYSIS_DEEP_JSON_SCHEMA}
 

@@ -420,6 +420,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     ungroundedEvidence?: number;
     ungroundedNumbers?: string[];
     ungroundedSentences?: Array<{ field: string; sentence: string; numbers: string[] }>;
+    audit?: { unsupportedClaims?: string[]; contradictions?: string[] };
   } | null>(null);
   /** 后台原文核验结果（轮询回填）。 */
   const [evidenceVerifyNote, setEvidenceVerifyNote] = useState<string | null>(null);
@@ -1487,7 +1488,9 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   notes.push(`另有 ${enrichQuality.ungroundedNumbers.length} 个数字未在原文出现`);
                 }
                 const sentences = enrichQuality.ungroundedSentences || [];
-                if (notes.length === 0 && sentences.length === 0) return null;
+                const auditClaims = enrichQuality.audit?.unsupportedClaims || [];
+                const auditContradictions = enrichQuality.audit?.contradictions || [];
+                if (notes.length === 0 && sentences.length === 0 && auditClaims.length === 0 && auditContradictions.length === 0) return null;
                 return (
                   <div className="space-y-1">
                     {notes.length > 0 && (
@@ -1500,6 +1503,17 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                         <li className="font-bold">以下句子含原文未出现的数字，请回原文核对：</li>
                         {sentences.slice(0, 3).map((s, i) => (
                           <li key={i}>· {s.field}「{s.sentence}」（{s.numbers.join('、')}）</li>
+                        ))}
+                      </ul>
+                    )}
+                    {(auditClaims.length > 0 || auditContradictions.length > 0) && (
+                      <ul className="text-[10px] text-rose-800 bg-rose-50 border border-rose-200 rounded-lg px-2.5 py-1.5 space-y-0.5 leading-relaxed">
+                        <li className="font-bold">模型自审提示（请重点核对）：</li>
+                        {auditClaims.slice(0, 3).map((claim, i) => (
+                          <li key={`u${i}`}>· 无依据：{claim}</li>
+                        ))}
+                        {auditContradictions.slice(0, 2).map((item, i) => (
+                          <li key={`c${i}`}>· 与原文矛盾：{item}</li>
                         ))}
                       </ul>
                     )}

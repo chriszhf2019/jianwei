@@ -17,6 +17,7 @@ import {
   sanitizeFrequencyAnalysis,
   sanitizeRegionImpact,
   sanitizeEnrichPayload,
+  promptFingerprint,
 } from "./aiValidation";
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
 import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
@@ -87,7 +88,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
     });
 
     const generated = await getOrCreateCached(key, async () => {
-      const text = await callAI(prompt, { json: true, temperature: 0.3 });
+      // 事实抽取值固定低温度，减少随机性，便于复现。
+      const text = await callAI(prompt, { json: true, temperature: 0.2 });
       let parsed: any;
       try {
         parsed = JSON.parse(text);
@@ -96,6 +98,11 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       }
       return sanitizeEnrichPayload(parsed);
     }, { force });
+    // 自审结果只用于质量报告，不写入语料。
+    const audit = generated.data?.audit && typeof generated.data.audit === "object" ? generated.data.audit : null;
+    if (generated.data && typeof generated.data === "object" && "audit" in generated.data) {
+      delete generated.data.audit;
+    }
     // 完整性：缺字段组时做一次定向补生成（只请求缺失组，不重复整篇）。
     const wasCached = generated.cached || generated.deduped;
     let raw = generated.data;
@@ -144,7 +151,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       corpus
     );
     const ungroundedSentences = findUngroundedSentences(parsed, corpus);
-    const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich);
+    const promptHash = promptFingerprint(prompt);
+    const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich, "ai_single", { temperature: 0.2, promptHash });
 
     // 深度解析结果写回语料：刷新后仍算“已深度解读”（当日口径的“深度解读”计数因此持久）
     if (articleId) {
@@ -180,7 +188,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       grounding.discardedQuotes > 0 ||
       grounding.ungroundedEvidence > 0 ||
       ungroundedNumbers.length > 0 ||
-      ungroundedSentences.length > 0
+      ungroundedSentences.length > 0 ||
+      (audit && ((Array.isArray(audit.unsupportedClaims) && audit.unsupportedClaims.length > 0) || (Array.isArray(audit.contradictions) && audit.contradictions.length > 0)))
         ? {
             quality: {
               retriedGroups: missingGroups,
@@ -189,6 +198,14 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
               ungroundedEvidence: grounding.ungroundedEvidence,
               ungroundedNumbers: ungroundedNumbers.slice(0, 8),
               ungroundedSentences,
+              ...(audit
+                ? {
+                    audit: {
+                      unsupportedClaims: Array.isArray(audit.unsupportedClaims) ? audit.unsupportedClaims.slice(0, 5) : [],
+                      contradictions: Array.isArray(audit.contradictions) ? audit.contradictions.slice(0, 3) : [],
+                    },
+                  }
+                : {}),
             },
           }
         : {}),
@@ -427,7 +444,7 @@ ${ANTI_BOILERPLATE_RULE}`;
           : cleaned;
       };
 
-      let value = parseOnce(await callAI(prompt, { json: true, temperature: 0.3 }));
+      let value = parseOnce(await callAI(prompt, { json: true, temperature: 0.2 }));
       // 具体性校验：过泛时带着问题重试一次；仍然过泛则拒收，避免把模板话写回语料。
       let check = findSpecificityIssues(value, effectiveContent);
       if (check.issues.length > 0) {
@@ -452,7 +469,8 @@ ${check.issues.map((issue) => `- ${issue}`).join("\n")}
       provider,
       model,
       PROMPT_VERSIONS.skill,
-      opts.certificationStandard || "ai_single"
+      opts.certificationStandard || "ai_single",
+      { temperature: 0.2, promptHash: promptFingerprint(prompt) }
     );
     if (target) {
       target[opts.field] = value;
@@ -805,7 +823,7 @@ ${extraContext || "（暂无；请基于标题与常识，信息不足时在 sce
 
   try {
     const generated = await getOrCreateCached(cacheKey, async () => {
-      const text = await callAI(prompt, { json: true, temperature: 0.3 });
+      const text = await callAI(prompt, { json: true, temperature: 0.2 });
       let parsed: any;
       try {
         parsed = JSON.parse(text);
@@ -815,7 +833,7 @@ ${extraContext || "（暂无；请基于标题与常识，信息不足时在 sce
       return Array.isArray(parsed) ? parsed[0] : parsed?.bull && parsed?.bear ? parsed : parsed?.personaForecast;
     });
     const stamped = upsertWrite(generated.data || {});
-    const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.skill);
+    const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.skill, "ai_single", { temperature: 0.2, promptHash: promptFingerprint(prompt) });
     if (target) attachFieldMeta(target, ["personaForecasts"], fieldMeta);
     const quota = chargeGuestDeepSuccess(req, articleId ? String(articleId) : undefined);
     return res.json({
