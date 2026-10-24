@@ -174,39 +174,51 @@ export const AdminConsoleView: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs Bar */}
-      <div className="flex border-b-2 border-stone-900 space-x-2 sm:space-x-4 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'database', label: '数据库与分析语料', icon: <Database className="w-4 h-4 text-emerald-600" />, badge: '持久化复用' },
-          { id: 'behavior_logs', label: '系统行为日志', icon: <Activity className="w-4 h-4 text-[#E3120B]" />, badge: '审计核心' },
-          { id: 'keys', label: '全局 AI 引擎与模型中枢', icon: <Key className="w-4 h-4 text-amber-600" /> },
-          { id: 'feeds', label: '全局信源管道与数据源', icon: <Rss className="w-4 h-4 text-purple-600" /> },
-          { id: 'taxonomy', label: '行业板块与关键词规则', icon: <Layers className="w-4 h-4 text-blue-600" /> },
-          { id: 'users', label: '用户账号与权限分配', icon: <Users className="w-4 h-4 text-emerald-600" /> },
-          { id: 'activity', label: '使用情况与活跃画像', icon: <BarChart3 className="w-4 h-4 text-stone-700" /> },
-          { id: 'audit', label: '安全审计与数据备份', icon: <FileText className="w-4 h-4 text-stone-600" /> },
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as AdminTab)}
-              className={`pb-3 px-3 text-xs sm:text-sm font-serif font-bold flex items-center space-x-2 border-b-4 -mb-[2px] transition-all whitespace-nowrap cursor-pointer ${
-                isActive
-                  ? 'border-[#E3120B] text-stone-950'
-                  : 'border-transparent text-stone-500 hover:text-stone-900'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-              {tab.badge && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#E3120B] text-white">
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* Navigation Tabs Bar：按「数据 / 模型 / 审计」分组，移动端横向滑动 */}
+      <div className="border-b-2 border-stone-900">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+          {[
+            { group: '数据与内容', id: 'database', label: '数据库与分析语料', icon: <Database className="w-4 h-4 text-emerald-600" />, badge: '持久化复用' },
+            { group: '数据与内容', id: 'feeds', label: '全局信源管道与数据源', icon: <Rss className="w-4 h-4 text-purple-600" /> },
+            { group: '数据与内容', id: 'taxonomy', label: '行业板块与关键词规则', icon: <Layers className="w-4 h-4 text-blue-600" /> },
+            { group: '模型与权限', id: 'keys', label: '全局 AI 引擎与模型中枢', icon: <Key className="w-4 h-4 text-amber-600" /> },
+            { group: '模型与权限', id: 'users', label: '用户账号与权限分配', icon: <Users className="w-4 h-4 text-emerald-600" /> },
+            { group: '运行与审计', id: 'behavior_logs', label: '系统行为日志', icon: <Activity className="w-4 h-4 text-[#E3120B]" />, badge: '审计核心' },
+            { group: '运行与审计', id: 'activity', label: '使用情况与活跃画像', icon: <BarChart3 className="w-4 h-4 text-stone-700" /> },
+            { group: '运行与审计', id: 'audit', label: '安全审计与数据备份', icon: <FileText className="w-4 h-4 text-stone-600" /> },
+          ].map((tab, index, all) => {
+            const isActive = activeTab === tab.id;
+            const startsGroup = index === 0 || all[index - 1].group !== tab.group;
+            return (
+              <div key={tab.id} className="flex items-center shrink-0">
+                {startsGroup && index > 0 && (
+                  <span className="mx-2 h-5 w-px bg-stone-300" aria-hidden="true" />
+                )}
+                {startsGroup && (
+                  <span className="text-[10px] font-mono text-stone-400 mr-1 hidden lg:inline uppercase tracking-wide">
+                    {tab.group}
+                  </span>
+                )}
+                <button
+                  onClick={() => setActiveTab(tab.id as AdminTab)}
+                  className={`pb-3 px-2.5 sm:px-3 text-xs sm:text-sm font-serif font-bold flex items-center space-x-1.5 border-b-4 -mb-[2px] transition-all whitespace-nowrap cursor-pointer snap-start ${
+                    isActive
+                      ? 'border-[#E3120B] text-stone-950'
+                      : 'border-transparent text-stone-500 hover:text-stone-900'
+                  }`}
+                >
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#E3120B] text-white">
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <DatabaseTab s={adminScope} />

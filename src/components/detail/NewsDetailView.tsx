@@ -1745,7 +1745,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
       {/* 4-Stage Cognitive Path Navigation Tabs */}
       <div id="detail-tabs-container" className="sticky top-28 lg:top-16 z-30 bg-[#FAF8F5]/95 backdrop-blur-md pt-2 border-b-2 border-stone-900 scroll-mt-24">
-        <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex items-center space-x-1 sm:space-x-2 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-2">
 
           {tabsList.map((tab) => {
             const isActive = activeTab === tab.id;

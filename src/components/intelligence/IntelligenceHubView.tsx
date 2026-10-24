@@ -163,7 +163,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         </p>
       </details>
 
-      <div className="sticky top-[6.5rem] sm:top-[7rem] z-20 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-stone-200 bg-[#FAF8F5]/95 backdrop-blur-md py-2 -mx-1 px-1">
+      <div className="sticky top-[6.5rem] sm:top-[7rem] z-20 flex items-center gap-1.5 overflow-x-auto snap-x snap-mandatory no-scrollbar border-b border-stone-200 bg-[#FAF8F5]/95 backdrop-blur-md py-2 -mx-1 px-1">
         {sections.map((item) => (
           <button
             key={item.id}
