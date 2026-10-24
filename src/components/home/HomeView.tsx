@@ -33,7 +33,6 @@ export type NewsSkill =
   | 'dehydrate'
   | 'interpret'
   | 'sevenw'
-  | 'verdict'
   | 'trend'
   | 'risk'
   | 'timeline'
