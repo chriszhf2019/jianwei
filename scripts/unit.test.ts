@@ -72,6 +72,7 @@ import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches, detectDomains, NEWS_INTEREST_GROUPS, SECTOR_DOMAINS } from '../src/utils/sectorTaxonomy';
 import { buildTopicClusters } from '../src/utils/topicCluster';
+import { findSpecificityIssues } from '../src/server/aiSpecificity';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
 import {
@@ -2132,4 +2133,26 @@ test('topicCluster: 无实体标注时提高门槛，弱相似不聚合', () => 
     mk('b', '海光信息发布第三季度财报，净利润同比增长 37.9%', '业绩超预期。', '2026-10-20T09:00:00Z'),
   ];
   assert.ok(buildTopicClusters(strong as any, 12).length >= 1);
+});
+
+test('aiSpecificity: 模板话被识别，具体输出通过', () => {
+  const source = '海光信息发布 2026 年第三季度财报：归母净利润 10.48 亿元，同比增长 37.9%，高于市场一致预期。公司同时上调全年营收指引，并宣布新的回购计划，管理层在业绩说明会上表示第四季度产能利用率将维持高位。';
+
+  // 零实体零数字 → 不合格
+  const generic = findSpecificityIssues(
+    '产业周期调整与市场竞争加剧，行业集中度提升，政策支持明确，长期向好。',
+    source,
+  );
+  assert.ok(generic.issues.length > 0);
+
+  // 引用具体数字 → 合格
+  const specific = findSpecificityIssues(
+    '海光信息第三季度归母净利润 10.48 亿元，同比增长 37.9%，并上调全年指引。',
+    source,
+  );
+  assert.equal(specific.issues.length, 0);
+
+  // 输入太短时跳过（无法要求具体性）
+  const short = findSpecificityIssues('产业周期调整', '短标题');
+  assert.equal(short.issues.length, 0);
 });
