@@ -60,10 +60,11 @@ import {
   Share2, 
   Bot, 
   Send, 
-  RefreshCw, 
-  Sparkles, 
-  Printer, 
+  RefreshCw,
+  Sparkles,
+  Printer,
   Check,
+  CheckCircle2,
   Download,
   FileImage,
   HelpCircle,
@@ -661,6 +662,23 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     }
   };
 
+  // 核验与质量摘要：用于详情页顶部的紧凑状态条。
+  const qualityIssueCount =
+    (enrichQuality?.missingGroups?.length ? 1 : 0) +
+    (enrichQuality?.discardedQuotes ? 1 : 0) +
+    (enrichQuality?.ungroundedEvidence ? 1 : 0) +
+    (enrichQuality?.ungroundedNumbers?.length ? 1 : 0) +
+    (enrichQuality?.ungroundedSentences?.length ? 1 : 0) +
+    ((enrichQuality?.audit?.unsupportedClaims?.length || 0) > 0 ? 1 : 0) +
+    ((enrichQuality?.audit?.contradictions?.length || 0) > 0 ? 1 : 0);
+  const crossCheckLabel = crossCheck
+    ? crossCheck.verdict === 'consistent'
+      ? '核心结论一致'
+      : crossCheck.verdict === 'partial'
+        ? '部分不一致'
+        : '与原文矛盾'
+    : '';
+
   return (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 font-sans ${readingDensity === 'compact' ? 'py-4' : 'py-8'}`}>
       {/* 顶部与滚动同步的高精度渐变色阅读进度条 (Top Synchronous Gradient Progress Bar) */}
@@ -1174,6 +1192,37 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           />
         </p>
 
+        {/* 状态徽章行：来源 / 原文链接 / 解读深度 / 多源转载 / 证据条数，先给读者一个整体判断 */}
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
+          <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300">
+            信源：{article.sourceName || '未知'}
+          </span>
+          <span className={`px-2 py-0.5 rounded-full border ${
+            article.sourceUrl
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+              : 'bg-amber-50 text-amber-800 border-amber-300'
+          }`}>
+            {article.sourceUrl ? '有原文链接' : '无原文链接'}
+          </span>
+          <span className={`px-2 py-0.5 rounded-full border ${
+            isShallow
+              ? 'bg-amber-50 text-amber-800 border-amber-300'
+              : 'bg-sky-50 text-sky-800 border-sky-300'
+          }`}>
+            {isShallow ? '浅层 · 未深度解读' : '已深度解读'}
+          </span>
+          {(article.sourceOccurrences?.length || 0) > 1 && (
+            <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-300">
+              多源转载 ×{article.sourceOccurrences!.length}
+            </span>
+          )}
+          {Array.isArray(article.evidenceChain) && article.evidenceChain.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300">
+              证据链 {article.evidenceChain.length} 条
+            </span>
+          )}
+        </div>
+
         {/* High Contrast Verdict Box */}
         <div className="bg-[#FAF8F5] border-l-4 border-[#E3120B] p-5 sm:p-6 rounded-r-2xl shadow-xs space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/80 pb-2.5">
@@ -1462,20 +1511,86 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
       {enrichPhase === 'done' && (
         <div
           id="enrich-success-banner"
-          className="bg-emerald-50/80 border border-emerald-200 rounded-xl px-4 py-3 flex flex-col gap-3"
+          className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 space-y-3"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <div className="text-sm font-serif font-bold text-stone-900">深度分析已完成</div>
-              <p className="text-xs text-stone-600 mt-0.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-sm font-serif font-bold text-stone-900">深度分析已完成</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {evidenceVerifyNote && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-800 border border-sky-300">
+                    {evidenceVerifyNote}
+                  </span>
+                )}
+                {crossCheck && (
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                      crossCheck.verdict === 'consistent'
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : crossCheck.verdict === 'partial'
+                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                          : 'bg-rose-100 text-rose-800 border-rose-300'
+                    }`}
+                  >
+                    交叉复核（{crossCheck.provider}）：{crossCheckLabel}
+                  </span>
+                )}
+                {qualityIssueCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    质量/自审提示 {qualityIssueCount} 项
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    已通过具体性与接地检查
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-stone-600">
                 已解锁事实全貌、框架总览与深度篇章。
                 {postEnrichQuotaNote ? ` ${postEnrichQuotaNote}。` : ''}
                 {onDepositToKnowledge
                   ? deposited
                     ? ' 本篇已写入服务端知识库。'
-                    : ' 可将研判要点存入服务端知识库（登录后可跨设备检索）。'
+                    : ' 可存入服务端知识库（登录后可跨设备检索）。'
                   : ''}
               </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={landOnUnlockedModules}
+                className="px-4 py-2.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <ArrowRight className="w-3.5 h-3.5" />
+                <span>查看已解锁模块</span>
+              </button>
+              {onDepositToKnowledge && (
+                <button
+                  type="button"
+                  onClick={handleDeposit}
+                  disabled={deposited}
+                  className={`px-4 py-2.5 rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    deposited
+                      ? 'bg-emerald-600 text-white opacity-90'
+                      : 'bg-white border border-emerald-300 text-emerald-900 hover:bg-emerald-100'
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{deposited ? '已存入知识库' : '存入知识库'}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <details className="rounded-lg border border-emerald-200 bg-white/70">
+            <summary className="cursor-pointer list-none px-3 py-2 flex items-center justify-between gap-2 text-[11px] font-serif font-bold text-stone-700 hover:bg-emerald-50/60 rounded-lg">
+              <span>查看核验与质量详情</span>
+              <span className="text-[10px] font-mono text-stone-400">点击展开</span>
+            </summary>
+            <div className="px-3 pb-3 space-y-2">
               {enrichQuality && (() => {
                 const notes: string[] = [];
                 if (enrichQuality.missingGroups?.length) {
@@ -1523,11 +1638,6 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   </div>
                 );
               })()}
-              {evidenceVerifyNote && (
-                <p className="text-[10px] text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
-                  {evidenceVerifyNote}
-                </p>
-              )}
               {crossCheck && (
                 <div
                   className={`text-[10px] rounded-lg px-2.5 py-1.5 leading-relaxed border ${
@@ -1539,12 +1649,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   }`}
                 >
                   <div className="font-bold">
-                    交叉复核（{crossCheck.provider}）：
-                    {crossCheck.verdict === 'consistent'
-                      ? '核心结论一致'
-                      : crossCheck.verdict === 'partial'
-                        ? '部分不一致'
-                        : '与原文矛盾'}
+                    交叉复核（{crossCheck.provider} · {crossCheck.model}）：{crossCheckLabel}
                   </div>
                   {crossCheck.unsupportedClaims.slice(0, 3).map((claim, i) => (
                     <div key={`cu${i}`}>· 无依据：{claim}</div>
@@ -1554,33 +1659,11 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   ))}
                 </div>
               )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <button
-                type="button"
-                onClick={landOnUnlockedModules}
-                className="px-4 py-2.5 bg-stone-900 hover:bg-[#E3120B] text-white rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <ArrowRight className="w-3.5 h-3.5" />
-                <span>查看已解锁模块</span>
-              </button>
-              {onDepositToKnowledge && (
-                <button
-                  type="button"
-                  onClick={handleDeposit}
-                  disabled={deposited}
-                  className={`px-4 py-2.5 rounded-lg text-xs font-serif font-bold inline-flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                    deposited
-                      ? 'bg-emerald-600 text-white opacity-90'
-                      : 'bg-white border border-emerald-300 text-emerald-900 hover:bg-emerald-100'
-                  }`}
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>{deposited ? '已存入知识库' : '存入知识库'}</span>
-                </button>
+              {!qualityIssueCount && !crossCheck && (
+                <p className="text-[10px] text-stone-500">本次未发现需要额外提示的问题。</p>
               )}
             </div>
-          </div>
+          </details>
         </div>
       )}
 
