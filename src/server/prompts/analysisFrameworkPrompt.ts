@@ -126,8 +126,17 @@ export const ANALYSIS_DEEP_JSON_SCHEMA = `{
   }
 }`;
 
+/** 反套话硬约束：所有分析 prompt（enrich/analyze/skill）共用，可追加到任意 prompt 末尾。 */
+export const ANTI_BOILERPLATE_RULE = `【具体性规则（必须遵守）】
+1. 每个分析字段必须至少引用一个来自输入材料的专有名词、机构名、产品名、数字、时间或明确动作；不得只给行业通用判断。
+2. 禁止只写以下这类换个新闻也成立的套话：「产业周期调整」「市场竞争加剧」「技术进步驱动」「地缘政治影响」「供需失衡」「行业集中度提升」「政策支持明确」「结构性调整」「资本市场波动」「长期向好」——除非紧接着给出输入材料中的具体证据（谁、什么数字、什么动作）。
+3. 输入材料不足以支撑某字段时，直接写「现有材料未说明」，不要用合理推测填充。
+4. 一句话定性必须包含事件主体与具体变化（数字/时间/对象至少其一），不得复述标题。
+5. 禁止把「可能/取决于」当成不写具体事实的借口：先给具体事实，再给条件推断。`;
+
 export const ANALYSIS_SHARED_RULES = `【核心语言规则】：无论输入的原始标题、正文或信源语言是英文还是中文，你必须一律且百分之百使用规范、专业、精辟的【简体中文】输出所有的分析字段（包括 subtitle、oneSentenceVerdict、summary、sevenElements、logicTree、tongsuSummary、dehydratedItems、bullBearDebate、coreLogic 等全量字段，不得残留英文长句或段落）。
 请遵循“报刊为骨，数据为翼”，避免臆造硬数据；无法核实的数字用定性表述。
+${ANTI_BOILERPLATE_RULE}
 多源规则：multiSources 只能列出输入材料中明确出现、且能找到对应表述的来源。没有可核验来源线索时必须返回 []，不得根据常识补媒体名或把模型记忆当作“已核实”。
 证据边界：
 1. evidenceChain.sourceFact 只能引用输入材料中的事实、数字或可解析出处；输入未提供的硬数据不得生成。

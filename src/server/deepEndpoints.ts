@@ -18,7 +18,8 @@ import {
   sanitizeRegionImpact,
   sanitizeEnrichPayload,
 } from "./aiValidation";
-import { buildAnalysisFrameworkPrompt } from "./prompts/analysisFrameworkPrompt";
+import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
+import { findSpecificityIssues } from "./aiSpecificity";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 const HARDWARE_ANALYSIS_RULE = `【硬件/产品新闻专用规则】
 1. 涉及硬件参数（屏幕、芯片、电池、影像、快充等）时，必须把参数翻译成用户可感知的体验或代价（例如：2K+185Hz → DDIC 功耗与续航下降、主流手游原生帧率上限、MEMC 插帧延迟与伪影；大电池 → 机身重量/厚度）。
@@ -333,29 +334,51 @@ async function runSingleSkill(
     PROMPT_VERSIONS.skill,
   ].join("\n"))}`;
 
-  const prompt = opts.buildPrompt({
+  const prompt = `${opts.buildPrompt({
     title: String(title || "无标题"),
     source: String(source || "外部信源"),
     sourceUrl: String(sourceUrl || ""),
     publishedAt: String(publishedAt || ""),
     category: String(category || "外部信源"),
     content: effectiveContent || "请基于标题讲解",
-  });
+  })}
+
+${ANTI_BOILERPLATE_RULE}`;
   try {
     const generated = await getOrCreateCached(cacheKey, async () => {
-      const text = await callAI(prompt, { json: true, temperature: 0.3 });
-      let parsed: any;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
+      const parseOnce = (text: string) => {
+        let parsed: any;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
+        }
+        const cleaned = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? sanitizeEnrichPayload(parsed)
+          : parsed;
+        return cleaned?.[opts.field] && typeof cleaned[opts.field] === "object"
+          ? cleaned[opts.field]
+          : cleaned;
+      };
+
+      let value = parseOnce(await callAI(prompt, { json: true, temperature: 0.3 }));
+      // 具体性校验：过泛时带着问题重试一次；仍然过泛则拒收，避免把模板话写回语料。
+      let check = findSpecificityIssues(value, effectiveContent);
+      if (check.issues.length > 0) {
+        const retryPrompt = `${prompt}
+
+【上次输出不合格，必须修正】
+${check.issues.map((issue) => `- ${issue}`).join("\n")}
+请重写，必须逐项引用输入材料中的具体实体、数字、时间或动作；无法核实就写「现有材料未说明」。`;
+        value = parseOnce(await callAI(retryPrompt, { json: true, temperature: 0.2 }));
+        check = findSpecificityIssues(value, effectiveContent);
+        if (check.issues.length > 0) {
+          const err: any = new Error(`insufficient_specificity: ${check.issues.join("; ")}`);
+          err.code = "insufficient_specificity";
+          throw err;
+        }
       }
-      const cleaned = parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? sanitizeEnrichPayload(parsed)
-        : parsed;
-      return cleaned?.[opts.field] && typeof cleaned[opts.field] === "object"
-        ? cleaned[opts.field]
-        : cleaned;
+      return value;
     });
     const value = generated.data;
     const wasCached = generated.cached || generated.deduped;
@@ -388,6 +411,13 @@ async function runSingleSkill(
     });
   } catch (err: any) {
     console.error(`${opts.skillKey} error:`, err);
+    if (err?.code === "insufficient_specificity" || String(err?.message || "").startsWith("insufficient_specificity")) {
+      return res.json({
+        ok: false,
+        reason: "insufficient_specificity",
+        message: "模型输出过于笼统，缺少输入材料中的具体事实，已拒绝写入。请补充原文或重试。",
+      });
+    }
     res.json({ ok: false, reason: "error" });
   }
 }
