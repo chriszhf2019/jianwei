@@ -420,6 +420,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     ungroundedEvidence?: number;
     ungroundedNumbers?: string[];
   } | null>(null);
+  /** 后台原文核验结果（轮询回填）。 */
+  const [evidenceVerifyNote, setEvidenceVerifyNote] = useState<string | null>(null);
   const enrichAbortRef = useRef<AbortController | null>(null);
   const enrichCtaRef = useRef<HTMLDivElement | null>(null);
 
@@ -467,6 +469,37 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     }
   };
 
+  /** enrich 响应后，后台会抓原文核验引句；这里最多轮询 3 次把结果回填到页面。 */
+  const pollEvidenceVerification = (articleId: string, attempt = 0) => {
+    if (attempt >= 3) return;
+    window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/corpus/item/${encodeURIComponent(articleId)}`);
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          const fetched = data?.article;
+          const evidence = Array.isArray(fetched?.evidenceChain) ? fetched.evidenceChain : [];
+          const hasResult = evidence.some(
+            (ev: any) =>
+              ev?.verificationNote === '原文引句匹配' ||
+              String(ev?.verificationNote || '').includes('原文页面未找到')
+          );
+          if (fetched && onEnrichArticle && (hasResult || attempt === 2)) {
+            onEnrichArticle(fetched as NewsArticle);
+          }
+          if (hasResult) {
+            const verified = evidence.filter((ev: any) => ev?.verificationStatus === 'linked').length;
+            setEvidenceVerifyNote(`原文核验：${verified}/${evidence.length} 条引句在原文页面匹配`);
+            return;
+          }
+        }
+      } catch {
+        /* 轮询失败时静默，不影响主流程 */
+      }
+      pollEvidenceVerification(articleId, attempt + 1);
+    }, 4000);
+  };
+
   const handleGenerateDeepAnalysis = async () => {
     if (!isShallow || enrichPhase === 'loading') return;
     enrichAbortRef.current?.abort();
@@ -476,6 +509,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     setEnrichError(null);
     setPostEnrichQuotaNote(null);
     setEnrichQuality(null);
+    setEvidenceVerifyNote(null);
     enrichCtaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const response = await fetch('/api/enrich', {
@@ -502,6 +536,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         setEnrichPhase('done');
         setEnrichError(null);
         setEnrichQuality(json.quality && typeof json.quality === 'object' ? json.quality : null);
+        pollEvidenceVerification(article.id);
         // 成功后直接落到已解锁的第一篇，避免用户停在空深 Tab / MissingDeep
         landOnUnlockedModules();
       } else if (json?.reason === 'no_api_key') {
@@ -1457,6 +1492,11 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                   </p>
                 );
               })()}
+              {evidenceVerifyNote && (
+                <p className="text-[10px] text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                  {evidenceVerifyNote}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button

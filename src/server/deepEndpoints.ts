@@ -21,6 +21,7 @@ import {
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
 import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
 import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers } from "./enrichQuality";
+import { verifyEvidenceChainInBackground } from "./evidenceVerification";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 export interface RateLimiter { (req: express.Request, res: express.Response, next: express.NextFunction): void; }
 export function registerDeepEndpoints(app: express.Express, limit: RateLimiter): void {
@@ -190,6 +191,11 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
         : {}),
       ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
+
+    // 响应返回后，后台抓原文核验引句（不阻塞、同一篇 6 小时内只跑一次）。
+    if (articleId) {
+      setTimeout(() => verifyEvidenceChainInBackground(String(articleId)), 1500);
+    }
   } catch (err: any) {
     console.error("Enrich error:", err);
     res.json({ enriched: false, reason: "error" });
