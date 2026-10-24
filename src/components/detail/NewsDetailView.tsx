@@ -746,7 +746,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
               </div>
             </div>
 
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center flex-wrap gap-2 sm:gap-3">
           <button
             onClick={onToggleBookmark}
             className={`p-2 rounded-lg border transition-colors ${
@@ -1194,17 +1194,17 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
 
         {/* 状态徽章行：来源 / 原文链接 / 解读深度 / 多源转载 / 证据条数，先给读者一个整体判断 */}
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-mono">
-          <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300">
+          <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300 whitespace-nowrap">
             信源：{article.sourceName || '未知'}
           </span>
-          <span className={`px-2 py-0.5 rounded-full border ${
+          <span className={`px-2 py-0.5 rounded-full border whitespace-nowrap ${
             article.sourceUrl
               ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
               : 'bg-amber-50 text-amber-800 border-amber-300'
           }`}>
             {article.sourceUrl ? '有原文链接' : '无原文链接'}
           </span>
-          <span className={`px-2 py-0.5 rounded-full border ${
+          <span className={`px-2 py-0.5 rounded-full border whitespace-nowrap ${
             isShallow
               ? 'bg-amber-50 text-amber-800 border-amber-300'
               : 'bg-sky-50 text-sky-800 border-sky-300'
@@ -1212,12 +1212,12 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             {isShallow ? '浅层 · 未深度解读' : '已深度解读'}
           </span>
           {(article.sourceOccurrences?.length || 0) > 1 && (
-            <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-300">
+            <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-300 whitespace-nowrap">
               多源转载 ×{article.sourceOccurrences!.length}
             </span>
           )}
           {Array.isArray(article.evidenceChain) && article.evidenceChain.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300">
+            <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300 whitespace-nowrap">
               证据链 {article.evidenceChain.length} 条
             </span>
           )}
