@@ -45,6 +45,8 @@ interface HeaderProps {
   sentimentScope?: 'today' | '30d';
   /** 仅管理员可见「管理端」导航 */
   isAdmin?: boolean;
+  /** 到期待回测的预测契约数（只提醒，不自动裁决）。 */
+  focusDueCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -60,6 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCompetitorRadar,
   onOpenArchitectureDiagram,
   isAdmin = false,
+  focusDueCount = 0,
 }) => {
   const [showPersonaMenu, setShowPersonaMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -400,6 +403,14 @@ export const Header: React.FC<HeaderProps> = ({
                   >
                     <span className="sm:hidden">{item.shortLabel}</span>
                     <span className="hidden sm:inline">{item.label}</span>
+                    {item.id === 'my_focus' && focusDueCount > 0 && (
+                      <span
+                        className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-[#E3120B] text-white text-[10px] font-mono font-bold align-top"
+                        title={`${focusDueCount} 条预测待回测（只提醒，不自动裁决）`}
+                      >
+                        {focusDueCount > 99 ? '99+' : focusDueCount}
+                      </span>
+                    )}
                   </span>
                 </button>
               );

@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useCallback, useMemo } from 'react';
 import { NewsArticle } from './types';
 
 import { deriveUiTopicClusters } from './utils/topicDossiers';
+import { predictionDueInfo } from './utils/predictionLedger';
 import { Header } from './components/Header';
 import { HomeView } from './components/home/HomeView';
 import { AuthGate } from './components/AuthGate';
@@ -140,6 +141,14 @@ export const App: React.FC = () => {
   const modals = useModalStack();
   const { authUser } = useAuth();
   const isAdmin = authUser?.role === 'admin' && !authUser?.isGuest;
+  // 到期提醒：逾期/今日到期/即将到期的预测契约数；只做提醒，不自动裁决结果。
+  const focusDueCount = useMemo(
+    () =>
+      predictionContracts.filter((c) =>
+        ['overdue', 'due_today', 'due_soon'].includes(predictionDueInfo(c.targetVerificationDate, c.status).state)
+      ).length,
+    [predictionContracts]
+  );
   const [activeIntelligenceTool, setActiveIntelligenceTool] = React.useState<IntelligenceToolType | null>(null);
 
   useEffect(() => {
@@ -211,6 +220,7 @@ export const App: React.FC = () => {
         onOpenCompetitorRadar={() => setActiveIntelligenceTool('radar')}
         onOpenArchitectureDiagram={() => setActiveIntelligenceTool('architecture')}
         isAdmin={isAdmin}
+        focusDueCount={focusDueCount}
       />
 
       <AuthGate />
