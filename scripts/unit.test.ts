@@ -73,7 +73,7 @@ import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches, detectDomains, NEWS_INTEREST_GROUPS, SECTOR_DOMAINS } from '../src/utils/sectorTaxonomy';
 import { buildTopicClusters } from '../src/utils/topicCluster';
 import { findSpecificityIssues, stripGenericFields } from '../src/server/aiSpecificity';
-import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers } from '../src/server/enrichQuality';
+import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers, findUngroundedSentences } from '../src/server/enrichQuality';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
 import {
@@ -2213,4 +2213,16 @@ test('enrichQuality: 完整性检查 + 证据接地 + 数字核验', () => {
 
   assert.deepEqual(findUngroundedNumbers('增长 37.90%，利润 10.48 亿元', corpus), []);
   assert.ok(findUngroundedNumbers('增长 88%', corpus).includes('88%'));
+});
+
+test('enrichQuality: 逐句标出未接地数字', () => {
+  const corpus = '海光信息发布 2026 年第三季度财报：归母净利润 10.48 亿元，同比增长 37.9%，高于市场一致预期。';
+  const payload = {
+    oneSentenceVerdict: '海光信息第三季度净利润 10.48 亿元，同比增长 37.9%。',
+    summary: '公司毛利率提升至 62.4%，并宣布新的回购计划。',
+  };
+  const sentences = findUngroundedSentences(payload, corpus);
+  assert.equal(sentences.length, 1);
+  assert.equal(sentences[0].field, '摘要');
+  assert.ok(sentences[0].numbers.includes('62.4%'));
 });

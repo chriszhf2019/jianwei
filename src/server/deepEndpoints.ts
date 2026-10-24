@@ -20,7 +20,7 @@ import {
 } from "./aiValidation";
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
 import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
-import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers } from "./enrichQuality";
+import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers, findUngroundedSentences } from "./enrichQuality";
 import { verifyEvidenceChainInBackground } from "./evidenceVerification";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 export interface RateLimiter { (req: express.Request, res: express.Response, next: express.NextFunction): void; }
@@ -143,6 +143,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       },
       corpus
     );
+    const ungroundedSentences = findUngroundedSentences(parsed, corpus);
     const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich);
 
     // 深度解析结果写回语料：刷新后仍算“已深度解读”（当日口径的“深度解读”计数因此持久）
@@ -178,7 +179,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       remainingMissing.length > 0 ||
       grounding.discardedQuotes > 0 ||
       grounding.ungroundedEvidence > 0 ||
-      ungroundedNumbers.length > 0
+      ungroundedNumbers.length > 0 ||
+      ungroundedSentences.length > 0
         ? {
             quality: {
               retriedGroups: missingGroups,
@@ -186,6 +188,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
               discardedQuotes: grounding.discardedQuotes,
               ungroundedEvidence: grounding.ungroundedEvidence,
               ungroundedNumbers: ungroundedNumbers.slice(0, 8),
+              ungroundedSentences,
             },
           }
         : {}),

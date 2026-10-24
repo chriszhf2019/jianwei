@@ -117,3 +117,69 @@ export function groundEvidence(payload: any, corpus: string): GroundingResult {
   }
   return { payload, discardedQuotes, ungroundedEvidence };
 }
+
+export interface UngroundedSentence {
+  field: string;
+  sentence: string;
+  numbers: string[];
+}
+
+const NARRATIVE_FIELDS: Array<{ label: string; path: string[] }> = [
+  { label: '一句话定性', path: ['oneSentenceVerdict'] },
+  { label: '摘要', path: ['summary'] },
+  { label: '7W·what', path: ['sevenElements', 'what'] },
+  { label: '7W·why', path: ['sevenElements', 'why'] },
+  { label: '7W·soWhat', path: ['sevenElements', 'soWhat'] },
+  { label: '因果根因', path: ['logicTree', 'rootCause'] },
+  { label: '底层逻辑', path: ['coreLogic', 'essence'] },
+];
+
+function readPath(root: any, path: string[]): unknown {
+  let cur = root;
+  for (const key of path) {
+    if (!cur || typeof cur !== 'object') return undefined;
+    cur = cur[key];
+  }
+  return cur;
+}
+
+/** 逐句找出含「输入材料中未出现数字」的句子，返回可定位的清单（最多 limit 条）。 */
+export function findUngroundedSentences(payload: any, corpus: string, limit = 5): UngroundedSentence[] {
+  if (!corpus || corpus.trim().length < 40) return [];
+  const out: UngroundedSentence[] = [];
+
+  const scan = (field: string, value: unknown) => {
+    if (out.length >= limit) return;
+    const texts = Array.isArray(value) ? value : [value];
+    for (const text of texts) {
+      if (typeof text !== 'string' || !text.trim()) continue;
+      for (const raw of text.split(/[。；！？\n]/)) {
+        const sentence = raw.trim();
+        if (sentence.length < 6) continue;
+        const numbers = findUngroundedNumbers(sentence, corpus);
+        if (numbers.length > 0) {
+          out.push({ field, sentence: sentence.slice(0, 140), numbers: numbers.slice(0, 3) });
+          if (out.length >= limit) return;
+        }
+      }
+    }
+  };
+
+  for (const { label, path } of NARRATIVE_FIELDS) scan(label, readPath(payload, path));
+
+  // 数组型论点
+  const debate = payload?.bullBearDebate;
+  if (debate && typeof debate === 'object') {
+    for (const side of ['bull', 'bear'] as const) {
+      const items = Array.isArray((debate as any)[side]) ? (debate as any)[side] : [];
+      for (const item of items) {
+        scan(side === 'bull' ? '正方论点' : '反方论点', item?.point);
+        if (out.length >= limit) break;
+      }
+    }
+  }
+  scan('关键变化', payload?.dehydratedItems?.coreShifts);
+  scan('影响要点', payload?.dehydratedItems?.impactHighlights);
+
+  return out.slice(0, limit);
+}
