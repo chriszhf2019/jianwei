@@ -20,6 +20,7 @@ import type { RegionScope } from '../types';
 import { MethodBadge } from './common/MethodBadge';
 import { KeyTermHighlight } from './common/KeyTermHighlight';
 import { FeatureSummary } from './common/FeatureSummary';
+import { EmptyState } from './common/EmptyState';
 import type { FeatureSummaryId } from '../utils/featureSummaries';
 
 type RegionSection = 'matrix' | 'flow' | 'entities' | 'drill' | 'aggregate';
@@ -435,7 +436,25 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
         <p className="mt-1.5">地区优先按事件发生地展示，其次实际受影响地；旧数据保持范围未标，不自动推断。</p>
       </details>
 
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-stone-200 pb-2">
+      {filtered.length === 0 && (
+        <EmptyState
+          title="当前筛选下没有匹配条目"
+          reason={
+            enrichedArticles.length === 0
+              ? '当前语料为空：先配置 RSS 并执行摄取，或在上方启动全量标注。'
+              : '试试把「时间范围」改为全部，或放宽「地区范围 / 模型自评分」。'
+          }
+          actionLabel="重置筛选"
+          onAction={() => {
+            setRange('all');
+            setConfMin(0);
+            setRegionScope('all');
+          }}
+          compact
+        />
+      )}
+
+      <div className="sticky top-[6.5rem] sm:top-[7rem] z-20 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-stone-200 bg-[#FAF8F5]/95 backdrop-blur-md py-2 -mx-1 px-1">
         {sections.map((item) => (
           <button
             key={item.id}
