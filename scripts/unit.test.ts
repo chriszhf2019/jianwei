@@ -1314,7 +1314,9 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   assert.equal(settings.includes('测试推送已成功发送'), false);
 
   const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
-  assert.match(home, /贴链接，读懂一条新闻/);
+  // 「读懂新闻」入口只保留全局 Header，首页不再重复同一条 CTA
+  assert.equal(home.includes('贴链接，读懂一条新闻'), false);
+  assert.match(home, /FirstExperienceSample/);
   assert.match(home, /今日词典摘要与词频（可展开）/);
   assert.match(home, /浏览器朗读/);
 
@@ -1328,6 +1330,7 @@ test('信任余项：推送不伪装成功、首页先贴链接、因果图无�
   assert.match(modal, /AbortController/);
 
   const header = fs.readFileSync(path.join(process.cwd(), 'src/components/Header.tsx'), 'utf8');
+  assert.match(header, /读懂新闻/);
   assert.match(header, /shortLabel/);
   assert.match(header, /MoreHorizontal/);
   assert.match(header, /浏览器朗读/);
