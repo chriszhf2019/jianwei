@@ -22,6 +22,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { KeyTermHighlight } from '../common/KeyTermHighlight';
+import { EditorialNotice } from '../common/EditorialNotice';
 
 interface ButterflyRoundtablePanelProps {
   knowledgeItems: KnowledgeItem[];
@@ -39,7 +40,7 @@ interface ButterflyNode {
   description: string;
   affectedEntities: string[];
   impactLevel: '高' | '中' | '低';
-  probability: string; // e.g. "高概率演化"
+  probability: string; // 定性等级（如 高概率/中概率/低概率），不是校准概率
   timeHorizon: string; // e.g. "1-3 个月"
 }
 
@@ -143,7 +144,7 @@ const PRESET_SCENARIOS = [
         description: '高通汽车芯片客户出现去依赖观望，联发科与英伟达DRIVE平台趁虚增补订单。',
         affectedEntities: ['高通汽车部门', '蔚小理/吉利等客户'],
         impactLevel: '高' as const,
-        probability: '90% 概率演化',
+        probability: '高概率',
         timeHorizon: '0-3 个月',
       },
       {
@@ -153,7 +154,7 @@ const PRESET_SCENARIOS = [
         description: '原本作为备选的 RISC-V 快速获得主流车企及服务器厂商资金押注，IP授权行业竞争格局发生结构性转移。',
         affectedEntities: ['RISC-V 基金会', '安谋中国', '台积电代工管线'],
         impactLevel: '中' as const,
-        probability: '75% 概率演化',
+        probability: '中概率',
         timeHorizon: '3-12 个月',
       },
       {
@@ -163,7 +164,7 @@ const PRESET_SCENARIOS = [
         description: '从“单一专利官司”扩展为“跨国算力标准自主化博弈”，导致全球算力供应链从低成本整合走向多集群冗余搭建。',
         affectedEntities: ['欧盟芯片法案办公室', '跨国车企资本开支', '全球AI基础设施成本'],
         impactLevel: '高' as const,
-        probability: '65% 深度传导',
+        probability: '中概率',
         timeHorizon: '12-24 个月',
       },
     ],
@@ -277,7 +278,7 @@ const PRESET_SCENARIOS = [
         description: '匈牙利、西班牙、波兰等工厂建设速度加快，整车厂资本开支向欧洲本土倾斜。',
         affectedEntities: ['比亚迪', '奇瑞', '上汽名爵'],
         impactLevel: '高' as const,
-        probability: '85% 正在发生',
+        probability: '高概率',
         timeHorizon: '0-6 个月',
       },
       {
@@ -287,7 +288,7 @@ const PRESET_SCENARIOS = [
         description: '宁德时代、亿纬锂能等欧洲工厂获得增量包揽订单，而欧洲本土Northvolt等资金链进一步吃紧。',
         affectedEntities: ['宁德时代欧洲厂', 'Northvolt', '欧洲零部件供应商'],
         impactLevel: '中' as const,
-        probability: '75% 概率演化',
+        probability: '中概率',
         timeHorizon: '6-18 个月',
       },
       {
@@ -297,7 +298,7 @@ const PRESET_SCENARIOS = [
         description: '上游资源与中游关税双向挤压，导致欧洲终端电动车价格居高不下，燃油/混动过渡期延长。',
         affectedEntities: ['欧洲汽车消费者', '全球锂矿定价权', '跨国车企转型节奏'],
         impactLevel: '中' as const,
-        probability: '60% 动态观察',
+        probability: '低概率',
         timeHorizon: '18-36 个月',
       },
     ],
@@ -518,9 +519,13 @@ export const ButterflyRoundtablePanel: React.FC<ButterflyRoundtablePanelProps> =
               <span>跨时空因果传导阶梯 (0阶种子 → 3阶系统蝴蝶效应)</span>
             </h3>
             <span className="text-xs text-stone-500 font-sans">
-              根据模型统计因果逻辑层级构建，非概率推测
+              编辑情景：因果阶梯与概率等级均为产品配置，不是模型输出或校准概率
             </span>
           </div>
+
+          <EditorialNotice title="产品配置 · 编辑情景">
+            这里的因果节点、影响强度与概率等级来自内置编辑种子，用于演示推演框架；不是对现实事件的预测，也不构成可校准概率。
+          </EditorialNotice>
 
           {/* Vertical Node Steps */}
           <div className="relative border-l-2 border-dashed border-stone-300 ml-4 sm:ml-8 pl-6 sm:pl-8 space-y-8">

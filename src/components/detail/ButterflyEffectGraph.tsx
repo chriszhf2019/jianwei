@@ -117,7 +117,6 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
       type: 'root',
       tierLabel: '始发种子事件 (E₀)',
       timeWindow: 'T₀ 现时触发',
-      confidence: 99,
       description: article.oneSentenceVerdict || article.summary || article.subtitle || article.title,
       category: article.category || '核心新闻',
       matchedArticle: article,
@@ -137,7 +136,6 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
       type: 'cause',
       tierLabel: '始发驱动因素',
       timeWindow: '前置因果',
-      confidence: 95,
       description: `【始发根因】${whyText}`,
       category: '始发因果',
       radius: 24,
@@ -183,7 +181,7 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'ripple1',
         tierLabel: '一阶直接传导 (1st Ripple)',
         timeWindow: r1.horizon || '1-3个月',
-        confidence: r1.confidenceScore || 85,
+        confidence: r1.confidenceScore,
         description: `【一阶直接影响】${r1.description} (受影响领域：${(r1.affectedSectors || []).join('、') || '行业中游'})`,
         category: '直接冲击',
         radius: 22,
@@ -225,7 +223,7 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'ripple2',
         tierLabel: '二阶间接发酵 (2nd Ripple)',
         timeWindow: r2.horizon || '3-12个月',
-        confidence: r2.confidenceScore || 80,
+        confidence: r2.confidenceScore,
         description: `【二阶连锁发酵】${r2.description} (受影响领域：${(r2.affectedSectors || []).join('、') || '产业生态'})`,
         category: '竞争与替代',
         radius: 20,
@@ -267,7 +265,7 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'ripple3',
         tierLabel: '三阶远期级联 (3rd Order Horizon)',
         timeWindow: r3.horizon || '1-3年',
-        confidence: r3.confidenceScore || 75,
+        confidence: r3.confidenceScore,
         description: `【三阶远期终局】${r3.description} (受影响领域：${(r3.affectedSectors || []).join('、') || '宏观格局'})`,
         category: '宏观终局',
         radius: 18,
@@ -302,7 +300,6 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'entity',
         tierLabel: '认知实体/核心概念',
         timeWindow: '常态认知',
-        confidence: 90,
         description: `【核心认知实体】${term}：本文关联的主体实体与战略认知节点，点击可调阅概念图谱或词条释义。`,
         category: '实体词条',
         term: term,
@@ -336,7 +333,6 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'related_news',
         tierLabel: '跨新闻连带事件',
         timeWindow: '跨时空关联',
-        confidence: 85,
         description: `【连带相关新闻】《${rel.title}》— 关联原因：${rel.why || '涉及相同产业链或宏观政策背景'}。点击可跳转至该完整深度简报。`,
         category: '关联情报',
         matchedArticle: matched || ({ id: `ext-${idx}`, title: rel.title, sourceName: rel.media } as NewsArticle),
@@ -807,9 +803,9 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
                     <span>传导时间窗：{selectedNode.timeWindow}</span>
                   </span>
                 )}
-                {selectedNode.confidence && (
+                {typeof selectedNode.confidence === 'number' && (
                   <span className="text-xs font-mono text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded font-bold">
-                    推演置信度 {selectedNode.confidence}%
+                    模型自评 {selectedNode.confidence}% · 未校准
                   </span>
                 )}
               </div>

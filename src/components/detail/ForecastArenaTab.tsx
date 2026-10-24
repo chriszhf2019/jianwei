@@ -181,9 +181,9 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
   const [userConfidence, setUserConfidence] = useState<number>(75);
   const [horizonDays, setHorizonDays] = useState<number>(90);
   const [userPremise1, setUserPremise1] = useState<string>(
-    article.logicTree?.rootCause || '基于当前技术突破速度与大厂资本开支强度'
+    article.logicTree?.rootCause || ''
   );
-  const [userPremise2, setUserPremise2] = useState<string>('下游行业需求旺盛且政策支持明确');
+  const [userPremise2, setUserPremise2] = useState<string>('');
   const [userFalsifiable, setUserFalsifiable] = useState<string>(
     '若在约定时间内，官方供应链良品率数据低于预期或相关审批延期，则承认预测失效。'
   );
@@ -663,7 +663,7 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
                 className="text-[11px] font-serif text-red-700 hover:text-red-900 flex items-center gap-1 cursor-pointer font-bold"
               >
                 <Sparkles className="w-3 h-3 text-red-600" />
-                <span>✨ 一键智能提炼前提与证伪线</span>
+                <span>填入可编辑模板（非 AI 生成，请按实际判断修改）</span>
               </button>
             </div>
             <input
@@ -973,8 +973,8 @@ export const ForecastArenaTab: React.FC<ForecastArenaTabProps> = ({
               <span className="text-[10px] font-mono text-stone-500">内部视角</span>
             </div>
             <ul className="text-xs text-stone-700 space-y-1.5 list-disc list-inside">
-              <li>{userPremise1 || '主要看重技术突破速度'}</li>
-              <li>{userPremise2 || '看重下游市场资本投入'}</li>
+              <li className={userPremise1 ? '' : 'text-stone-400'}>{userPremise1 || '未填写前提 1'}</li>
+              <li className={userPremise2 ? '' : 'text-stone-400'}>{userPremise2 || '未填写前提 2'}</li>
               <li className="text-stone-500">自设证伪线：{userFalsifiable.slice(0, 45)}...</li>
             </ul>
           </div>
