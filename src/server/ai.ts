@@ -71,6 +71,12 @@ export function activeProvider(): AIProvider | null {
   return geminiKeyOk() ? "gemini" : deepseekKeyOk() ? "deepseek" : null;
 }
 
+/** 另一个可用通道（用于交叉复核）；未配置时返回 null。 */
+export function otherProvider(exclude: AIProvider): AIProvider | null {
+  if (exclude === "gemini") return deepseekKeyOk() ? "deepseek" : null;
+  return geminiKeyOk() ? "gemini" : null;
+}
+
 export function providerModel(provider: AIProvider): string {
   return provider === "deepseek"
     ? settings.deepseekModel || "deepseek-chat"
@@ -205,9 +211,9 @@ export function resetAIUsage(): void {
 
 export async function runAI(
   prompt: string,
-  opts: { json?: boolean; temperature?: number } = {}
+  opts: { json?: boolean; temperature?: number; provider?: AIProvider } = {}
 ): Promise<AIResult> {
-  const provider = activeProvider();
+  const provider = opts.provider || activeProvider();
   if (!provider) throw new Error("no AI provider configured");
   if (!NO_PERSIST) {
     const budget = checkAiBudget(
@@ -309,14 +315,23 @@ export async function runAI(
 
 export async function callAI(
   prompt: string,
-  opts: { json?: boolean; temperature?: number } = {}
+  opts: { json?: boolean; temperature?: number; provider?: AIProvider } = {}
 ): Promise<string> {
   return (await runAI(prompt, opts)).text;
 }
 
-export async function callAIWithReasoning(
+/** 指定 provider 调用（交叉复核等场景使用）。 */
+export async function callAIWithProvider(
+  provider: AIProvider,
   prompt: string,
   opts: { json?: boolean; temperature?: number } = {}
+): Promise<string> {
+  return (await runAI(prompt, { ...opts, provider })).text;
+}
+
+export async function callAIWithReasoning(
+  prompt: string,
+  opts: { json?: boolean; temperature?: number; provider?: AIProvider } = {}
 ): Promise<AIResult> {
   return runAI(prompt, opts);
 }
