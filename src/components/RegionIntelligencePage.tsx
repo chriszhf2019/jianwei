@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NewsArticle } from '../types';
-import { detectSectors } from '../utils/sectorTaxonomy';
+import { detectSectors, sectorName } from '../utils/sectorTaxonomy';
 import { RegionSectorMatrix } from './intelligence/RegionSectorMatrix';
 import { EntitySamplePanel } from './intelligence/EntitySamplePanel';
 import { ThreeLevelDrill } from './intelligence/ThreeLevelDrill';
@@ -29,10 +29,6 @@ interface RegionIntelligencePageProps {
   articles: NewsArticle[];
   onOpenArticleById?: (articleId: string) => void;
 }
-
-const SECTOR_NAMES: Record<string, string> = {
-  ai: 'AI 与软件', semi: '半导体与硬件', macro: '宏观与金融', ev: '新能源与汽车', consume: '消费电子与数码', internet: '互联网与平台', gov: '政策与治理', energy: '能源与电力', oversea: '出海与贸易',
-};
 
 interface AnnotationTask {
   running: boolean;
@@ -246,7 +242,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           region,
-          sector: SECTOR_NAMES[sectorId] || sectorId,
+          sector: sectorName(sectorId),
           articles: matched.slice(0, 12).map((article) => ({
             title: article.title,
             source: article.sourceName,
@@ -450,7 +446,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
 
       {drill ? (
         (() => {
-          const sectorName = SECTOR_NAMES[drill.sectorId] || drill.sectorId;
+          const sectorNameText = sectorName(drill.sectorId);
           const matched = filtered.filter((a) => {
             return primaryRegionMention(a.regionMentions)?.region === drill.region && detectSectors(a).includes(drill.sectorId);
           });
@@ -458,7 +454,7 @@ export const RegionIntelligencePage: React.FC<RegionIntelligencePageProps> = ({
             <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 shadow-xs space-y-3">
               <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                 <h3 className="text-sm font-serif font-bold text-stone-950 flex items-center space-x-2">
-                  <span>下钻：{drill.region} × {sectorName}</span>
+                  <span>下钻：{drill.region} × {sectorNameText}</span>
                   <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">
                     {matched.length} 条
                   </span>

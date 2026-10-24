@@ -87,15 +87,60 @@ export interface NewsInterestGroup {
   sectorIds: string[];
 }
 
+/** 赛道 id → 显示名（单一事实源，避免各页面硬编码名称漂移）。 */
+export function sectorName(id: string): string {
+  return SECTOR_TAXONOMY.find((s) => s.id === id)?.name || id;
+}
+
+/**
+ * 分类层级（单一事实源）：13 个平铺 entry（4 大类 + 9 赛道）→ 6 领域。
+ * 归属：macro→财经；semi/consume→科技；ai/internet→IT与软件；
+ *       ev/energy/oversea→产业与制造；gov→政策与监管（单独）；edu→教育。
+ */
+export const SECTOR_DOMAINS: Record<string, string> = {
+  finance: '财经',
+  tech: '科技',
+  it: 'IT与软件',
+  edu: '教育',
+  macro: '财经',
+  semi: '科技',
+  consume: '科技',
+  ai: 'IT与软件',
+  internet: 'IT与软件',
+  ev: '产业与制造',
+  energy: '产业与制造',
+  oversea: '产业与制造',
+  gov: '政策与监管',
+};
+
+/** 文章命中的领域（去重），由赛道/大类派生。 */
+export function detectDomains(article: { title?: string; summary?: string; tags?: string[] }): string[] {
+  const domains = new Set<string>();
+  for (const id of detectSectors(article)) {
+    const domain = SECTOR_DOMAINS[id];
+    if (domain) domains.add(domain);
+  }
+  return [...domains];
+}
+
 /** 用户设置中的新闻兴趣领域；用于首页“我的领域”筛选，映射到可复核的赛道词表。 */
-export const NEWS_INTEREST_GROUPS: NewsInterestGroup[] = [
-  { id: 'finance', name: '财经', sectorIds: ['macro', 'finance'] },
-  { id: 'tech', name: '科技', sectorIds: ['tech', 'semi', 'consume'] },
-  { id: 'it', name: 'IT与软件', sectorIds: ['it', 'ai', 'internet'] },
-  { id: 'edu', name: '教育', sectorIds: ['edu'] },
-  { id: 'industry', name: '产业与制造', sectorIds: ['ev', 'energy', 'oversea'] },
-  { id: 'policy', name: '政策与监管', sectorIds: ['gov'] },
+/** 领域 id 保持稳定（历史设置兼容），sectorIds 由 SECTOR_DOMAINS 派生，避免大类/赛道混写。 */
+const DOMAIN_IDS: Array<{ id: string; name: string }> = [
+  { id: 'finance', name: '财经' },
+  { id: 'tech', name: '科技' },
+  { id: 'it', name: 'IT与软件' },
+  { id: 'edu', name: '教育' },
+  { id: 'industry', name: '产业与制造' },
+  { id: 'policy', name: '政策与监管' },
 ];
+
+export const NEWS_INTEREST_GROUPS: NewsInterestGroup[] = DOMAIN_IDS.map(({ id, name }) => ({
+  id,
+  name,
+  sectorIds: Object.entries(SECTOR_DOMAINS)
+    .filter(([, domain]) => domain === name)
+    .map(([sectorId]) => sectorId),
+}));
 
 export function matchesNewsInterestGroups(
   article: { title?: string; summary?: string; tags?: string[] },
