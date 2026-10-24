@@ -70,7 +70,8 @@ import { normalizeRegionMentions, regionScopeOf } from '../src/utils/regionSeman
 import { clearEnrichCache, enrichKey, getOrCreateCached, predictKey } from '../src/server/cache';
 import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
-import { detectSectors, keywordMatches } from '../src/utils/sectorTaxonomy';
+import { detectSectors, keywordMatches, detectDomains, NEWS_INTEREST_GROUPS, SECTOR_DOMAINS } from '../src/utils/sectorTaxonomy';
+import { buildTopicClusters } from '../src/utils/topicCluster';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
 import {
@@ -2074,3 +2075,58 @@ test('detail deep-analysis UX: 成功落地、进度条、额度写回、浅层�
   assert.match(auth, /guestQuota/);
 });
 
+
+test('sectorTaxonomy: 6 领域由单一层级派生（赛道不重复归属，oversea→产业，gov→政策）', () => {
+  assert.equal(NEWS_INTEREST_GROUPS.length, 6);
+  const allSectorIds = NEWS_INTEREST_GROUPS.flatMap((g) => g.sectorIds);
+  assert.equal(new Set(allSectorIds).size, allSectorIds.length, '每个赛道/大类只能归属一个领域');
+  assert.equal(SECTOR_DOMAINS.oversea, '产业与制造');
+  assert.equal(SECTOR_DOMAINS.gov, '政策与监管');
+  assert.equal(SECTOR_DOMAINS.macro, '财经');
+  assert.equal(SECTOR_DOMAINS.semi, '科技');
+  assert.equal(SECTOR_DOMAINS.ai, 'IT与软件');
+
+  // 重叠赛道命中同一篇文章时，领域去重（不会同时算作 科技 与 IT）
+  const domains = detectDomains({ title: 'NVIDIA AI 芯片算力发布', summary: '大模型推理芯片' });
+  assert.ok(domains.includes('科技') || domains.includes('IT与软件'));
+  assert.equal(new Set(domains).size, domains.length);
+});
+
+test('topicCluster: 无实体标注时提高门槛，弱相似不聚合', () => {
+  const mk = (id: string, title: string, summary: string, pub: string) => ({
+    id,
+    title,
+    subtitle: '',
+    summary,
+    category: '财经',
+    tags: [],
+    date: '',
+    timeAgo: '',
+    readTimeMinutes: 0,
+    coreQuote: '',
+    quoteAuthor: '',
+    sourceName: 'ithome.com',
+    sourceUrl: `https://www.ithome.com/${id}.htm`,
+    sourceDate: pub,
+    sourceCount: 1,
+    impactScope: '特定行业',
+    publishedAt: pub,
+    tongsuSummary: { simpleSay: '', whyExplanation: '', whatItMeans: '', jargonTerms: [] },
+    dehydratedItems: { coreEntity: '', keyAction: '', relatedCount: 0, coreShifts: [], impactHighlights: [] },
+    spectrumLayers: [],
+  });
+
+  // 无实体标注 + 低相似（仅同分类）→ 不聚合
+  const weak = [
+    mk('a', '某公司发布三季度财报', '营收同比增长，利润率改善。', '2026-10-20T08:00:00Z'),
+    mk('b', '央行会议纪要措辞微调', '市场解读为宽松窗口临近。', '2026-10-20T09:00:00Z'),
+  ];
+  assert.equal(buildTopicClusters(weak as any, 12).length, 0);
+
+  // 无实体标注 + 高标题重合 → 仍聚合
+  const strong = [
+    mk('a', '海光信息发布第三季度财报，净利润同比增长 37.9%', '业绩超预期。', '2026-10-20T08:00:00Z'),
+    mk('b', '海光信息发布第三季度财报，净利润同比增长 37.9%', '业绩超预期。', '2026-10-20T09:00:00Z'),
+  ];
+  assert.ok(buildTopicClusters(strong as any, 12).length >= 1);
+});

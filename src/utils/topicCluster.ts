@@ -90,6 +90,8 @@ export function buildTopicClusters(articles: NewsArticle[], maxClusters = 12): T
 
   const clusters: Array<typeof prepared> = [];
   const assigned = new Set<string>();
+  // 无实体标注时，文本相似度是唯一信号：提高门槛并限制簇数量，避免把「同模板」当成「同事件」。
+  const hasEntityAnnotations = prepared.some((item) => item.entities.size > 0);
 
   for (let i = 0; i < prepared.length; i += 1) {
     const root = prepared[i];
@@ -120,11 +122,13 @@ export function buildTopicClusters(articles: NewsArticle[], maxClusters = 12): T
       const hasKeyEntity = shared.length > 0;
       const sameCategory = root.article.category === candidate.article.category;
 
-      const isMatch =
-        titleSim >= 0.45 ||
-        (hasKeyEntity && titleSim >= 0.25) ||
-        (hasKeyEntity && textSim >= 0.3) ||
-        (titleSim >= 0.35 && sameCategory);
+      const isMatch = hasEntityAnnotations
+        ? titleSim >= 0.45 ||
+          (hasKeyEntity && titleSim >= 0.25) ||
+          (hasKeyEntity && textSim >= 0.3) ||
+          (titleSim >= 0.35 && sameCategory)
+        : // 无实体标注：只接受强标题/正文重合，且不再用「同分类」放宽。
+          titleSim >= 0.6 || textSim >= 0.45;
 
       if (isMatch) {
         currentCluster.push(candidate);
@@ -227,5 +231,7 @@ export function buildTopicClusters(articles: NewsArticle[], maxClusters = 12): T
     };
   });
 
-  return output.sort((a, b) => b.articles.length - a.articles.length).slice(0, maxClusters);
+  // 无实体标注时只保留更少的簇，降低「同模板误聚」的曝光面。
+  const effectiveCap = hasEntityAnnotations ? maxClusters : Math.min(maxClusters, 4);
+  return output.sort((a, b) => b.articles.length - a.articles.length).slice(0, effectiveCap);
 }
