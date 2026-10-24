@@ -161,6 +161,23 @@ export const App: React.FC = () => {
     }
   }, [activeTab, isAdmin, goTab]);
 
+  // 首屏渲染完成后，空闲时预热其它主视图的代码块，切换更快。
+  useEffect(() => {
+    const prefetch = () => {
+      void import('./components/intelligence/IntelligenceHubView');
+      void import('./components/topics/TopicsView');
+      void import('./components/focus/MyFocusView');
+      void import('./components/detail/NewsDetailView');
+    };
+    const ric = (window as any).requestIdleCallback;
+    if (typeof ric === 'function') {
+      const id = ric(prefetch, { timeout: 3000 });
+      return () => (window as any).cancelIdleCallback?.(id);
+    }
+    const id = window.setTimeout(prefetch, 1500);
+    return () => window.clearTimeout(id);
+  }, []);
+
   useEffect(() => {
     const preloadLazyViews = () => {
       import('./components/detail/NewsDetailView');
@@ -198,7 +215,8 @@ export const App: React.FC = () => {
     [storageHandleAnalysisComplete, setSelectedArticle, setActiveTab]
   );
 
-  const { snapshot, status: snapshotStatus, refresh: refreshSnapshot } = useSnapshot();
+  // 快照只服务情报中心：等到进入该页再拉取，减少首屏请求。
+  const { snapshot, status: snapshotStatus, refresh: refreshSnapshot } = useSnapshot(activeTab === 'intelligence');
 
   const liveTopicClusters = useMemo(() => deriveUiTopicClusters(articles), [articles]);
 

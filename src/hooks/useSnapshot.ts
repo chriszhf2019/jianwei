@@ -8,7 +8,7 @@ export type SnapshotStatus = 'loading' | 'ok' | 'error';
  * - ok：服务端返回派生数据（demo 与否看 meta.demo）；
  * - error：接口不可达（离线），调用方显示空态并提示，不使用示例数据。
  */
-export function useSnapshot() {
+export function useSnapshot(enabled = true) {
   const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null);
   const [status, setStatus] = useState<SnapshotStatus>('loading');
   const inFlight = useRef<AbortController | null>(null);
@@ -38,8 +38,8 @@ export function useSnapshot() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (enabled) void refresh();
+  }, [enabled, refresh]);
 
   return { snapshot, status, refresh };
 }
