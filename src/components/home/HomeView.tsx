@@ -9,7 +9,6 @@ import {
 import { HomeHeroStatus } from './HomeHeroStatus';
 import { TrendComparisonCard } from './TrendComparisonCard';
 import { StandardModeFeed } from './StandardModeFeed';
-import { TopicClusterSection } from './TopicClusterSection';
 import { TodayTopThree } from './TodayTopThree';
 import { FirstExperienceSample } from './FirstExperienceSample';
 import { UserCheck, ShieldCheck, Bookmark, Radio, Target } from 'lucide-react';
@@ -27,6 +26,10 @@ const TongsuModeFeed = lazy(() =>
 );
 const DehydratedModeFeed = lazy(() =>
   import('./DehydratedModeFeed').then((module) => ({ default: module.DehydratedModeFeed }))
+);
+// 完整事件聚合默认折叠，代码也按需加载，不进入首屏包
+const TopicClusterSection = lazy(() =>
+  import('./TopicClusterSection').then((module) => ({ default: module.TopicClusterSection }))
 );
 
 export type NewsSkill =
@@ -98,6 +101,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     interestGroups.length > 0 ? '我的领域' : '全部'
   );
   const [selectedRadarFilter, setSelectedRadarFilter] = useState<string | null>(null);
+  /** 完整事件聚合按需展开：默认不加载其代码，保证首屏更快。 */
+  const [showAllEvents, setShowAllEvents] = useState(false);
   // 注：每条当日新闻都可深度解读（点开详情即由 /api/enrich 生成），故不再提供
   // “深度解读/外部信源”筛选口径——解析状态用卡片徽标体现（见 StandardModeFeed）。
   // 分页：每次展示 20 条，底部“再看 20 条”继续
@@ -463,7 +468,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* 跨源事件聚合：把「事件」提为首页主对象，单篇报道降为事件内来源 */}
       {articles.length > 0 && (
-        <TopicClusterSection articles={articles} onSelectArticle={onSelectArticle} collapsedByDefault />
+      showAllEvents ? (
+        <Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-xs text-stone-500">正在加载跨源事件聚合…</div>}>
+          <TopicClusterSection articles={articles} onSelectArticle={onSelectArticle} />
+        </Suspense>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowAllEvents(true)}
+          className="w-full rounded-xl border border-stone-300 bg-white hover:bg-stone-50 px-4 py-3 flex items-center justify-between gap-2 text-left transition-colors"
+        >
+          <span className="text-xs font-serif font-bold text-stone-700">查看全部跨源事件聚合</span>
+          <span className="text-[10px] font-mono text-stone-400">按需加载 · 不占首屏 ↓</span>
+        </button>
+      )
       )}
 
       {articles.length > 0 && (
