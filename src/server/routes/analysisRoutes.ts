@@ -219,20 +219,13 @@ export function registerAnalysisRoutes(app: Express, applyRateLimit: RateLimiter
         const provider = activeProvider();
 
         if (!provider) {
+          // 不伪造「双重视角补充」结论；前端会退回本地确定性比对并标明启发式降级。
           return res.json({
-            ok: true,
+            ok: false,
             provider: 'heuristic',
-            candidates: [
-              {
-                topic: `${A.category} ⨉ ${B.category}`,
-                sources: [
-                  { source: A.sourceName || '来源 A', stance: '中性', quote: (A.summary || A.title).slice(0, 60) },
-                  { source: B.sourceName || '来源 B', stance: '中性', quote: (B.summary || B.title).slice(0, 60) },
-                ],
-                divergence: '互补与侧重差异',
-                summary: `来源 A (${A.sourceName}) 侧重于【${A.title}】，而 来源 B (${B.sourceName}) 侧重于【${B.title}】，两篇形成双重视角补充。`,
-              },
-            ],
+            reason: 'no_api_key',
+            note: '未配置 AI Key，未生成多源立场仲裁；请以本地确定性比对结果为参考。',
+            candidates: [],
           });
         }
 
