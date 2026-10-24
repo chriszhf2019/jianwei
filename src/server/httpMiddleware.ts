@@ -1,12 +1,10 @@
 import zlib from "node:zlib";
-import compression from "compression";
 import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 
-/** 安全响应头、可选 gzip 包装、JSON body 与 evaluation 缓存策略。 */
+/** 安全响应头、Brotli/Gzip 压缩、JSON body 与 evaluation 缓存策略。 */
 export function mountHttpMiddleware(app: Express): void {
   app.disable("x-powered-by");
-  app.use(compression() as unknown as express.RequestHandler);
 
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -15,11 +13,13 @@ export function mountHttpMiddleware(app: Express): void {
     next();
   });
 
+  // 优先 Brotli，退回 gzip；小于 1KB 或已压缩的响应不动。
   app.use((req: Request, res: Response, next: NextFunction) => {
-    const acceptsGzip = String(req.headers["accept-encoding"] || "")
-      .split(",")
-      .some((item) => item.trim().toLowerCase().startsWith("gzip"));
-    if (!acceptsGzip) return next();
+    const accept = String(req.headers["accept-encoding"] || "").toLowerCase();
+    const useBrotli = accept.includes("br");
+    const useGzip = accept.includes("gzip");
+    if (!useBrotli && !useGzip) return next();
+
     const originalSend = res.send.bind(res);
     (res as any).send = (body: any) => {
       if (res.headersSent || res.getHeader("Content-Encoding")) return originalSend(body);
@@ -29,16 +29,32 @@ export function mountHttpMiddleware(app: Express): void {
         ? body
         : Buffer.from(typeof body === "string" ? body : JSON.stringify(body));
       if (buffer.byteLength < 1024) return originalSend(body);
-      return zlib.gzip(buffer, (error, compressed) => {
+
+      const done = (error: Error | null, compressed: Buffer) => {
         if (error) {
           originalSend(body);
           return;
         }
-        res.setHeader("Content-Encoding", "gzip");
+        res.setHeader("Content-Encoding", useBrotli ? "br" : "gzip");
         res.setHeader("Vary", "Accept-Encoding");
         res.setHeader("Content-Length", String(compressed.byteLength));
         originalSend(compressed);
-      });
+      };
+
+      if (useBrotli) {
+        zlib.brotliCompress(
+          buffer,
+          {
+            params: {
+              [zlib.constants.BROTLI_PARAM_QUALITY]: 5,
+              [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+            },
+          },
+          done
+        );
+      } else {
+        zlib.gzip(buffer, done);
+      }
     };
     next();
   });

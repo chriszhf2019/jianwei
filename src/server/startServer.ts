@@ -32,13 +32,13 @@ export async function startServer(options: StartServerOptions): Promise<void> {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     const distRoot = path.resolve(distPath);
-    const gzipAssetCache = new Map<string, { mtimeMs: number; gzip: Buffer }>();
+    const assetCache = new Map<string, { mtimeMs: number; gzip: Buffer; br: Buffer }>();
     app.use((req, res, next) => {
       if (req.method !== "GET" && req.method !== "HEAD") return next();
-      const acceptsGzip = String(req.headers["accept-encoding"] || "")
-        .split(",")
-        .some((item) => item.trim().toLowerCase().startsWith("gzip"));
-      if (!acceptsGzip || !/\.(?:js|css)$/i.test(req.path || "")) return next();
+      const accept = String(req.headers["accept-encoding"] || "").toLowerCase();
+      const useBrotli = accept.includes("br");
+      const acceptsGzip = accept.split(",").some((item) => item.trim().toLowerCase().startsWith("gzip"));
+      if ((!useBrotli && !acceptsGzip) || !/\.(?:js|css)$/i.test(req.path || "")) return next();
       const filePath = path.resolve(distRoot, `.${decodeURIComponent(req.path || "")}`);
       if (!filePath.startsWith(`${distRoot}${path.sep}`)) return next();
       let stat: fs.Stats;
@@ -49,30 +49,38 @@ export async function startServer(options: StartServerOptions): Promise<void> {
       }
       if (!stat.isFile()) return next();
       const cacheKey = filePath;
-      const cached = gzipAssetCache.get(cacheKey);
+      const cached = assetCache.get(cacheKey);
       if (!cached || cached.mtimeMs !== stat.mtimeMs) {
         const raw = fs.readFileSync(filePath);
-        gzipAssetCache.set(cacheKey, {
+        assetCache.set(cacheKey, {
           mtimeMs: stat.mtimeMs,
           gzip: zlib.gzipSync(raw, { level: 6 }),
+          br: zlib.brotliCompressSync(raw, {
+            params: {
+              [zlib.constants.BROTLI_PARAM_QUALITY]: 6,
+              [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+            },
+          }),
         });
       }
-      const asset = gzipAssetCache.get(cacheKey)!;
-      const etag = `W/"gz-${stat.size}-${Math.round(stat.mtimeMs)}"`;
+      const asset = assetCache.get(cacheKey)!;
+      const encoding = useBrotli ? "br" : "gzip";
+      const payload = useBrotli ? asset.br : asset.gzip;
+      const etag = `W/"${encoding}-${stat.size}-${Math.round(stat.mtimeMs)}"`;
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       res.setHeader(
         "Content-Type",
         req.path.endsWith(".css") ? "text/css; charset=utf-8" : "application/javascript; charset=utf-8"
       );
-      res.setHeader("Content-Encoding", "gzip");
+      res.setHeader("Content-Encoding", encoding);
       res.setHeader("Vary", "Accept-Encoding");
       res.setHeader("ETag", etag);
       if (req.headers["if-none-match"] === etag) {
         res.status(304).end();
         return;
       }
-      res.setHeader("Content-Length", String(asset.gzip.byteLength));
-      res.status(200).end(req.method === "HEAD" ? undefined : asset.gzip);
+      res.setHeader("Content-Length", String(payload.byteLength));
+      res.status(200).end(req.method === "HEAD" ? undefined : payload);
     });
     app.use(
       express.static(distPath, {
