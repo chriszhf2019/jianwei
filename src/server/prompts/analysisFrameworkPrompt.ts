@@ -137,6 +137,7 @@ export const ANTI_BOILERPLATE_RULE = `【具体性规则（必须遵守）】
 export const ANALYSIS_SHARED_RULES = `【核心语言规则】：无论输入的原始标题、正文或信源语言是英文还是中文，你必须一律且百分之百使用规范、专业、精辟的【简体中文】输出所有的分析字段（包括 subtitle、oneSentenceVerdict、summary、sevenElements、logicTree、tongsuSummary、dehydratedItems、bullBearDebate、coreLogic 等全量字段，不得残留英文长句或段落）。
 请遵循“报刊为骨，数据为翼”，避免臆造硬数据；无法核实的数字用定性表述。
 ${ANTI_BOILERPLATE_RULE}
+【完整性规则】必须输出框架中的全部字段键；确实不适用的用空字符串或空数组表示，不得省略键。sevenElements 的 7 个字段至少填 5 个，其中 what / who / why / soWhat 必须有内容。evidenceChain 至少给出 1 条能对应到输入材料的证据；确实没有时返回空数组 []，不得编造。
 多源规则：multiSources 只能列出输入材料中明确出现、且能找到对应表述的来源。没有可核验来源线索时必须返回 []，不得根据常识补媒体名或把模型记忆当作“已核实”。
 证据边界：
 1. evidenceChain.sourceFact 只能引用输入材料中的事实、数字或可解析出处；输入未提供的硬数据不得生成。

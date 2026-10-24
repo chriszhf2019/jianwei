@@ -20,6 +20,7 @@ import {
 } from "./aiValidation";
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
 import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
+import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers } from "./enrichQuality";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 const HARDWARE_ANALYSIS_RULE = `【硬件/产品新闻专用规则】
 1. 涉及硬件参数（屏幕、芯片、电池、影像、快充等）时，必须把参数翻译成用户可感知的体验或代价（例如：2K+185Hz → DDIC 功耗与续航下降、主流手游原生帧率上限、MEMC 插帧延迟与伪影；大电池 → 机身重量/厚度）。
@@ -99,9 +100,53 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       }
       return sanitizeEnrichPayload(parsed);
     }, { force });
-    // 字段级具体性清洗：只置空「过泛」的字段，不整篇拒收。
-    const { payload: parsed, strippedFields } = stripGenericFields(generated.data, effectiveContent);
+    // 完整性：缺字段组时做一次定向补生成（只请求缺失组，不重复整篇）。
     const wasCached = generated.cached || generated.deduped;
+    let raw = generated.data;
+    const missingGroups = findMissingEnrichGroups(raw);
+    if (!wasCached && missingGroups.length > 0) {
+      try {
+        const retryPrompt = `${prompt}
+
+【上一次输出缺少以下字段组】${missingGroups.join('、')}
+请只输出这些字段组成的 JSON 对象（不要输出其他字段），并严格遵守上面的全部规则。`;
+        const retryText = await callAI(retryPrompt, { json: true, temperature: 0.25 });
+        let retryParsed: any;
+        try {
+          retryParsed = JSON.parse(retryText);
+        } catch {
+          retryParsed = JSON.parse(String(retryText).replace(/```json/g, "").replace(/```/g, "").trim());
+        }
+        retryParsed = sanitizeEnrichPayload(retryParsed);
+        const merged = { ...raw };
+        for (const key of missingGroups) {
+          if (retryParsed?.[key] !== undefined && retryParsed[key] !== null) merged[key] = retryParsed[key];
+        }
+        raw = merged;
+      } catch (retryError: any) {
+        console.warn("[enrich] targeted completeness retry failed:", String(retryError?.message || retryError).slice(0, 200));
+      }
+    }
+
+    const corpus = `${effectiveTitle}\n${effectiveSource}\n${effectiveContent}`;
+    // 字段级具体性清洗：只置空「过泛」的字段，不整篇拒收。
+    const { payload: parsed, strippedFields } = stripGenericFields(raw, corpus);
+    // 证据接地：引句/数字必须来自输入材料。
+    const grounding = groundEvidence(parsed, corpus);
+    const remainingMissing = findMissingEnrichGroups(parsed);
+    const ungroundedNumbers = findUngroundedNumbers(
+      {
+        oneSentenceVerdict: parsed?.oneSentenceVerdict,
+        summary: parsed?.summary,
+        sevenElements: parsed?.sevenElements,
+        logicTree: parsed?.logicTree,
+        bullBearDebate: parsed?.bullBearDebate,
+        coreLogic: parsed?.coreLogic,
+        dehydratedItems: parsed?.dehydratedItems,
+        rippleEffect: parsed?.rippleEffect,
+      },
+      corpus
+    );
     const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich);
 
     // 深度解析结果写回语料：刷新后仍算“已深度解读”（当日口径的“深度解读”计数因此持久）
@@ -133,6 +178,21 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       overrides: { ...parsed, contentBasis, ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}) },
       fieldMeta,
       ...(strippedFields.length > 0 ? { specificity: { strippedFields } } : {}),
+      ...(missingGroups.length > 0 ||
+      remainingMissing.length > 0 ||
+      grounding.discardedQuotes > 0 ||
+      grounding.ungroundedEvidence > 0 ||
+      ungroundedNumbers.length > 0
+        ? {
+            quality: {
+              retriedGroups: missingGroups,
+              missingGroups: remainingMissing,
+              discardedQuotes: grounding.discardedQuotes,
+              ungroundedEvidence: grounding.ungroundedEvidence,
+              ungroundedNumbers: ungroundedNumbers.slice(0, 8),
+            },
+          }
+        : {}),
       ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
   } catch (err: any) {
