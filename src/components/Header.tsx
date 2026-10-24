@@ -14,7 +14,6 @@ import {
   Flame,
   ChevronDown,
   Settings as SettingsIcon,
-  MapPin,
   ShieldCheck,
   MoreHorizontal,
   Cpu,
@@ -109,14 +108,6 @@ export const Header: React.FC<HeaderProps> = ({
       shortLabel: '情报',
       renderIcon: (isActive) => (
         <Flame className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-red-500'}`} />
-      ),
-    },
-    {
-      id: 'region',
-      label: '地区情报',
-      shortLabel: '地区',
-      renderIcon: (isActive) => (
-        <MapPin className={`w-4 h-4 ${isActive ? 'text-[#E3120B]' : 'text-[#0284C7]'}`} />
       ),
     },
     {
