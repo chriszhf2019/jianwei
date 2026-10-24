@@ -463,7 +463,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* 跨源事件聚合：把「事件」提为首页主对象，单篇报道降为事件内来源 */}
       {articles.length > 0 && (
-        <TopicClusterSection articles={articles} onSelectArticle={onSelectArticle} />
+        <TopicClusterSection articles={articles} onSelectArticle={onSelectArticle} collapsedByDefault />
       )}
 
       {articles.length > 0 && (

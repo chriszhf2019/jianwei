@@ -19,14 +19,18 @@ interface TopicClusterSectionProps {
   articles: NewsArticle[];
   onSelectArticle: (article: NewsArticle) => void;
   onCompareArticles?: (articleA: NewsArticle, articleB: NewsArticle) => void;
+  /** 首页默认折叠，只留一行标题，给信息流让位。 */
+  collapsedByDefault?: boolean;
 }
 
 export const TopicClusterSection: React.FC<TopicClusterSectionProps> = ({
   articles,
   onSelectArticle,
   onCompareArticles,
+  collapsedByDefault = false,
 }) => {
   const [selectedCluster, setSelectedCluster] = useState<TopicCluster | null>(null);
+  const [expanded, setExpanded] = useState(!collapsedByDefault);
 
   const clusters = useMemo(() => {
     return buildTopicClusters(articles, 8);
@@ -52,9 +56,18 @@ export const TopicClusterSection: React.FC<TopicClusterSectionProps> = ({
             自动聚合同一事件在官方通稿、商业财经与国际外媒间的报道脉络，打破单一渠道信息茧房。
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="shrink-0 self-start sm:self-center px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 border border-stone-700 text-[11px] font-serif font-bold text-stone-200 transition-colors"
+        >
+          {expanded ? '收起事件列表' : `展开全部事件（${clusters.length}）`}
+        </button>
       </div>
 
       {/* Cluster Cards Grid */}
+      {expanded && (
+        <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {clusters.map((cluster) => {
           const { official, commercial, global, independent } = cluster.mediaSpectrum;
@@ -140,6 +153,8 @@ export const TopicClusterSection: React.FC<TopicClusterSectionProps> = ({
           onSelectArticle={onSelectArticle}
           onCompareArticles={onCompareArticles}
         />
+      )}
+        </>
       )}
     </div>
   );
