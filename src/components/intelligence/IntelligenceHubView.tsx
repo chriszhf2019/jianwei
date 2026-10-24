@@ -16,6 +16,7 @@ import { TodayBlindspotWidget } from './TodayBlindspotWidget';
 import { TomorrowWatchlistWidget } from './TomorrowWatchlistWidget';
 import { CrossEventNexusPanel } from './CrossEventNexusPanel';
 import { AIStrategicAdvisor } from './AIStrategicAdvisor';
+import { TodayTopThree } from '../home/TodayTopThree';
 import { RegionIntelligencePage } from '../RegionIntelligencePage';
 import { DynamicHeatTrendChart } from './DynamicHeatTrendChart';
 import { DynamicSentimentTrendChart } from './DynamicSentimentTrendChart';
@@ -107,6 +108,12 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
   };
 
 
+  // 首屏 3 件事的点击：优先按 id 打开，退回按标题匹配
+  const openArticleFromTop = (article: NewsArticle) => {
+    if (onOpenArticleById) onOpenArticleById(article.id);
+    else if (onSelectArticleTitle) onSelectArticleTitle(article.title);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans space-y-8">
       {/* Top Title Banner */}
@@ -179,7 +186,16 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {section === 'overview' && (
       <>
+      {/* 首屏结论：今天最值得看的 3 件事 */}
+      <TodayTopThree articles={recentArticles} onSelectArticle={openArticleFromTop} />
+
       {/* 语料快照：服务端派生真实统计（DEMO / 实时双轨） */}
+      <details className="rounded-xl border border-stone-200 bg-white">
+        <summary className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs font-serif font-bold text-stone-700 hover:bg-stone-50 rounded-xl">
+          <span>语料快照与数据口径（服务端派生统计）</span>
+          <span className="text-[10px] font-mono text-stone-400">点击展开</span>
+        </summary>
+        <div className="px-4 pb-4">
       <div className="bg-white border-2 border-stone-800 rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-3">
           <div className="flex items-center space-x-2">
@@ -308,6 +324,9 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       </div>
 
       {/* 1. 四大决策概览卡片 (Critical Alerts, Trending, Sectors, Sources) */}
+        </div>
+      </details>
+
       <StrategicMetricsBar
         articles={recentArticles}
         onOpenAlerts={() => setSection('signals')}
@@ -323,6 +342,12 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         onSelectArticleTitle={onSelectArticleTitle}
       />
 
+      <details className="rounded-xl border border-stone-200 bg-white">
+        <summary className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs font-serif font-bold text-stone-700 hover:bg-stone-50 rounded-xl">
+          <span>更多趋势图：话题爆发预测 / 情绪指数</span>
+          <span className="text-[10px] font-mono text-stone-400">点击展开</span>
+        </summary>
+        <div className="px-4 pb-4 space-y-4">
       {/* 2.5 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
       <TopicBreakoutForecastChart
         articles={recentArticles}
@@ -336,6 +361,8 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
       />
+        </div>
+      </details>
 
       {/* 3. 三层全球战略情报中心 (全景宏观 ➔ 行业垂类 ➔ 事件洞察) */}
       <StrategicThreeTierCenter
@@ -344,17 +371,17 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         onOpenArticleById={onOpenArticleById}
       />
 
-      {/* 3.5 全球战略决策行动指南 (分角色/分时效高价值决策建议清单) */}
-      <StrategicActionPlaybook
-        selectedPersona={selectedPersona}
-        contextArticles={recentArticles}
-        onSelectArticleTitle={onSelectArticleTitle}
-        onOpenArticleById={onOpenArticleById}
-      />
-
-      {/* 4. 今日态势解读与行动指引 */}
-      <SituationReadoutPanel articles={recentArticles} />
-      <FrequentPatternPanel articles={recentArticles} />
+      {/* 4. 今日态势解读与行动指引（默认折叠） */}
+      <details className="rounded-xl border border-stone-200 bg-white">
+        <summary className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs font-serif font-bold text-stone-700 hover:bg-stone-50 rounded-xl">
+          <span>态势解读与频发模式</span>
+          <span className="text-[10px] font-mono text-stone-400">点击展开</span>
+        </summary>
+        <div className="px-4 pb-4 space-y-4">
+          <SituationReadoutPanel articles={recentArticles} />
+          <FrequentPatternPanel articles={recentArticles} />
+        </div>
+      </details>
       </>
       )}
 
