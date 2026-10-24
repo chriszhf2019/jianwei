@@ -67,6 +67,19 @@ export function mergeSkillArticle(article: NewsArticle, overrides: Record<string
     'relatedNews',
     'personaForecasts',
     'aiFieldMeta',
+    // /api/enrich 的整体深度字段（与 NewsDetailView.mergeDeep 白名单保持一致）
+    'sevenElements',
+    'logicTree',
+    'personaImpacts',
+    'rippleEffect',
+    'spectrumLayers',
+    'evidenceChain',
+    'industrySignals',
+    'oneSentenceVerdict',
+    'subtitle',
+    'summary',
+    'coreQuote',
+    'quoteAuthor',
   ] as const;
   for (const key of keys) {
     const value = overrides[key];
@@ -191,13 +204,16 @@ export function useCorpusStore() {
             publishedAt: article.publishedAt || '',
             category: article.category,
           };
-          const res = await fetch(`/api/skill/${skill}`, {
+          // 'enrich' 是整体深度补全，走 /api/enrich（不是 /api/skill/enrich）；两者响应形状不同。
+          const endpoint = skill === 'enrich' ? '/api/enrich' : `/api/skill/${skill}`;
+          const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
           });
           const json = await res.json();
-          if (json?.ok && json.overrides) {
+          const succeeded = skill === 'enrich' ? json?.enriched === true : json?.ok === true;
+          if (succeeded && json.overrides) {
             const updated = mergeSkillArticle(article, json.overrides);
             handleEnrichArticle(updated);
             return updated;
