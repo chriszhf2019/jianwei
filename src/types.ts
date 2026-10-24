@@ -384,6 +384,8 @@ export interface NewsArticle {
   deepAnalysisError?: string;
   /** 各 AI 字段的生成来源与版本；用于审计模型切换、提示词更新和缓存命中。 */
   aiFieldMeta?: Record<string, AiFieldMeta>;
+  /** 跨模型复核结果（仅在同时配置两个 AI 通道时生成）。 */
+  crossCheck?: ArticleCrossCheck;
 }
 
 export interface AiFieldMeta {
@@ -398,6 +400,16 @@ export interface AiFieldMeta {
   method: 'ai_generation' | 'legacy_unknown';
   certificationStandard: 'ai_single' | 'ai_consensus' | 'scenario' | 'unverified';
   calibrationStatus: 'uncalibrated';
+}
+
+/** 跨模型复核结果：由另一个通道独立检查核心结论是否有原文依据。 */
+export interface ArticleCrossCheck {
+  verdict: 'consistent' | 'partial' | 'contradicts';
+  issues: string[];
+  unsupportedClaims: string[];
+  provider: string;
+  model: string;
+  checkedAt: string;
 }
 
 export interface SourceInspectionResult {

@@ -41,6 +41,7 @@ pnpm test:func        # 功能级端到端测试（含设置热更新/真实 RSS
 
 - **默认零演示数据**：服务默认从 `data/corpus.json` 读取真实运行时语料；文件为空且未配置 RSS 时，首页、情报中心、专题和预测契约均显示空态。历史演示数据只有在显式设置 `JIANWEI_ENABLE_DEMO_DATA=1` 时才允许加载。
 - **真实 AI 端点**（`server.ts`，Provider 抽象层统一调用）：`/api/analyze`、`/api/strategic-advisor`、`/api/ask-nuance`、`/api/predict`、`/api/enrich`。通道支持 **Gemini 与 DeepSeek（OpenAI 兼容）**：默认有 GEMINI_API_KEY 用 Gemini，设 `DEEPSEEK_API_KEY` 即切 DeepSeek，`AI_PROVIDER=gemini|deepseek` 可强制；无任何 Key 时分析、顾问和探针明确返回未生成。预测的本地引擎仅输出确定性方向强度，不冒充概率。音频简报由当前真实语料摘要即时生成。
+- **质量与复核**：生成后会做具体性校验、证据引句接地（逐字匹配输入/原文页面）、未接地数字定位与完整性补生成；同时配置两个 Key 时，默认用另一通道对核心结论做交叉复核（`JIANWEI_CROSS_CHECK=0` 可关闭）。所有 AI 字段记录 provider/model/提示词版本/温度/提示词指纹，且始终标注「未校准」。
 - **服务端派生骨架**：`GET /api/snapshot` 对真实运行时语料做分类、标签、地区与可追溯性统计，`meta.demo/corpus` 如实标注，未实现指标列于 `notYetDerived`。
 - **真实信源接入**：`GET /api/feeds/status` 查看配置；`POST /api/feeds/ingest` 抓取 RSS 并入语料（`NEWS_FEED_URLS`）；`GET /api/corpus` 返回服务端运行时语料，首页信息流/搜索自动合并摄取的新条目；`POST /api/enrich` 对浅层条目做深度认知懒加载补全（无 Key 明确返回不可用，不造假）。
 - **持久化**：收藏、关注标签、雷达关键词、预测契约、行动备忘录、身份与阅读模式均存于 localStorage（`useLocalState`）；服务端设置（Key/通道/信源/昵称）存于 `data/settings.json`；运行时语料以 `data/corpus.db` SQLite 为主存储，`data/corpus.json` 保留兼容快照。

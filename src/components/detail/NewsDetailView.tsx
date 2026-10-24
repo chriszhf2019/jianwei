@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem, ReadingDensity, DefaultReadingRhythm } from '../../types';
+import { NewsArticle, CognitiveDetailTab, UserPersona, UserPersonaId, PrimaryNavTab, PredictionContract, KnowledgeItem, ReadingDensity, DefaultReadingRhythm, ArticleCrossCheck } from '../../types';
 import { findRelatedUiTopic } from '../../utils/topicDossiers';
 import { SevenElementsTab } from './SevenElementsTab';
 const LogicTreeTab = React.lazy(() => import('./LogicTreeTab').then(m => ({ default: m.LogicTreeTab })));
@@ -424,6 +424,8 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   } | null>(null);
   /** 后台原文核验结果（轮询回填）。 */
   const [evidenceVerifyNote, setEvidenceVerifyNote] = useState<string | null>(null);
+  /** 跨模型复核结果（轮询回填；仅双通道时产生）。 */
+  const [crossCheck, setCrossCheck] = useState<ArticleCrossCheck | null>(null);
   const enrichAbortRef = useRef<AbortController | null>(null);
   const enrichCtaRef = useRef<HTMLDivElement | null>(null);
 
@@ -481,19 +483,19 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
           const data = await response.json().catch(() => ({}));
           const fetched = data?.article;
           const evidence = Array.isArray(fetched?.evidenceChain) ? fetched.evidenceChain : [];
-          const hasResult = evidence.some(
+          const evidenceDone = evidence.some(
             (ev: any) =>
               ev?.verificationNote === '原文引句匹配' ||
               String(ev?.verificationNote || '').includes('原文页面未找到')
           );
-          if (fetched && onEnrichArticle && (hasResult || attempt === 2)) {
-            onEnrichArticle(fetched as NewsArticle);
-          }
-          if (hasResult) {
+          const crossDone = !!fetched?.crossCheck;
+          if (evidenceDone) {
             const verified = evidence.filter((ev: any) => ev?.verificationStatus === 'linked').length;
             setEvidenceVerifyNote(`原文核验：${verified}/${evidence.length} 条引句在原文页面匹配`);
-            return;
           }
+          if (crossDone) setCrossCheck(fetched.crossCheck as ArticleCrossCheck);
+          if (fetched && onEnrichArticle) onEnrichArticle(fetched as NewsArticle);
+          if (evidenceDone && crossDone) return;
         }
       } catch {
         /* 轮询失败时静默，不影响主流程 */
@@ -512,6 +514,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     setPostEnrichQuotaNote(null);
     setEnrichQuality(null);
     setEvidenceVerifyNote(null);
+    setCrossCheck(null);
     enrichCtaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const response = await fetch('/api/enrich', {
@@ -1524,6 +1527,32 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                 <p className="text-[10px] text-sky-800 bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
                   {evidenceVerifyNote}
                 </p>
+              )}
+              {crossCheck && (
+                <div
+                  className={`text-[10px] rounded-lg px-2.5 py-1.5 leading-relaxed border ${
+                    crossCheck.verdict === 'consistent'
+                      ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                      : crossCheck.verdict === 'partial'
+                        ? 'text-amber-800 bg-amber-50 border-amber-200'
+                        : 'text-rose-800 bg-rose-50 border-rose-200'
+                  }`}
+                >
+                  <div className="font-bold">
+                    交叉复核（{crossCheck.provider}）：
+                    {crossCheck.verdict === 'consistent'
+                      ? '核心结论一致'
+                      : crossCheck.verdict === 'partial'
+                        ? '部分不一致'
+                        : '与原文矛盾'}
+                  </div>
+                  {crossCheck.unsupportedClaims.slice(0, 3).map((claim, i) => (
+                    <div key={`cu${i}`}>· 无依据：{claim}</div>
+                  ))}
+                  {crossCheck.issues.slice(0, 3).map((issue, i) => (
+                    <div key={`ci${i}`}>· 问题：{issue}</div>
+                  ))}
+                </div>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
