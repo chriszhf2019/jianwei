@@ -1531,31 +1531,6 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         onOpenTermExplain={onOpenTermExplain}
       />
 
-      {/* 浅层：时间轴模板默认折叠，避免空壳占版；深度分析后再展开完整模块 */}
-      {isShallow ? (
-        <details className="bg-stone-50 border border-dashed border-stone-300 rounded-xl px-4 py-3 font-sans group">
-          <summary className="cursor-pointer text-xs font-serif font-bold text-stone-700 list-none flex items-center justify-between gap-2">
-            <span>事件演变脉络 · 浅层占位（点击展开）</span>
-            <span className="text-[10px] font-mono text-stone-400 group-open:hidden">已折叠</span>
-          </summary>
-          <div className="mt-3">
-            <EventEvolutionTimeline article={article} />
-          </div>
-        </details>
-      ) : (
-        <EventEvolutionTimeline article={article} />
-      )}
-
-      {/* 🔗 相关图：弱 BM25 由组件内部门槛隐藏；浅层同样渲染（可能缩成一行提示） */}
-      <RelatedNewsGraph
-        article={article}
-        contextArticles={contextArticles}
-        onOpenArticle={onOpenArticle}
-        onOpenTermExplain={onOpenTermExplain}
-        shallowMode={isShallow}
-        onRunSkill={onRunSkill ? (skill, art) => onRunSkill(skill, art) : undefined}
-      />
-
 
       {/* 4-Stage Cognitive Path Navigation Tabs */}
       <div id="detail-tabs-container" className="sticky top-28 lg:top-16 z-30 bg-[#FAF8F5]/95 backdrop-blur-md pt-2 border-b-2 border-stone-900 scroll-mt-24">
@@ -1621,16 +1596,27 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             <p className="text-xs font-serif font-bold text-stone-500 animate-pulse">正在为您进行模块化懒加载与深度认知研判分析…</p>
           </div>
         }>
-          {/* 第一篇：事实全貌与溯源 */}
+          {/* 第一篇：事实全貌与溯源（含事件演变脉络） */}
           {activeTab === 'seven_elements' && (
-            <SevenElementsTab
-              article={article}
-              onRunSkill={onRunSkill}
-              contextArticles={contextArticles}
-              onOpenArticle={onOpenArticle}
-              onOpenTermExplain={onOpenTermExplain}
-              shallowMode={isShallow}
-            />
+            <div className="space-y-6">
+              <SevenElementsTab
+                article={article}
+                onRunSkill={onRunSkill}
+                contextArticles={contextArticles}
+                onOpenArticle={onOpenArticle}
+                onOpenTermExplain={onOpenTermExplain}
+                shallowMode={isShallow}
+              />
+              <details className="rounded-xl border border-stone-200 bg-white">
+                <summary className="cursor-pointer list-none px-5 py-3 text-sm font-serif font-bold text-stone-800 hover:bg-stone-50 rounded-xl flex items-center justify-between gap-2">
+                  <span>事件演变脉络（前因 → 当前 → 后续）</span>
+                  <span className="text-[10px] font-mono text-stone-400">点击展开/收起</span>
+                </summary>
+                <div className="px-3 pb-4 sm:px-4">
+                  <EventEvolutionTimeline article={article} />
+                </div>
+              </details>
+            </div>
           )}
 
 
@@ -1670,16 +1656,26 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
             </div>
           )}
 
-          {/* 🦋 蝴蝶效应：D3.js 连带认知关联网 */}
+          {/* 🦋 蝴蝶效应：D3.js 连带认知关联网（含相关报道图） */}
           {activeTab === 'butterfly_effect' && (
-            <ButterflyEffectGraph
-              article={article}
-              contextArticles={contextArticles}
-              onOpenArticle={onOpenArticle}
-              onOpenTermExplain={onOpenTermExplain}
-              onNavigateTab={onNavigateTab}
-              onSelectTab={(tab) => setActiveTab(tab)}
-            />
+            <div className="space-y-6">
+              <ButterflyEffectGraph
+                article={article}
+                contextArticles={contextArticles}
+                onOpenArticle={onOpenArticle}
+                onOpenTermExplain={onOpenTermExplain}
+                onNavigateTab={onNavigateTab}
+                onSelectTab={(tab) => setActiveTab(tab)}
+              />
+              <RelatedNewsGraph
+                article={article}
+                contextArticles={contextArticles}
+                onOpenArticle={onOpenArticle}
+                onOpenTermExplain={onOpenTermExplain}
+                shallowMode={isShallow}
+                onRunSkill={onRunSkill ? (skill, art) => onRunSkill(skill, art) : undefined}
+              />
+            </div>
           )}
 
           {/* 第三篇：未来推推演与走势研判（宏观三阶涟漪 + 人机走势预测对赌） */}
