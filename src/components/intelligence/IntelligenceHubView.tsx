@@ -18,10 +18,16 @@ import { CrossEventNexusPanel } from './CrossEventNexusPanel';
 import { AIStrategicAdvisor } from './AIStrategicAdvisor';
 import { TodayTopThree } from '../home/TodayTopThree';
 import { RegionIntelligencePage } from '../RegionIntelligencePage';
-import { DynamicHeatTrendChart } from './DynamicHeatTrendChart';
-import { DynamicSentimentTrendChart } from './DynamicSentimentTrendChart';
+const DynamicHeatTrendChart = React.lazy(() =>
+  import('./DynamicHeatTrendChart').then((m) => ({ default: m.DynamicHeatTrendChart }))
+);
+const DynamicSentimentTrendChart = React.lazy(() =>
+  import('./DynamicSentimentTrendChart').then((m) => ({ default: m.DynamicSentimentTrendChart }))
+);
 import { StrategicThreeTierCenter } from './StrategicThreeTierCenter';
-import { TopicBreakoutForecastChart } from './TopicBreakoutForecastChart';
+const TopicBreakoutForecastChart = React.lazy(() =>
+  import('./TopicBreakoutForecastChart').then((m) => ({ default: m.TopicBreakoutForecastChart }))
+);
 import { StrategicActionPlaybook } from './StrategicActionPlaybook';
 import { SupplyChainStressSimulator } from './SupplyChainStressSimulator';
 import { CompetitorDynamicRadar } from './CompetitorDynamicRadar';
@@ -337,11 +343,11 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
       />
 
       {/* 2. 动态热度演变趋势图 (Recharts Dynamic Heat Curve) */}
-      <DynamicHeatTrendChart
+      <React.Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-xs text-stone-500">正在加载图表…</div>}><DynamicHeatTrendChart
         articles={recentArticles}
         onOpenArticleById={onOpenArticleById}
         onSelectArticleTitle={onSelectArticleTitle}
-      />
+      /></React.Suspense>
 
       <details className="rounded-xl border border-stone-200 bg-white">
         <summary className="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs font-serif font-bold text-stone-700 hover:bg-stone-50 rounded-xl">
@@ -350,18 +356,18 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
         </summary>
         <div className="px-4 pb-4 space-y-4">
       {/* 2.5 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
-      <TopicBreakoutForecastChart
+      <React.Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-xs text-stone-500">正在加载图表…</div>}><TopicBreakoutForecastChart
         articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
-      />
+      /></React.Suspense>
 
       {/* 2.8 新闻情绪指数动态时序趋势图 (Recharts Dynamic Sentiment Curve) */}
-      <DynamicSentimentTrendChart
+      <React.Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-xs text-stone-500">正在加载图表…</div>}><DynamicSentimentTrendChart
         articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
-      />
+      /></React.Suspense>
         </div>
       </details>
 
@@ -390,25 +396,25 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       <>
       {/* 1.5 动态热度演变趋势图 (Recharts Dynamic Heat Curve) */}
-      <DynamicHeatTrendChart
+      <React.Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-xs text-stone-500">正在加载图表…</div>}><DynamicHeatTrendChart
         articles={recentArticles}
         onOpenArticleById={onOpenArticleById}
         onSelectArticleTitle={onSelectArticleTitle}
-      />
+      /></React.Suspense>
 
       {/* 1.8 话题短期爆发预测趋势图 (Topic Breakout Forecast Recharts) */}
-      <TopicBreakoutForecastChart
+      <React.Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-xs text-stone-500">正在加载图表…</div>}><TopicBreakoutForecastChart
         articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
-      />
+      /></React.Suspense>
 
       {/* 1.9 新闻情绪指数动态时序趋势图 (Recharts Dynamic Sentiment Curve) */}
-      <DynamicSentimentTrendChart
+      <React.Suspense fallback={<div className="rounded-xl border border-stone-200 bg-white px-4 py-6 text-xs text-stone-500">正在加载图表…</div>}><DynamicSentimentTrendChart
         articles={recentArticles}
         onSelectArticleTitle={onSelectArticleTitle}
         onOpenArticleById={onOpenArticleById}
-      />
+      /></React.Suspense>
 
       {/* 2. Cross-Event Synergy & Hidden Nexus Engine (多事件跨篇因果交叉对比) */}
 

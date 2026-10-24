@@ -3,13 +3,19 @@ import { UserPersona, UserPersonaId, RadarKeyword, NewsArticle, PredictionContra
 import { USER_PERSONAS } from '../../data/intelligenceData';
 import { formatArticleTime } from '../../utils/articleTime';
 import { keywordHits } from '../../utils/corpusMetrics';
-import { PredictionCalibrationPanel } from './PredictionCalibrationPanel';
-import { CognitiveBiasRadarPanel } from './CognitiveBiasRadarPanel';
+const PredictionCalibrationPanel = React.lazy(() =>
+  import('./PredictionCalibrationPanel').then((m) => ({ default: m.PredictionCalibrationPanel }))
+);
+const CognitiveBiasRadarPanel = React.lazy(() =>
+  import('./CognitiveBiasRadarPanel').then((m) => ({ default: m.CognitiveBiasRadarPanel }))
+);
 import { EvaluationLabPanel } from './EvaluationLabPanel';
 import { JudgmentLedgerPanel } from './JudgmentLedgerPanel';
 import { KnowledgeCoveragePanel } from './KnowledgeCoveragePanel';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
-import { KnowledgeGraphView } from './KnowledgeGraphView';
+const KnowledgeGraphView = React.lazy(() =>
+  import('./KnowledgeGraphView').then((m) => ({ default: m.KnowledgeGraphView }))
+);
 import { ButterflyRoundtablePanel } from './ButterflyRoundtablePanel';
 import { KnowledgeItem } from '../../types';
 
@@ -520,8 +526,10 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
             <span className="text-[10px] font-mono text-stone-500">点击展开</span>
           </summary>
           <div className="px-3 pb-4 space-y-4">
-            <CognitiveBiasRadarPanel contracts={predictionContracts} />
-            <PredictionCalibrationPanel contracts={predictionContracts} />
+            <React.Suspense fallback={<div className="text-xs text-stone-500 py-4">正在加载校准图表…</div>}>
+              <CognitiveBiasRadarPanel contracts={predictionContracts} />
+              <PredictionCalibrationPanel contracts={predictionContracts} />
+            </React.Suspense>
           </div>
         </details>
 
@@ -1126,11 +1134,13 @@ export const MyFocusView: React.FC<MyFocusViewProps> = ({
               onOpenTermExplain={onOpenTermExplain}
             />
           ) : (
-            <KnowledgeGraphView
-              knowledgeItems={knowledgeItems}
-              onOpenArticleById={onOpenArticleById}
-              onOpenTermExplain={onOpenTermExplain}
-            />
+            <React.Suspense fallback={<div className="text-xs text-stone-500 py-4">正在加载知识图谱…</div>}>
+              <KnowledgeGraphView
+                knowledgeItems={knowledgeItems}
+                onOpenArticleById={onOpenArticleById}
+                onOpenTermExplain={onOpenTermExplain}
+              />
+            </React.Suspense>
           )}
         </>
       )}
