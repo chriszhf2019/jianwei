@@ -21,6 +21,7 @@ import {
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
 import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
 import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers } from "./enrichQuality";
+import { verifyEvidenceChainInBackground } from "./evidenceVerification";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 const HARDWARE_ANALYSIS_RULE = `【硬件/产品新闻专用规则】
 1. 涉及硬件参数（屏幕、芯片、电池、影像、快充等）时，必须把参数翻译成用户可感知的体验或代价（例如：2K+185Hz → DDIC 功耗与续航下降、主流手游原生帧率上限、MEMC 插帧延迟与伪影；大电池 → 机身重量/厚度）。
@@ -195,6 +196,11 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
         : {}),
       ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
+
+    // 响应返回后，后台抓原文核验引句（不阻塞、同一篇 6 小时内只跑一次）。
+    if (articleId) {
+      setTimeout(() => verifyEvidenceChainInBackground(String(articleId)), 1500);
+    }
   } catch (err: any) {
     console.error("Enrich error:", err);
     res.json({ enriched: false, reason: "error" });
