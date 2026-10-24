@@ -73,6 +73,7 @@ import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches, detectDomains, NEWS_INTEREST_GROUPS, SECTOR_DOMAINS } from '../src/utils/sectorTaxonomy';
 import { buildTopicClusters } from '../src/utils/topicCluster';
 import { findSpecificityIssues, stripGenericFields } from '../src/server/aiSpecificity';
+import { findMissingEnrichGroups, groundEvidence, findUngroundedNumbers } from '../src/server/enrichQuality';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
 import {
@@ -2172,4 +2173,44 @@ test('aiSpecificity: enrich 字段级清洗只置空过泛字段', () => {
   assert.equal(cleaned.coreLogic.essence, '');
   assert.ok(strippedFields.includes('oneSentenceVerdict'));
   assert.ok(!strippedFields.includes('summary'));
+});
+
+test('enrichQuality: 完整性检查 + 证据接地 + 数字核验', () => {
+  const empty: any = findMissingEnrichGroups({});
+  assert.ok(empty.includes('sevenElements'));
+  assert.ok(empty.includes('evidenceChain'));
+
+  const complete = {
+    oneSentenceVerdict: '海光信息第三季度净利润 10.48 亿元，同比增长 37.9%。',
+    summary: '海光信息发布第三季度财报。',
+    sevenElements: { what: 'a', who: 'b', when: 'c', where: 'd', why: 'e', how: 'f', soWhat: 'g' },
+    logicTree: { rootCause: 'x', nodes: [{ id: 'n1' }] },
+    personaImpacts: [{ personaId: 'investor' }],
+    rippleEffect: { stages: [{ stage: '一阶影响' }] },
+    bullBearDebate: { bull: [{ point: 'a' }], bear: [{ point: 'b' }] },
+    coreLogic: { essence: 'e' },
+    tongsuSummary: { simpleSay: 's' },
+    dehydratedItems: { coreEntity: '海光信息', keyAction: '发布财报' },
+    evidenceChain: [],
+    stakeholderImpact: [],
+    backstoryTimeline: [],
+  };
+  assert.equal(findMissingEnrichGroups(complete).length, 0);
+
+  const corpus = '海光信息发布 2026 年第三季度财报：归母净利润 10.48 亿元，同比增长 37.9%。';
+  const payload = {
+    evidenceChain: [
+      { claim: 'A', sourceFact: '净利润 10.48 亿元', quote: '归母净利润 10.48 亿元' },
+      { claim: 'B', sourceFact: '净利润 99 亿元', quote: '这句话不在原文里' },
+    ],
+  };
+  const grounded = groundEvidence(payload, corpus);
+  assert.equal(grounded.discardedQuotes, 1);
+  assert.equal(grounded.ungroundedEvidence, 1);
+  assert.equal(grounded.payload.evidenceChain[0].quote, '归母净利润 10.48 亿元');
+  assert.equal(grounded.payload.evidenceChain[1].quote, '');
+  assert.equal(grounded.payload.evidenceChain[1].verificationStatus, 'unlinked');
+
+  assert.deepEqual(findUngroundedNumbers('增长 37.90%，利润 10.48 亿元', corpus), []);
+  assert.ok(findUngroundedNumbers('增长 88%', corpus).includes('88%'));
 });
