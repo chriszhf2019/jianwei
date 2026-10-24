@@ -71,6 +71,7 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 }) => {
   const { provider: aiProvider, loading: aiLoading } = useAIProvider();
   const [section, setSection] = useState<HubSection>('overview');
+  const [regionView, setRegionView] = useState<'overview' | 'workbench'>('overview');
   const [showScenarioSandbox, setShowScenarioSandbox] = useState<boolean>(false);
   const recentArticles = useMemo(
     () => filterRecentArticles(contextArticles, HUB_RECENT_DAYS),
@@ -451,43 +452,63 @@ export const IntelligenceHubView: React.FC<IntelligenceHubViewProps> = ({
 
       {section === 'regions' && (
       <>
-      {/* 5.0 地区维度：标注/预警/覆盖趋势 + 深潜工作台（已合并，不再跳转独立页） */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-[#0284C7]/30 bg-sky-50/70 px-4 sm:px-5 py-3">
-        <div className="text-[12px] text-sky-950 leading-relaxed">
-          <b className="text-[#0369A1] font-serif">地区维度 · 统计三件套 + 深潜工作台</b>
-          <span className="text-sky-800/90"> —— AI 涉事地区标注 / 依赖预警 / 覆盖趋势；下方可直接进入矩阵、流动、主体、下钻与聚合。</span>
-        </div>
-        <span className="shrink-0 text-[10px] font-mono text-sky-700 bg-white/70 border border-sky-200 rounded-lg px-2 py-1">
-          深潜工作台在下方 ↓
-        </span>
+      {/* 习惯：先看概览，需要时才进深潜工作台 */}
+      <div className="flex items-center gap-1.5">
+        {([
+          { id: 'overview' as const, label: '概览（标注 / 预警 / 覆盖）' },
+          { id: 'workbench' as const, label: '深潜工作台（矩阵 / 流动 / 主体 / 下钻 / 聚合）' },
+        ]).map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            onClick={() => setRegionView(view.id)}
+            className={`px-3 py-2 rounded-lg text-xs font-serif font-bold border transition-colors ${
+              regionView === view.id
+                ? 'bg-stone-900 text-white border-stone-900'
+                : 'bg-white text-stone-600 border-stone-300 hover:bg-stone-100'
+            }`}
+          >
+            {view.label}
+          </button>
+        ))}
       </div>
 
-      {/* 5.1 内容涉事地区 · AI 标注（抽样） */}
-      <MentionRegionAIPanel articles={recentArticles} />
+      {regionView === 'overview' && (
+        <>
+          <div className="rounded-2xl border-2 border-[#0284C7]/30 bg-sky-50/70 px-4 sm:px-5 py-3 text-[12px] text-sky-950 leading-relaxed">
+            <b className="text-[#0369A1] font-serif">地区维度 · 统计三件套</b>
+            <span className="text-sky-800/90"> —— AI 涉事地区标注 / 依赖预警 / 覆盖·去重·近 7 天趋势。需要矩阵与下钻时切到「深潜工作台」。</span>
+          </div>
 
-      {/* 5.2 涉事地区聚焦：依赖预警 + 按地区浏览 */}
-      <RegionDependenceWidget articles={recentArticles} onOpenArticleById={onOpenArticleById} />
+          {/* 5.1 内容涉事地区 · AI 标注（抽样） */}
+          <MentionRegionAIPanel articles={recentArticles} />
 
-      {/* 5.3 地区情报：覆盖/去重度/近7天 */}
-      <RegionIntelligencePanel articles={recentArticles} />
+          {/* 5.2 涉事地区聚焦：依赖预警 + 按地区浏览 */}
+          <RegionDependenceWidget articles={recentArticles} onOpenArticleById={onOpenArticleById} />
 
-      {/* 5.4 地区深潜工作台：原「地区情报」页整体内嵌，不再独立跳转 */}
-      <RegionIntelligencePage
-        articles={contextArticles}
-        onOpenArticleById={onOpenArticleById}
-        embedded
-      />
+          {/* 5.3 地区情报：覆盖/去重度/近7天 */}
+          <RegionIntelligencePanel articles={recentArticles} />
 
-      {/* 6. 2-Columns: Today's Blindspots + Tomorrow's Watchlist */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <TodayBlindspotWidget articles={recentArticles} blindspots={snapshot?.derived.blindspots} onOpenSettings={onOpenSettings} />
-        <TomorrowWatchlistWidget
-          articles={recentArticles}
-          tomorrowWatch={snapshot?.derived.tomorrowWatch}
-          predictionContracts={predictionContracts}
+          {/* 6. 2-Columns: Today's Blindspots + Tomorrow's Watchlist */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            <TodayBlindspotWidget articles={recentArticles} blindspots={snapshot?.derived.blindspots} onOpenSettings={onOpenSettings} />
+            <TomorrowWatchlistWidget
+              articles={recentArticles}
+              tomorrowWatch={snapshot?.derived.tomorrowWatch}
+              predictionContracts={predictionContracts}
+              onOpenArticleById={onOpenArticleById}
+            />
+          </div>
+        </>
+      )}
+
+      {regionView === 'workbench' && (
+        <RegionIntelligencePage
+          articles={contextArticles}
           onOpenArticleById={onOpenArticleById}
+          embedded
         />
-      </div>
+      )}
       </>
       )}
 
