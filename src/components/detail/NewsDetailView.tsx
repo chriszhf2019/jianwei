@@ -412,6 +412,14 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
   const [enrichError, setEnrichError] = useState<string | null>(article.deepAnalysisError || null);
   const [enrichElapsed, setEnrichElapsed] = useState(0);
   const [postEnrichQuotaNote, setPostEnrichQuotaNote] = useState<string | null>(null);
+  /** enrich 质量报告（缺字段/未核实引句/未接地数字），来自服务端。 */
+  const [enrichQuality, setEnrichQuality] = useState<{
+    retriedGroups?: string[];
+    missingGroups?: string[];
+    discardedQuotes?: number;
+    ungroundedEvidence?: number;
+    ungroundedNumbers?: string[];
+  } | null>(null);
   const enrichAbortRef = useRef<AbortController | null>(null);
   const enrichCtaRef = useRef<HTMLDivElement | null>(null);
 
@@ -467,6 +475,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
     setEnrichPhase('loading');
     setEnrichError(null);
     setPostEnrichQuotaNote(null);
+    setEnrichQuality(null);
     enrichCtaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     try {
       const response = await fetch('/api/enrich', {
@@ -492,6 +501,7 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
         }
         setEnrichPhase('done');
         setEnrichError(null);
+        setEnrichQuality(json.quality && typeof json.quality === 'object' ? json.quality : null);
         // 成功后直接落到已解锁的第一篇，避免用户停在空深 Tab / MissingDeep
         landOnUnlockedModules();
       } else if (json?.reason === 'no_api_key') {
@@ -1426,6 +1436,27 @@ export const NewsDetailView: React.FC<NewsDetailViewProps> = ({
                     : ' 可将研判要点存入服务端知识库（登录后可跨设备检索）。'
                   : ''}
               </p>
+              {enrichQuality && (() => {
+                const notes: string[] = [];
+                if (enrichQuality.missingGroups?.length) {
+                  notes.push(`仍有 ${enrichQuality.missingGroups.length} 组要素未生成（${enrichQuality.missingGroups.join('、')}）`);
+                }
+                if (enrichQuality.discardedQuotes) {
+                  notes.push(`移除 ${enrichQuality.discardedQuotes} 条未在原文找到的引句`);
+                }
+                if (enrichQuality.ungroundedEvidence) {
+                  notes.push(`${enrichQuality.ungroundedEvidence} 条事实依据含原文未出现的数字，已标待核验`);
+                }
+                if (enrichQuality.ungroundedNumbers?.length) {
+                  notes.push(`另有 ${enrichQuality.ungroundedNumbers.length} 个数字未在原文出现`);
+                }
+                if (notes.length === 0) return null;
+                return (
+                  <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                    质量检查：{notes.join('；')}。
+                  </p>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
