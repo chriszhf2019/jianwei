@@ -64,13 +64,12 @@ export interface SpecificityResult {
   tokenHits: number;
   genericHit: string | null;
 }
-
-/** 校验一段 AI 输出是否「足够具体」。输入材料过短（<80 字）时跳过，避免误伤。 */
+/** 校验一段 AI 输出是否「足够具体」。输入材料过短（<40 字）时跳过，避免误伤。 */
 export function findSpecificityIssues(value: unknown, source: string): SpecificityResult {
   const output = flatten(value).trim();
   const src = String(source || '').trim();
   if (!output) return { issues: ['输出为空'], numberHits: 0, tokenHits: 0, genericHit: null };
-  if (src.length < 80) return { issues: [], numberHits: 0, tokenHits: 0, genericHit: null };
+  if (src.length < 40) return { issues: [], numberHits: 0, tokenHits: 0, genericHit: null };
 
   const srcNumbers = numbersIn(src);
   const outNumbers = numbersIn(output);
@@ -91,4 +90,48 @@ export function findSpecificityIssues(value: unknown, source: string): Specifici
     issues.push(`出现泛化套话「${genericHit}」且缺少具体证据`);
   }
   return { issues, numberHits, tokenHits, genericHit };
+}
+
+/** 深度分析中允许被「过泛就置空」的字段（点路径）。 */
+const CHECKED_PATHS: Array<{ label: string; path: string[] }> = [
+  { label: 'oneSentenceVerdict', path: ['oneSentenceVerdict'] },
+  { label: 'summary', path: ['summary'] },
+  { label: 'subtitle', path: ['subtitle'] },
+  { label: 'coreLogic.essence', path: ['coreLogic', 'essence'] },
+  { label: 'bullBearDebate.coreDispute', path: ['bullBearDebate', 'coreDispute'] },
+  { label: 'sevenElements.why', path: ['sevenElements', 'why'] },
+  { label: 'sevenElements.soWhat', path: ['sevenElements', 'soWhat'] },
+  { label: 'tongsuSummary.simpleSay', path: ['tongsuSummary', 'simpleSay'] },
+  { label: 'dehydratedItems.keyAction', path: ['dehydratedItems', 'keyAction'] },
+];
+
+export interface StripResult {
+  payload: any;
+  strippedFields: string[];
+}
+
+/**
+ * enrich 输出的字段级具体性清洗：只把「过泛」的字段置空并记录，
+ * 不整篇拒收（避免一次不合格让整条分析不可用）。输入过短时不做处理。
+ */
+export function stripGenericFields(payload: any, source: string): StripResult {
+  if (!payload || typeof payload !== 'object') return { payload, strippedFields: [] };
+  const strippedFields: string[] = [];
+  for (const { label, path } of CHECKED_PATHS) {
+    let parent: any = payload;
+    for (let i = 0; i < path.length - 1; i += 1) {
+      parent = parent?.[path[i]];
+      if (!parent || typeof parent !== 'object') break;
+    }
+    if (!parent || typeof parent !== 'object') continue;
+    const key = path[path.length - 1];
+    const value = parent[key];
+    if (typeof value !== 'string' || !value.trim()) continue;
+    const check = findSpecificityIssues(value, source);
+    if (check.issues.length > 0) {
+      parent[key] = '';
+      strippedFields.push(label);
+    }
+  }
+  return { payload, strippedFields };
 }

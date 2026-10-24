@@ -19,7 +19,7 @@ import {
   sanitizeEnrichPayload,
 } from "./aiValidation";
 import { buildAnalysisFrameworkPrompt, ANTI_BOILERPLATE_RULE } from "./prompts/analysisFrameworkPrompt";
-import { findSpecificityIssues } from "./aiSpecificity";
+import { findSpecificityIssues, stripGenericFields } from "./aiSpecificity";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
 export interface RateLimiter { (req: express.Request, res: express.Response, next: express.NextFunction): void; }
 export function registerDeepEndpoints(app: express.Express, limit: RateLimiter): void {
@@ -94,7 +94,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       }
       return sanitizeEnrichPayload(parsed);
     }, { force });
-    const parsed = generated.data;
+    // 字段级具体性清洗：只置空「过泛」的字段，不整篇拒收。
+    const { payload: parsed, strippedFields } = stripGenericFields(generated.data, effectiveContent);
     const wasCached = generated.cached || generated.deduped;
     const fieldMeta = createFieldMeta(provider, model, PROMPT_VERSIONS.enrich);
 
@@ -126,6 +127,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       contentBasis,
       overrides: { ...parsed, contentBasis, ...(target?.aiFieldMeta ? { aiFieldMeta: target.aiFieldMeta } : {}) },
       fieldMeta,
+      ...(strippedFields.length > 0 ? { specificity: { strippedFields } } : {}),
       ...(quota ? { guestQuota: { remaining: quota.remaining, deepReads: quota.deepReads, charged: quota.charged } } : {}),
     });
   } catch (err: any) {

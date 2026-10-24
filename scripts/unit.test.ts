@@ -72,7 +72,7 @@ import { predictionDueInfo } from '../src/utils/predictionLedger';
 import { certificationSpec } from '../src/utils/methodRegistry';
 import { detectSectors, keywordMatches, detectDomains, NEWS_INTEREST_GROUPS, SECTOR_DOMAINS } from '../src/utils/sectorTaxonomy';
 import { buildTopicClusters } from '../src/utils/topicCluster';
-import { findSpecificityIssues } from '../src/server/aiSpecificity';
+import { findSpecificityIssues, stripGenericFields } from '../src/server/aiSpecificity';
 import { apiKeyAsciiError, hasNonAsciiChars } from '../src/components/admin/hooks/useAdminKeys';
 import { classifyEvidence, EVIDENCE_STATE_META } from '../src/utils/evidenceReceipt';
 import {
@@ -2155,4 +2155,21 @@ test('aiSpecificity: 模板话被识别，具体输出通过', () => {
   // 输入太短时跳过（无法要求具体性）
   const short = findSpecificityIssues('产业周期调整', '短标题');
   assert.equal(short.issues.length, 0);
+});
+
+test('aiSpecificity: enrich 字段级清洗只置空过泛字段', () => {
+  const source = '海光信息发布 2026 年第三季度财报：归母净利润 10.48 亿元，同比增长 37.9%，高于市场一致预期。公司同时上调全年营收指引，并宣布新的回购计划。';
+  const payload = {
+    oneSentenceVerdict: '产业周期调整与市场竞争加剧，长期向好。',
+    summary: '海光信息第三季度归母净利润 10.48 亿元，同比增长 37.9%。',
+    sevenElements: { why: '技术进步驱动', soWhat: '行业集中度提升' },
+    coreLogic: { essence: '供需失衡' },
+  };
+  const { payload: cleaned, strippedFields } = stripGenericFields(payload, source);
+  assert.equal(cleaned.oneSentenceVerdict, '');
+  assert.equal(cleaned.summary.length > 0, true);
+  assert.equal(cleaned.sevenElements.why, '');
+  assert.equal(cleaned.coreLogic.essence, '');
+  assert.ok(strippedFields.includes('oneSentenceVerdict'));
+  assert.ok(!strippedFields.includes('summary'));
 });
