@@ -2357,6 +2357,14 @@ test('框架总览：定性不得回退摘要、截断不切半句、空模块�
   const sanitized = sanitizeEnrichPayload({ summary: same, oneSentenceVerdict: same });
   assert.equal(sanitized.oneSentenceVerdict, '');
 
+  // AI 综合解读也不能复读摘要
+  const sanitizedAi = sanitizeEnrichPayload({
+    summary: same,
+    aiInterpretation: { core: same, basis: '预算与历史成本对比', impact: '影响发行策略' },
+  });
+  assert.equal(sanitizedAi.aiInterpretation.core, '');
+  assert.equal(sanitizedAi.aiInterpretation.basis, '预算与历史成本对比');
+
   // 5) 框架卡不再输出“暂无摘要/暂无定性”式占位
   const card = fs.readFileSync(path.join(process.cwd(), 'src/components/common/FrameworkOverviewCard.tsx'), 'utf8');
   assert.equal(card.includes('暂无摘要'), false);

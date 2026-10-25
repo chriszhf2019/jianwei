@@ -144,7 +144,7 @@ export function sanitizeEnrichPayload(input: any): any {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const cleaned = { ...input };
 
-  // 定性与摘要不得是同一段文字。
+  // 定性/综合解读不得是摘要原文的复读。
   const summaryText = asText((input as any).summary, 800);
   const verdictText = asText((input as any).oneSentenceVerdict, 200);
   if (verdictText && summaryText && sameSnippet(verdictText, summaryText)) {
@@ -154,9 +154,21 @@ export function sanitizeEnrichPayload(input: any): any {
   if (input.aiInterpretation && typeof input.aiInterpretation === "object") {
     const { grayscale: _rawGrayscale, ...interpretation } = input.aiInterpretation;
     const grayscale = sanitizeGrayscaleAssessment(input.aiInterpretation.grayscale);
+    const next = { ...interpretation } as any;
+    // 综合解读不得复读摘要或定性。
+    for (const key of ["core", "basis", "impact"] as const) {
+      const value = asText(next[key], 400);
+      if (!value) continue;
+      if (
+        (summaryText && sameSnippet(value, summaryText)) ||
+        (verdictText && sameSnippet(value, verdictText))
+      ) {
+        next[key] = "";
+      }
+    }
     cleaned.aiInterpretation = grayscale
-      ? { ...interpretation, grayscale }
-      : interpretation;
+      ? { ...next, grayscale }
+      : next;
   }
 
   if (Array.isArray(input.evidenceChain)) {
