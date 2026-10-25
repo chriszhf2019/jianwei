@@ -2108,3 +2108,20 @@ test('detail deep-analysis UX: 成功落地、进度条、额度写回、浅层�
   assert.match(auth, /guestQuota/);
 });
 
+
+import { isDuplicateText } from '../src/components/home/StandardModeFeed';
+
+test('卡片去重：定性/摘要/AI解读不得复读同一句', () => {
+  assert.equal(isDuplicateText('iQOO Neo12 采用 6.83 英寸 2K 185Hz 屏幕', 'iQOO Neo12 采用 6.83 英寸 2K 185Hz 屏幕。'), true);
+  assert.equal(isDuplicateText('6.83 英寸 2K+185Hz 直屏', 'iQOO Neo12 采用 6.83 英寸 2K+185Hz 直屏，搭载骁龙平台。'), true);
+  assert.equal(isDuplicateText('主打电竞差异化', '屏幕规格下沉到中端价位'), false);
+  assert.equal(isDuplicateText('', '任意内容'), false);
+});
+
+test('提示词：硬件新闻必须解释动机、翻译体验、落到工程风险', () => {
+  const src = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  assert.match(src, /HARDWARE_ANALYSIS_RULE/);
+  assert.match(src, /不得复述配置参数|不得把.*再抄一遍/);
+  assert.match(src, /功耗、散热、帧率适配、外围缩水/);
+  assert.match(src, /同价位规格对标/);
+});

@@ -56,6 +56,24 @@ function deriveLocation(article: NewsArticle): string {
 }
 
 
+
+/** 去重：两段文案是否在说同一件事（避免定性/摘要/AI解读三处复读）。 */
+function normalizeForDup(text: string): string {
+  return String(text || '')
+    .replace(/[\s，。；：、,.!?！？:;"'“”‘’（）()【】\[\]\-—]/g, '')
+    .toLowerCase();
+}
+
+export function isDuplicateText(a?: string | null, b?: string | null): boolean {
+  const x = normalizeForDup(a || '');
+  const y = normalizeForDup(b || '');
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const shorter = x.length <= y.length ? x : y;
+  const longer = x.length > y.length ? x : y;
+  return shorter.length >= 8 && longer.includes(shorter);
+}
+
 /** 提炼反常与转折点 */
 function deriveCounterIntuitive(article: NewsArticle): string | null {
   if (article.coreLogic?.counterIntuitive) {
@@ -217,23 +235,50 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
             const personaImpactText = personaImpact?.coreImpact
               || (article.dehydratedItems?.impactHighlights?.[0] ? `对${selectedPersona.name}：${article.dehydratedItems.impactHighlights[0]}` : null);
 
-            // 提炼三栏轻量解读
-            const aiCore = article.aiInterpretation?.core
-              || article.dehydratedItems?.keyAction
-              || article.oneSentenceVerdict
-              || article.summary;
+            // 提炼三栏轻量解读：与定性/摘要/标题去重，避免同一句话复读
+            const verdictText = article.oneSentenceVerdict || '';
+            const summaryText = article.summary || '';
+            const titleText = article.title || '';
 
-            const trendText = typeof article.trendForecastText === 'string'
-              ? article.trendForecastText
-              : (article.trendForecastText as any)?.shortTerm
-              || article.rippleEffect?.stages?.[0]?.title
-              || null;
+            const pickDistinct = (candidates: Array<string | null | undefined>): string | null => {
+              for (const candidate of candidates) {
+                const text = String(candidate || '').trim();
+                if (!text) continue;
+                if (
+                  isDuplicateText(text, verdictText) ||
+                  isDuplicateText(text, summaryText) ||
+                  isDuplicateText(text, titleText)
+                ) {
+                  continue;
+                }
+                return text;
+              }
+              return null;
+            };
 
-            const riskText = typeof article.riskReviewText === 'string'
-              ? article.riskReviewText
-              : (article.riskReviewText as any)?.mainRisk
-              || personaImpact?.threatRisk
-              || null;
+            const interpretCore = pickDistinct([article.aiInterpretation?.core]);
+            const interpretImpact = pickDistinct([article.aiInterpretation?.impact]);
+            const aiCore = interpretCore
+              || interpretImpact
+              || pickDistinct([article.dehydratedItems?.keyAction]);
+            const aiCoreLabel = interpretCore ? 'AI解读 · 核心判断' : interpretImpact ? 'AI解读 · 主要影响' : 'AI解读 · 关键动作';
+            const aiCoreBasis = article.aiInterpretation?.basis || '';
+
+            const trendSource = article.trendForecastText;
+            const trendText = typeof trendSource === 'string'
+              ? (pickDistinct([trendSource]))
+              : (pickDistinct([(trendSource as any)?.shortTerm]));
+            const trendSignal = typeof trendSource === 'object' && trendSource
+              ? ((trendSource as any)?.keyVariables || null)
+              : null;
+
+            const riskSource = article.riskReviewText;
+            const riskText = typeof riskSource === 'string'
+              ? (pickDistinct([riskSource]))
+              : (pickDistinct([(riskSource as any)?.mainRisk, personaImpact?.threatRisk]));
+            const riskSignal = typeof riskSource === 'object' && riskSource
+              ? ((riskSource as any)?.watchMetrics || null)
+              : null;
 
             // 媒体信息
             const prof = mediaProfile(article.sourceName, article.sourceUrl);
@@ -400,19 +445,24 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                 {(aiCore || trendText || riskText) && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   {aiCore && (
-                  <div className="bg-sky-50/60 border border-sky-200/80 rounded-xl p-2.5 space-y-1">
+                  <div className="bg-sky-50/60 border border-sky-200/80 rounded-xl p-2.5 space-y-1" title={aiCoreBasis ? `依据：${aiCoreBasis}` : undefined}>
                     <div className="flex items-center gap-1 text-sky-900 font-serif font-bold text-[11px]">
                       <Sparkles className="w-3 h-3 text-sky-600" />
-                      <span>AI解读 (动机)</span>
+                      <span>{aiCoreLabel}</span>
                     </div>
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
                       {aiCore}
                     </p>
+                    {aiCoreBasis && (
+                      <p className="text-[10px] text-stone-500 leading-snug line-clamp-1">
+                        依据：{aiCoreBasis}
+                      </p>
+                    )}
                   </div>
                   )}
 
                   {trendText && (
-                  <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-2.5 space-y-1">
+                  <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-2.5 space-y-1" title={trendSignal ? `关键变量：${trendSignal}` : undefined}>
                     <div className="flex items-center gap-1 text-emerald-900 font-serif font-bold text-[11px]">
                       <TrendingUp className="w-3 h-3 text-emerald-600" />
                       <span>发展趋势</span>
@@ -420,11 +470,16 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
                       {trendText}
                     </p>
+                    {trendSignal && (
+                      <p className="text-[10px] text-stone-500 leading-snug line-clamp-1">
+                        关键变量：{trendSignal}
+                      </p>
+                    )}
                   </div>
                   )}
 
                   {riskText && (
-                  <div className="bg-rose-50/60 border border-rose-200/80 rounded-xl p-2.5 space-y-1">
+                  <div className="bg-rose-50/60 border border-rose-200/80 rounded-xl p-2.5 space-y-1" title={riskSignal ? `关注指标：${riskSignal}` : undefined}>
                     <div className="flex items-center gap-1 text-rose-900 font-serif font-bold text-[11px]">
                       <ShieldAlert className="w-3 h-3 text-rose-600" />
                       <span>潜在风险</span>
@@ -432,6 +487,11 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
                       {riskText}
                     </p>
+                    {riskSignal && (
+                      <p className="text-[10px] text-stone-500 leading-snug line-clamp-1">
+                        关注指标：{riskSignal}
+                      </p>
+                    )}
                   </div>
                   )}
                 </div>
