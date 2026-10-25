@@ -115,11 +115,11 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
         }
       };
       if (!pipelineEnabled) {
-        return sanitizeEnrichPayload(parseJson(await callAI(prompt, { json: true, temperature: 0.2 })));
+        return sanitizeEnrichPayload(parseJson(await callAI(prompt, { json: true, temperature: 0.2 })), effectiveContent);
       }
       // 阶段一：只抽事实与证据。
       const factsPrompt = buildAnalysisFrameworkPrompt({ ...promptInput, stage: "facts" });
-      const facts = sanitizeEnrichPayload(parseJson(await callAI(factsPrompt, { json: true, temperature: 0.2 })));
+      const facts = sanitizeEnrichPayload(parseJson(await callAI(factsPrompt, { json: true, temperature: 0.2 })), effectiveContent);
       // 阶段二：只基于已抽事实派生；失败则回退单次全量生成。
       try {
         const derivePrompt = buildAnalysisFrameworkPrompt({
@@ -127,7 +127,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
           stage: "derive",
           priorFacts: facts,
         });
-        const derived = sanitizeEnrichPayload(parseJson(await callAI(derivePrompt, { json: true, temperature: 0.25 })));
+        const derived = sanitizeEnrichPayload(parseJson(await callAI(derivePrompt, { json: true, temperature: 0.25 })), effectiveContent);
         const merged: any = { ...facts };
         for (const [key, value] of Object.entries(derived)) {
           if (!FACT_FIELDS.has(key)) merged[key] = value;
@@ -135,7 +135,7 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
         return merged;
       } catch (error: any) {
         console.warn("[enrich] derive stage failed, falling back to single pass:", String(error?.message || error).slice(0, 200));
-        return sanitizeEnrichPayload(parseJson(await callAI(prompt, { json: true, temperature: 0.2 })));
+        return sanitizeEnrichPayload(parseJson(await callAI(prompt, { json: true, temperature: 0.2 })), effectiveContent);
       }
     }, { force });
     // 自审结果只用于质量报告，不写入语料。

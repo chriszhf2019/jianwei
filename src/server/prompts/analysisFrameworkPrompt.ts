@@ -123,7 +123,8 @@ export const ANALYSIS_DEEP_JSON_SCHEMA = `{
     "bear": [{ "point": "反方论点（质疑/看空）", "basis": "依据或隐含假设，一句话" }],
     "coreDispute": "双方真正的分歧焦点（双方都在争什么）一句话",
     "read": "当前力量判断：哪方论据更硬、或取决于什么关键条件（一句话，克制）"
-  }
+  },
+  "semanticAnnotations": [{ "entity": "", "category": "core_subject|key_data|risk|breakthrough|term", "plainText": "≤45字大白话，禁止百科体", "role": "在本文中的角色", "signal": "一句话信号" }]
 }`;
 
 /** 反套话硬约束：所有分析 prompt（enrich/analyze/skill）共用，可追加到任意 prompt 末尾。 */
@@ -156,6 +157,11 @@ backstoryTimeline：给出之前的 3-6 个关键相关节点（时间正序）�
 4. 动机 motivation：商业利益、竞争阻击、品牌诉求（为什么是现在、要打谁、牺牲什么），不得复述事实。
 5. 发展趋势 trends：产业链上下游传导、技术代际演进、下一阶段竞争重点，每条不少于 20 字。
 6. 潜在风险 risks：工程物理极限、整机取舍代价、用户实际体验落差、商业落地阻力，禁止仅用“成本推高/未经证实”收尾。
+语义实体标注 semanticAnnotations：
+- 只标注 4-8 个高信噪比实体：核心主体（人名/机构/作品）、关键数据、强风险、战略突破、必要术语；
+- 禁止标注「汇率、美元、人民币、合作、公司、消息、报道」等通用词；
+- plainText ≤45 字，禁止百科式生平介绍，必须说人话并指出该实体在本文中的利害；
+- 同一实体只列一次；没有就返回空数组 []。
 产品映射（供内部对齐，勿额外输出）：摘要=summary，定性=oneSentenceVerdict，7W=sevenElements，影响=dehydratedItems.impactHighlights/soWhat，风险=bullBearDebate.bear/threatRisk，证据链=evidenceChain。`;
 
 
@@ -179,7 +185,8 @@ export const ANALYSIS_DERIVED_JSON_SCHEMA = `{
   "spectrumLayers": [{ "layer": "micro_signal|interests|logic_chain|data_signal|deduction", "name": "", "color": "#RRGGBB", "headline": "", "content": "", "keyIndicators": [] }],
   "stakeholderImpact": [{ "name": "", "type": "company|government|person|group|industry|market", "direction": "benefit|pressure|neutral", "strength": 1, "why": "" }],
   "coreLogic": { "essence": "", "points": [], "counterIntuitive": "" },
-  "bullBearDebate": { "bull": [{ "point": "", "basis": "" }], "bear": [{ "point": "", "basis": "" }], "coreDispute": "", "read": "" }
+  "bullBearDebate": { "bull": [{ "point": "", "basis": "" }], "bear": [{ "point": "", "basis": "" }], "coreDispute": "", "read": "" },
+  "semanticAnnotations": [{ "entity": "", "category": "core_subject|key_data|risk|breakthrough|term", "plainText": "≤45字大白话，禁止百科体", "role": "在本文中的角色", "signal": "一句话信号" }]
 }`;
 
 export interface AnalysisPromptInput {

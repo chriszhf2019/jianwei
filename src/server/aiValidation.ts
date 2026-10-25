@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { AiFieldMeta, EvidenceItem, GrayscaleAssessment, NewsArticle } from "../types";
+import type { AiFieldMeta, EvidenceItem, GrayscaleAssessment, NewsArticle, SemanticAnnotation, SemanticCategory } from "../types";
 import type { AIProvider } from "./ai";
 
 import { ANALYSIS_FRAMEWORK_VERSION, normalizeAiVerdictActionLevel } from "../shared/analysisFramework";
@@ -7,7 +7,7 @@ import { ANALYSIS_FRAMEWORK_VERSION, normalizeAiVerdictActionLevel } from "../sh
 export const PROMPT_VERSIONS = {
   analyze: ANALYSIS_FRAMEWORK_VERSION,
   enrich: ANALYSIS_FRAMEWORK_VERSION,
-  skill: "skill-2026-10-25-v10",
+  skill: "skill-2026-10-25-v11",
   region_interpret: "region-interpret-2026-09-13-v1",
   frequency_analysis: "frequency-analysis-2026-09-13-v1",
   annotations: "annotations-2026-09-12-v3",
@@ -140,7 +140,57 @@ function sameSnippet(a: string, b: string): boolean {
   return shorter.length >= 8 && longer.includes(shorter);
 }
 
-export function sanitizeEnrichPayload(input: any): any {
+const SEMANTIC_STOP_ENTITIES = new Set(['汇率', '美元', '人民币', '合作', '公司', '消息', '报道']);
+const SEMANTIC_CATEGORIES = new Set<SemanticCategory>(['core_subject', 'key_data', 'risk', 'breakthrough', 'term']);
+
+/** 语义实体标注：类别校验、停用词过滤、去重、服务端计算首次出现偏移。 */
+export function sanitizeSemanticAnnotations(
+  value: unknown,
+  content = '',
+  summary = ''
+): SemanticAnnotation[] {
+  if (!Array.isArray(value)) return [];
+  const out: SemanticAnnotation[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const entity = asText(item.entity, 40);
+    if (entity.length < 2 || SEMANTIC_STOP_ENTITIES.has(entity)) continue;
+    const key = entity.toLowerCase();
+    if (seen.has(key)) continue;
+    const category = SEMANTIC_CATEGORIES.has(String(item.category) as SemanticCategory)
+      ? (String(item.category) as SemanticCategory)
+      : 'term';
+    const plainText = asText(item.plainText, 80);
+    if (!plainText) continue;
+    const annotation: SemanticAnnotation = {
+      entity,
+      category,
+      plainText,
+      ...(asText(item.role, 40) ? { role: asText(item.role, 40) } : {}),
+      ...(asText(item.signal, 40) ? { signal: asText(item.signal, 40) } : {}),
+    };
+    const haystacks: Array<[string, SemanticAnnotation['field']]> = [
+      [content, 'content'],
+      [summary, 'summary'],
+    ];
+    for (const [text, field] of haystacks) {
+      const index = String(text || '').indexOf(entity);
+      if (index >= 0) {
+        annotation.offset = [index, index + entity.length];
+        annotation.field = field;
+        break;
+      }
+    }
+    seen.add(key);
+    out.push(annotation);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+export function sanitizeEnrichPayload(input: any, sourceText = ""): any {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const cleaned = { ...input };
 
@@ -173,6 +223,14 @@ export function sanitizeEnrichPayload(input: any): any {
 
   if (Array.isArray(input.evidenceChain)) {
     cleaned.evidenceChain = sanitizeEvidenceChain(input.evidenceChain);
+  }
+
+  if (Array.isArray(input.semanticAnnotations)) {
+    cleaned.semanticAnnotations = sanitizeSemanticAnnotations(
+      input.semanticAnnotations,
+      sourceText,
+      asText(input.summary, 800)
+    );
   }
 
   if (input.sevenElements && typeof input.sevenElements === "object") {

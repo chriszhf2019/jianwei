@@ -288,6 +288,23 @@ export interface RegionMention {
   scope: RegionScope;
 }
 
+export type SemanticCategory = 'core_subject' | 'key_data' | 'risk' | 'breakthrough' | 'term';
+
+/** 由模型抽取、服务端计算偏移的语义实体标注（用于正文高亮与悬停卡片）。 */
+export interface SemanticAnnotation {
+  entity: string;
+  category: SemanticCategory;
+  /** 悬停大白话（≤45 字，禁止百科体） */
+  plainText: string;
+  /** 该实体在本文中的角色 */
+  role?: string;
+  /** 一句话信号定性（利好/风险/中性） */
+  signal?: string;
+  /** 服务端确定性计算：entity 在目标文本中的起止偏移 */
+  offset?: [number, number];
+  field?: 'content' | 'summary' | 'title';
+}
+
 export interface NewsArticle {
   id: string;
   title: string;
@@ -384,6 +401,8 @@ export interface NewsArticle {
   deepAnalysisError?: string;
   /** 各 AI 字段的生成来源与版本；用于审计模型切换、提示词更新和缓存命中。 */
   aiFieldMeta?: Record<string, AiFieldMeta>;
+  /** 语义实体标注（正文高亮用）；由 enrich 阶段生成。 */
+  semanticAnnotations?: SemanticAnnotation[];
   /** 跨模型复核结果（仅在同时配置两个 AI 通道时生成）。 */
   crossCheck?: ArticleCrossCheck;
 }
