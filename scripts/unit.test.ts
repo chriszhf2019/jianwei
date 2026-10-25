@@ -2125,3 +2125,16 @@ test('提示词：硬件新闻必须解释动机、翻译体验、落到工程�
   assert.match(src, /功耗、散热、帧率适配、外围缩水/);
   assert.match(src, /同价位规格对标/);
 });
+
+test('六模块职责隔离：提示词包含动机/趋势/风险数组与红线', () => {
+  const skills = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  assert.match(skills, /"motivation"/);
+  assert.match(skills, /"trends"/);
+  assert.match(skills, /"risks"/);
+  assert.match(skills, /不得复述配置|禁止复述事实/);
+  const shared = fs.readFileSync(path.join(process.cwd(), 'src/server/prompts/analysisFrameworkPrompt.ts'), 'utf8');
+  assert.match(shared, /模块职责红线/);
+  assert.match(shared, /不得写成新闻导语/);
+  assert.match(shared, /不得写“界限变得模糊”/);
+  assert.match(shared, /不得直接照抄标题/);
+});

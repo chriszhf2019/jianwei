@@ -139,6 +139,13 @@ bullBearDebate：bull 列 2-3 条支持方论点，bear 列 2-3 条反对方论�
 coreLogic：essence 用一句话讲清本质；points 列 2-4 条结构性核心逻辑；counterIntuitive 点出最反直觉处（没有就空字符串）。
 stakeholderImpact：列出受影响相关方 3-6 个，why 用可复核表述，宁缺毋滥。
 backstoryTimeline：给出之前的 3-6 个关键相关节点（时间正序）；若没有值得写的前情，返回空数组 []。
+【模块职责红线（不得串岗）】
+1. 一句话定性 oneSentenceVerdict：只写战略/行业定性（心智突围、生态防守、价格挤压、技术试水），不得写成新闻导语或复述配置参数。
+2. 隐秘转折 counterIntuitive：只写光鲜表象下的次生矛盾（参数高 vs 体验差、政策利好 vs 落地阻力、降价 vs 减配），不得写“界限变得模糊”等放之四海皆准的空话。
+3. 背景摘要 summary：事实提炼 + 前代/竞品坐标（该事件在时间轴或产品谱系中的位置），不得直接照抄标题或媒体原话。
+4. 动机 motivation：商业利益、竞争阻击、品牌诉求（为什么是现在、要打谁、牺牲什么），不得复述事实。
+5. 发展趋势 trends：产业链上下游传导、技术代际演进、下一阶段竞争重点，每条不少于 20 字。
+6. 潜在风险 risks：工程物理极限、整机取舍代价、用户实际体验落差、商业落地阻力，禁止仅用“成本推高/未经证实”收尾。
 产品映射（供内部对齐，勿额外输出）：摘要=summary，定性=oneSentenceVerdict，7W=sevenElements，影响=dehydratedItems.impactHighlights/soWhat，风险=bullBearDebate.bear/threatRisk，证据链=evidenceChain。`;
 
 export interface AnalysisPromptInput {

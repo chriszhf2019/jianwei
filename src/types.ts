@@ -126,6 +126,8 @@ export interface TrendForecastData {
   midTerm: string;
   keyVariables: string;
   invalidation: string;
+  /** 行业/产业链级趋势 2-3 条（卡片「发展趋势」模块）。 */
+  trends?: string[];
 }
 
 /** 风险审稿固定四问，便于快速阅读和逐项复核。 */
@@ -134,6 +136,8 @@ export interface RiskReviewData {
   misread: string;
   blindSpot: string;
   watchMetrics: string;
+  /** 工程/取舍/落地风险 2-3 条（卡片「潜在风险」模块）。 */
+  risks?: string[];
 }
 
 /** 首页卡片 AI 综合解读：判断、依据、影响与边界分开，避免与 7W 事实摘要混用。 */
@@ -158,6 +162,8 @@ export interface AiInterpretationData {
   basis: string;
   impact: string;
   limits: string;
+  /** 商业动机 2 条（卡片「AI解读（动机）」模块）：为什么做、打谁。 */
+  motivation?: string[];
   grayscale?: GrayscaleAssessment;
 }
 
