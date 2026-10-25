@@ -2134,6 +2134,7 @@ test('六模块职责隔离：提示词包含动机/趋势/风险数组与红线
   assert.match(skills, /不得复述配置|禁止复述事实/);
   assert.match(skills, /40-80 字/);
   assert.match(skills, /40-90 字/);
+  assert.match(skills, /（推算）/);
   const shared = fs.readFileSync(path.join(process.cwd(), 'src/server/prompts/analysisFrameworkPrompt.ts'), 'utf8');
   assert.match(shared, /模块职责红线/);
   assert.match(shared, /不得写成新闻导语/);
