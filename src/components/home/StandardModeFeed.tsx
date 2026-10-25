@@ -445,7 +445,18 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     </button>
                     {isSummaryExpanded && (
                       <div className="p-3.5 pt-1 text-stone-700 font-serif leading-relaxed border-t border-stone-200 bg-white">
-                        <KeyTermHighlight text={article.summary} entities={entities} onOpenTermExplain={onOpenTermExplain} />
+                        {String(article.summary || '')
+                          .split(/\n+/)
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                          .map((line, index) => (
+                            <p key={index} className="flex gap-1.5 mb-1 last:mb-0">
+                              <span className="shrink-0 text-stone-400">•</span>
+                              <span>
+                                <KeyTermHighlight text={line} entities={entities} onOpenTermExplain={onOpenTermExplain} />
+                              </span>
+                            </p>
+                          ))}
                         {article.sourceUrl && (
                           <div className="mt-2 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px] font-sans">
                             <span className="text-stone-400">原文出处链接：</span>
@@ -468,7 +479,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
 
                 {/* 6. 三栏职责隔离胶囊：定性/摘要/AI解读/趋势/风险各司其职 */}
                 {(aiCoreItems.length > 0 || trendItems.length > 0 || riskItems.length > 0) && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div className="grid grid-cols-1 gap-2 text-xs">
                   {aiCoreItems.length > 0 && (
                   <div className="bg-sky-50/60 border border-sky-200/80 rounded-xl p-2.5 space-y-1" title={aiCoreBasis ? `依据：${aiCoreBasis}` : undefined}>
                     <div className="flex items-center gap-1 text-sky-900 font-serif font-bold text-[11px]">
@@ -479,7 +490,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                       {aiCoreItems.map((item, index) => (
                         <li key={index} className="flex gap-1.5">
                           <span className="shrink-0 text-sky-600">•</span>
-                          <span className="line-clamp-2">{item}</span>
+                          <span className="line-clamp-3">{item}</span>
                         </li>
                       ))}
                     </ul>
@@ -499,7 +510,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     </div>
                     <ol className="space-y-1 text-stone-700 leading-snug font-sans text-[11px] list-decimal list-inside">
                       {trendItems.map((item, index) => (
-                        <li key={index} className="line-clamp-2">{item}</li>
+                        <li key={index} className="line-clamp-3">{item}</li>
                       ))}
                     </ol>
                     {trendSignal && (
@@ -518,7 +529,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                     </div>
                     <ol className="space-y-1 text-stone-700 leading-snug font-sans text-[11px] list-decimal list-inside">
                       {riskItems.map((item, index) => (
-                        <li key={index} className="line-clamp-2">{item}</li>
+                        <li key={index} className="line-clamp-3">{item}</li>
                       ))}
                     </ol>
                     {riskSignal && (
