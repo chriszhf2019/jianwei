@@ -2255,3 +2255,44 @@ test('aiValidation: 提示词指纹稳定 + 字段元数据记录温度与指纹
   assert.equal(meta.promptHash, a);
   assert.equal(meta.calibrationStatus, 'uncalibrated');
 });
+
+test('范例复核：A24 六模块输出保留结构、去重且不误判推算', () => {
+  const corpus = '据《华尔街日报》报道，亚历克斯·加兰执导的《艾尔登法环》真人电影预算达近 2 亿美元。此前 A24 最高成本为《内战》约 5000 万美元。';
+  const payload = {
+    oneSentenceVerdict: 'A24 借顶级游戏 IP 发动豪赌，向超级制片厂跃迁。',
+    summary: '项目核心：加兰执导《艾尔登法环》真人电影，预算近 2 亿美元。\n行业坐标：此前 A24 最高成本约 5000 万美元，本次翻 4 倍。',
+    coreLogic: { counterIntuitive: '2 亿美元预算可能反而扼杀作者表达：必须向全年龄妥协，硬核叙事易被稀释。' },
+    aiInterpretation: {
+      motivation: [
+        '击穿独立厂牌商业天花板：中低成本艺术片票房收窄，需用 2500 万销量的超级 IP 证明操盘能力。',
+        '卡位严肃暗黑奇幻真空：超英疲软与文学 IP 枯竭下，抢占后《权游》时代的硬核奇幻市场。',
+      ],
+    },
+    trendForecastText: {
+      trends: [
+        '好莱坞权力向游戏 IP 倾斜：3A 游戏正接替超级英雄漫画成为电影工业硬通货。',
+        '独立制片两极分化：头部厂牌加速资本化，中小成本独立制作空间被压缩。',
+      ],
+    },
+    riskReviewText: {
+      risks: [
+        '回本线严苛：按行业 2.5-3 倍宣发规则推算，全球票房需 5.5-6 亿美元方可盈亏平衡（推算）。',
+        '魂系叙事影视化冲突：留白与环境叙事与三幕式线性剧本天然冲突。',
+        '作者导演对撞重工业管线：庞大特效工业与商业干涉易产生创意摩擦。',
+      ],
+    },
+  };
+
+  const { payload: cleaned } = stripGenericFields(payload, corpus);
+  assert.equal(cleaned.aiInterpretation.motivation.length, 2);
+  assert.equal(cleaned.trendForecastText.trends.length, 2);
+  assert.equal(cleaned.riskReviewText.risks.length, 3);
+  assert.ok(cleaned.summary.includes('\n'));
+
+  // 明确标注的推算不应被当作“未接地数字”
+  const ungrounded = findUngroundedSentences(cleaned, corpus);
+  assert.equal(ungrounded.some((item) => item.sentence.includes('推算')), false);
+
+  // 套话会被具体性校验识别
+  assert.ok(findSpecificityIssues('同价位规格对标，行业趋势向好。', corpus).issues.length > 0);
+});
