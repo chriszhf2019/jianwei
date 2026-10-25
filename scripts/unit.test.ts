@@ -2334,3 +2334,33 @@ test('领域路由与权重派生：影视/硬件各自挂载正确维度，且�
   // 信号太少时不画图
   assert.equal(deriveLogicWeights({ id: 'x', title: '短讯', summary: '' } as any).length, 0);
 });
+
+test('框架总览：定性不得回退摘要、截断不切半句、空模块不渲染', () => {
+  // 1) 定性缺失时保持为空，不再用摘要顶替
+  const noVerdict = extractAnalysisFramework({
+    summary: '据华尔街日报报道，A24 的《艾尔登法环》电影预算接近 2 亿美元。',
+    oneSentenceVerdict: '',
+  });
+  assert.equal(noVerdict.verdict, '');
+
+  // 2) 定性与摘要相同时视为未生成
+  const same = 'A24 豪赌《艾尔登法环》真人电影，预算接近 2 亿美元。';
+  const duplicated = extractAnalysisFramework({ summary: same, oneSentenceVerdict: same });
+  assert.equal(duplicated.verdict, '');
+
+  // 3) 截断按句末标点，避免停在半句
+  const longSummary = '第一句介绍项目预算与导演。第二句说明历史成本对比。第三句讨论票房回收与改编风险。';
+  const truncated = extractAnalysisFramework({ summary: longSummary, oneSentenceVerdict: '独立厂牌向超级商业片发起正面对决。' });
+  assert.ok(truncated.summary.endsWith('。'));
+
+  // 4) sanitize 也会清除与摘要重复的定性
+  const sanitized = sanitizeEnrichPayload({ summary: same, oneSentenceVerdict: same });
+  assert.equal(sanitized.oneSentenceVerdict, '');
+
+  // 5) 框架卡不再输出“暂无摘要/暂无定性”式占位
+  const card = fs.readFileSync(path.join(process.cwd(), 'src/components/common/FrameworkOverviewCard.tsx'), 'utf8');
+  assert.equal(card.includes('暂无摘要'), false);
+  assert.equal(card.includes('暂无定性'), false);
+  assert.equal(card.includes('暂无证据链条目'), false);
+  assert.match(card, /已生成 \{presentCount\}\/6 模块/);
+});

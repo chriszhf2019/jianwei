@@ -20,7 +20,7 @@ import type {
 } from '../types';
 
 /** 与 PROMPT_VERSIONS.enrich / analyze 对齐的统一框架版本号 */
-export const ANALYSIS_FRAMEWORK_VERSION = 'analysis-framework-2026-10-25-v4';
+export const ANALYSIS_FRAMEWORK_VERSION = 'analysis-framework-2026-10-25-v5';
 
 /** 产品侧展示标签（框架总览卡） */
 export const ANALYSIS_FRAMEWORK_LABELS = {
@@ -54,6 +54,32 @@ export interface AnalysisFramework {
 
 function asText(value: unknown, max = 800): string {
   return String(value ?? '').trim().slice(0, max);
+}
+
+/** 按句末标点截断，避免把一句话切在半截。 */
+function truncateAtSentence(text: string, max: number): string {
+  const value = String(text || '').trim();
+  if (value.length <= max) return value;
+  const slice = value.slice(0, max);
+  const lastPunct = Math.max(
+    ...['。', '！', '？', '；', '\n'].map((mark) => slice.lastIndexOf(mark))
+  );
+  if (lastPunct >= Math.floor(max * 0.5)) return slice.slice(0, lastPunct + 1);
+  return `${slice.replace(/[，、,;；：:]?$/, '')}…`;
+}
+
+function normalizeForCompare(text: string): string {
+  return String(text || '').replace(/[\s，。；：、,.!?！？:;"'“”‘’（）()【】\[\]\-—]/g, '').toLowerCase();
+}
+
+function isSameText(a: string, b: string): boolean {
+  const x = normalizeForCompare(a);
+  const y = normalizeForCompare(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const shorter = x.length <= y.length ? x : y;
+  const longer = x.length > y.length ? x : y;
+  return shorter.length >= 8 && longer.includes(shorter);
 }
 
 function textOf(value: unknown): string {
@@ -106,8 +132,10 @@ export function extractAnalysisFramework(
   const article = (source && typeof source === 'object' ? source : {}) as Partial<NewsArticle> &
     Record<string, any>;
 
-  const summary = asText(article.summary, 500);
-  const verdict = asText(article.oneSentenceVerdict, 400) || summary;
+  const summary = truncateAtSentence(asText(article.summary, 1200), 800);
+  // 定性缺失时不再回退到摘要（那是两种不同职能）；与摘要重复也视为未生成。
+  const rawVerdict = truncateAtSentence(asText(article.oneSentenceVerdict, 120), 80);
+  const verdict = rawVerdict && !isSameText(rawVerdict, summary) ? rawVerdict : '';
 
   const sevenW =
     sevenWFrom(article.sevenWBrief) ||

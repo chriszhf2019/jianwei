@@ -7,7 +7,7 @@ import { ANALYSIS_FRAMEWORK_VERSION, normalizeAiVerdictActionLevel } from "../sh
 export const PROMPT_VERSIONS = {
   analyze: ANALYSIS_FRAMEWORK_VERSION,
   enrich: ANALYSIS_FRAMEWORK_VERSION,
-  skill: "skill-2026-10-25-v9",
+  skill: "skill-2026-10-25-v10",
   region_interpret: "region-interpret-2026-09-13-v1",
   frequency_analysis: "frequency-analysis-2026-09-13-v1",
   annotations: "annotations-2026-09-12-v3",
@@ -125,9 +125,31 @@ export function sanitizeGrayscaleAssessment(input: any): GrayscaleAssessment | u
  * 清洗模型返回的深层字段。
  * 当前只做结构与范围校验；语义真实性仍由逐条核验流程负责。
  */
+
+/** 定性不能与摘要复读：归一化后相同/包含则视为未生成。 */
+function sameSnippet(a: string, b: string): boolean {
+  const norm = (value: string) => String(value || '')
+    .replace(/[\s，。；：、,.!?！？:;"'“”‘’（）()【】\[\]\-—]/g, '')
+    .toLowerCase();
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const shorter = x.length <= y.length ? x : y;
+  const longer = x.length > y.length ? x : y;
+  return shorter.length >= 8 && longer.includes(shorter);
+}
+
 export function sanitizeEnrichPayload(input: any): any {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const cleaned = { ...input };
+
+  // 定性与摘要不得是同一段文字。
+  const summaryText = asText((input as any).summary, 800);
+  const verdictText = asText((input as any).oneSentenceVerdict, 200);
+  if (verdictText && summaryText && sameSnippet(verdictText, summaryText)) {
+    cleaned.oneSentenceVerdict = "";
+  }
 
   if (input.aiInterpretation && typeof input.aiInterpretation === "object") {
     const { grayscale: _rawGrayscale, ...interpretation } = input.aiInterpretation;
