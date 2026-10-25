@@ -6,7 +6,7 @@ import { ANALYSIS_FRAMEWORK_VERSION, normalizeAiVerdictActionLevel } from "../sh
 export const PROMPT_VERSIONS = {
   analyze: ANALYSIS_FRAMEWORK_VERSION,
   enrich: ANALYSIS_FRAMEWORK_VERSION,
-  skill: "skill-2026-10-25-v7",
+  skill: "skill-2026-10-25-v8",
   region_interpret: "region-interpret-2026-09-13-v1",
   frequency_analysis: "frequency-analysis-2026-09-13-v1",
   annotations: "annotations-2026-09-12-v3",

@@ -10,8 +10,8 @@ export { ANALYSIS_FRAMEWORK_VERSION };
 /** 深度字段 JSON 样例（enrich / analyze 共用核心） */
 export const ANALYSIS_DEEP_JSON_SCHEMA = `{
   "subtitle": "精炼副标题",
-  "oneSentenceVerdict": "一句话终局定性",
-  "summary": "120 字以内速读摘要",
+  "oneSentenceVerdict": "战略/行业定性（30-70字），不得写成新闻导语或复述配置参数",
+  "summary": "两行文本：第一行=项目核心事实（谁/做了什么/关键数字/来源）；第二行=行业坐标（前代或竞品对比、该事件在产品谱系中的位置）",
   "sevenElements": {
     "what": "",
     "who": "",
@@ -116,7 +116,7 @@ export const ANALYSIS_DEEP_JSON_SCHEMA = `{
   "coreLogic": {
     "essence": "事情的本质/底层逻辑一句话（跳出新闻本身的第一性概括）",
     "points": ["核心逻辑1（结构性机制）", "核心逻辑2", "核心逻辑3"],
-    "counterIntuitive": "最反直觉/容易被误读的一点（或留空）"
+    "counterIntuitive": "2-3 句：先写光鲜表象，再指出次生矛盾（卖点 vs 体验、利好 vs 落地阻力、降价 vs 减配）；没有具体矛盾就留空"
   },
   "bullBearDebate": {
     "bull": [{ "point": "正方论点（支持/看多）", "basis": "依据或隐含假设，一句话" }],
