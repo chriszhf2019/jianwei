@@ -279,12 +279,12 @@ function loadCorpus(): any[] {
 function withCanonicalCategory(items: any[]): any[] {
   return items.map((article) => {
     const canonical = getArticleCanonicalCategory(article);
+    // 笼统/过时标签，或源默认与高置信内容不一致时，写回规范化赛道
     if (
       !article.category ||
       article.category === "外部信源" ||
-      (article.category === "科技" && (canonical === "教育" || canonical === "IT" || canonical === "AI")) ||
-      (article.category === "IT" && (canonical === "教育" || canonical === "AI")) ||
-      (article.category === "AI 前沿" && canonical === "AI")
+      article.category === "其他" ||
+      article.category !== canonical
     ) {
       return { ...article, category: canonical };
     }
