@@ -11,6 +11,9 @@ export function classifyAiClientError(input: {
   const note = String(payload.fallbackNote || payload.message || payload.note || payload.error || '');
   const reason = String(payload.fallbackReason || payload.reason || payload.error || '');
 
+  if (reason === 'truncated_content') {
+    return '抓取到的正文不完整（结尾停在半句）。请改用「贴正文」粘贴全文，或更换可公开访问的链接。';
+  }
   if (reason === 'no_api_key' || payload.fallbackReason === 'no_api_key') {
     return '服务端未配置可用 AI Key。请在管理端或环境变量中配置 Gemini / DeepSeek 后再试。';
   }

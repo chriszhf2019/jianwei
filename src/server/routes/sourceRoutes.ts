@@ -18,6 +18,7 @@ import {
   evaluateQuoteMatch,
   findQuoteContext,
   inspectSourceDeduplicated,
+  looksTruncatedText,
   revalidateCachedQuote,
   sourceCheckKey,
 } from "../sourceVerification";

@@ -11,6 +11,7 @@ import { NO_PERSIST } from "./settings";
 import {
   extractPageMetadata,
   inspectSourceDeduplicated,
+  looksTruncatedText,
   sourceCheckKey,
 } from "./sourceVerification";
 
@@ -35,6 +36,9 @@ export const ENRICH_FETCH_BLOCKED_NOTE =
 
 export const NO_SOURCE_CONTENT_NOTE =
   "缺少可抓取的原文链接，且本地也没有足够正文，无法进行深度分析。请提供可公开访问的原文链接后再试。未扣减游客额度。";
+
+export const TRUNCATED_CONTENT_NOTE =
+  "抓取到的正文疑似不完整（结尾停在半句）。请改用「贴正文」粘贴全文，或更换可公开访问的原文链接。";
 
 export type FetchArticleOk = {
   ok: true;
@@ -63,7 +67,7 @@ export type FetchArticleFail = {
   fetchedAt?: string;
   note: string;
   /** 供 API 统一对外 reason：fetch_failed | fetch_blocked */
-  failReason: "fetch_failed" | "fetch_blocked";
+  failReason: "fetch_failed" | "fetch_blocked" | "truncated_content";
 };
 
 export type FetchArticleResult = FetchArticleOk | FetchArticleFail;
@@ -108,6 +112,19 @@ export async function fetchArticleText(
     const pageText = loadSourcePageText(checkKey);
     if (cached && pageText && String(pageText).trim().length >= MIN_USABLE_ARTICLE_TEXT) {
       const text = String(pageText);
+      if (looksTruncatedText(text)) {
+        return {
+          ok: false,
+          failReason: "truncated_content",
+          status: String(cached.status || "reachable_unverified"),
+          requestedUrl: url,
+          finalUrl: String(cached.finalUrl || cached.requestedUrl || url),
+          httpStatus: cached.httpStatus,
+          reason: "truncated_content",
+          fetchedAt: cached.fetchedAt,
+          note: TRUNCATED_CONTENT_NOTE,
+        };
+      }
       return {
         ok: true,
         cached: true,
@@ -142,6 +159,19 @@ export async function fetchArticleText(
   if (!NO_PERSIST) persistSourceCheck(checkKey, result);
 
   const pageText = String(result.pageText || "").trim();
+  if (pageText && pageText.length >= MIN_USABLE_ARTICLE_TEXT && looksTruncatedText(pageText)) {
+    return {
+      ok: false,
+      failReason: "truncated_content",
+      status: result.status,
+      requestedUrl: url,
+      finalUrl: result.finalUrl,
+      httpStatus: result.httpStatus,
+      reason: "truncated_content",
+      fetchedAt: result.fetchedAt,
+      note: TRUNCATED_CONTENT_NOTE,
+    };
+  }
   if (!pageText || pageText.length < MIN_USABLE_ARTICLE_TEXT) {
     return {
       ok: false,
@@ -184,7 +214,7 @@ export type ResolveEnrichContentOk = {
 
 export type ResolveEnrichContentFail = {
   ok: false;
-  reason: "fetch_failed" | "fetch_blocked" | "no_source_content";
+  reason: "fetch_failed" | "fetch_blocked" | "no_source_content" | "truncated_content";
   note: string;
   status?: string;
   fetchReason?: string;
@@ -216,9 +246,11 @@ export async function resolveEnrichArticleContent(input: {
       const note =
         fetched.failReason === "fetch_blocked"
           ? ENRICH_FETCH_BLOCKED_NOTE
-          : fetched.reason === "url_required" || fetched.reason === "unsupported_protocol"
-            ? `${fetched.note}深度分析未开始，未扣减游客额度。`
-            : ENRICH_FETCH_FAIL_NOTE;
+          : fetched.failReason === "truncated_content"
+            ? `${TRUNCATED_CONTENT_NOTE}深度分析未开始，未扣减游客额度。`
+            : fetched.reason === "url_required" || fetched.reason === "unsupported_protocol"
+              ? `${fetched.note}深度分析未开始，未扣减游客额度。`
+              : ENRICH_FETCH_FAIL_NOTE;
       return {
         ok: false,
         reason: fetched.failReason,

@@ -226,6 +226,19 @@ function stripPageBoilerplate(text: string): string {
   return cleaned.join("\n");
 }
 
+
+/** 疑似截断：结尾停在逗号/连接词，或引号括号未闭合。保守判定，只拦明显半句。 */
+export function looksTruncatedText(text: string): boolean {
+  const value = String(text || '').trim();
+  if (value.length < 80) return false;
+  if (/[，、；：,;:]$/.test(value)) return true;
+  if (/(?:为|是|的|和|与|及|在|对|将|把|从|向|以|而|但|或|并|了|着|过)$/.test(value)) return true;
+  const count = (ch: string) => value.split(ch).length - 1;
+  if (count('“') % 2 === 1 || count('“') !== count('”')) return true;
+  if (count('（') !== count('）')) return true;
+  return false;
+}
+
 export function extractPageMetadata(html: string): {
   title: string;
   canonicalUrl: string;
