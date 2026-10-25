@@ -27,6 +27,7 @@ import {
   PROMPT_VERSIONS,
   promptFingerprint,
   createFieldMeta,
+  sanitizeSemanticAnnotations,
 } from '../src/server/aiValidation';
 import {
   ANALYSIS_FRAMEWORK_VERSION,
@@ -47,6 +48,7 @@ import {
   revalidateCachedQuote,
   sourceCheckKey,
   validatePublicOutboundBaseUrl,
+  looksTruncatedText,
 } from '../src/server/sourceVerification';
 import {
   buildEntityGraph,
@@ -2396,4 +2398,54 @@ test('两阶段管线：facts 只抽事实，derive 只基于事实派生', () =
   assert.match(server, /stage: "facts"/);
   assert.match(server, /stage: "derive"/);
   assert.match(server, /JIANWEI_ENRICH_PIPELINE/);
+});
+
+import { splitSemanticTerms } from '../src/utils/keyTermTone';
+
+test('语义标注：停用词过滤、偏移计算、去重与上限', () => {
+  const content = 'A24 的《艾尔登法环》电影预算接近 2 亿美元，A24 再次刷新纪录。';
+  const list = sanitizeSemanticAnnotations(
+    [
+      { entity: 'A24', category: 'core_subject', plainText: '独立厂牌天花板。', role: '投资方', signal: '商业冒险' },
+      { entity: '2 亿美元', category: 'key_data', plainText: '约 13.4 亿人民币。' },
+      { entity: '汇率', category: 'key_data', plainText: '不应出现。' },
+      { entity: 'A24', category: 'core_subject', plainText: '重复项' },
+    ],
+    content,
+    ''
+  );
+  assert.equal(list.length, 2);
+  assert.deepEqual(list[0].offset, [0, 3]);
+  assert.equal(list[0].field, 'content');
+  assert.equal(list[0].category, 'core_subject');
+  assert.equal(list[1].entity, '2 亿美元');
+});
+
+test('高亮降噪：停用词不高亮、同实体只高亮首现、密度受限', () => {
+  const dict = splitKeyTerms('汇率与美元波动，合作公司与消息报道。');
+  assert.equal(
+    dict.some((seg) => seg.tone && ['汇率', '美元', '合作', '公司', '消息', '报道'].includes(seg.text)),
+    false
+  );
+
+  const semantic = splitSemanticTerms('A24 投资 A24 新片，A24 再次加码。', [
+    { entity: 'A24', category: 'core_subject', plainText: 'x' },
+  ]);
+  assert.equal(semantic.filter((seg) => seg.tone === 'key').length, 1);
+
+  const longText = '甲公司 乙公司 丙公司 丁公司 戊公司 ' + '补充正文'.repeat(30);
+  const many = splitSemanticTerms(longText, [
+    { entity: '甲公司', category: 'core_subject', plainText: 'a' },
+    { entity: '乙公司', category: 'core_subject', plainText: 'b' },
+    { entity: '丙公司', category: 'core_subject', plainText: 'c' },
+    { entity: '丁公司', category: 'core_subject', plainText: 'd' },
+    { entity: '戊公司', category: 'core_subject', plainText: 'e' },
+  ]);
+  assert.equal(many.filter((seg) => seg.tone).length, 3);
+});
+
+test('抓取完整性：结尾停在半句的正文被判定为截断', () => {
+  assert.equal(looksTruncatedText('这是一段足够长的正文，内容持续展开并给出背景，导演与制片方就预算和档期进行了多轮沟通，制片厂与发行方也参与了预算评审，相关细节仍在确认中，据报道该项目已进入前期筹备阶段，但最后停在预算为'), true);
+  assert.equal(looksTruncatedText('这是一段足够长的正文，内容持续展开并给出背景，导演与制片方就预算和档期进行了多轮沟通，制片厂与发行方也参与了预算评审，相关细节仍在确认中，据报道该项目已进入前期筹备阶段，最终项目正式立项。'), false);
+  assert.equal(looksTruncatedText('太短，'), false);
 });
