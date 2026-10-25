@@ -272,7 +272,8 @@ export function useCorpusStore() {
   useEffect(() => {
     const controller = new AbortController();
     const pageSize = 200;
-    const maxLoaded = 10000;
+    // 首页只预载最新一小批，避免在主线程对全量语料做派生/聚类，阻塞首屏与 load 事件。
+    const maxLoaded = 260;
     let loadedCount = 0;
 
     const loadPage = async (offset: number): Promise<void> => {
