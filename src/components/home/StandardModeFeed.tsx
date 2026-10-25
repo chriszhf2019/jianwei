@@ -237,6 +237,7 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
 
             // 提炼三栏轻量解读：与定性/摘要/标题去重，避免同一句话复读
             const verdictText = article.oneSentenceVerdict || '';
+            const hasVerdict = Boolean(verdictText.trim());
             const summaryText = article.summary || '';
             const titleText = article.title || '';
 
@@ -411,10 +412,10 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                 <div className="bg-[#FAF7F2] border-l-3 border-[#E3120B] p-3 rounded-r-xl">
                   <div className="flex items-center gap-1.5 text-[11px] font-serif font-bold text-[#E3120B] uppercase tracking-wider mb-1">
                     <Zap className="w-3 h-3 fill-[#E3120B]" />
-                    <span>见微 · 一句话定性</span>
+                    <span>{hasVerdict ? '见微 · 一句话定性' : '原文摘要 · 定性尚未生成'}</span>
                   </div>
                   <p className="text-xs sm:text-sm font-serif font-bold text-stone-900 leading-relaxed">
-                    “{article.oneSentenceVerdict || article.summary || article.title}”
+                    {hasVerdict ? `“${article.oneSentenceVerdict}”` : (article.summary || article.title)}
                   </p>
                 </div>
 
