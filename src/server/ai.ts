@@ -89,6 +89,7 @@ export interface AIResult {
 }
 
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 45_000);
+const AI_MAX_OUTPUT_TOKENS = Math.max(1024, Number(process.env.AI_MAX_OUTPUT_TOKENS || 8192));
 
 function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -230,7 +231,10 @@ export async function runAI(
     if (provider === "gemini") {
       const ai = getGeminiClient();
       if (!ai) throw new Error("gemini client unavailable");
-      const config: { temperature: number; responseMimeType?: string } = { temperature };
+      const config: { temperature: number; responseMimeType?: string; maxOutputTokens?: number } = {
+        temperature,
+        maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+      };
       if (opts.json) config.responseMimeType = "application/json";
       const response = await withTimeout(
         ai.models.generateContent({
@@ -262,8 +266,10 @@ export async function runAI(
       messages: Array<{ role: string; content: string }>;
       stream: boolean;
       temperature?: number;
+      max_tokens?: number;
       response_format?: { type: "json_object" };
     } = {
+      max_tokens: AI_MAX_OUTPUT_TOKENS,
       model: dsModel,
       messages: [{ role: "user", content: prompt }],
       stream: false,
