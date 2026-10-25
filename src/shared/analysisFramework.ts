@@ -20,7 +20,7 @@ import type {
 } from '../types';
 
 /** 与 PROMPT_VERSIONS.enrich / analyze 对齐的统一框架版本号 */
-export const ANALYSIS_FRAMEWORK_VERSION = 'analysis-framework-2026-10-17-v1';
+export const ANALYSIS_FRAMEWORK_VERSION = 'analysis-framework-2026-10-25-v2';
 
 /** 产品侧展示标签（框架总览卡） */
 export const ANALYSIS_FRAMEWORK_LABELS = {

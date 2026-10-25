@@ -1506,8 +1506,8 @@ test('AnalysisFramework: enrich/analyze 共用同一 prompt 构建器与深度 s
     content: '正文',
     dateLabel: '2026年10月17日',
   });
-  assert.match(enrich, /analysis-framework-2026-10-17-v1/);
-  assert.match(analyze, /analysis-framework-2026-10-17-v1/);
+  assert.ok(enrich.includes(ANALYSIS_FRAMEWORK_VERSION));
+  assert.ok(analyze.includes(ANALYSIS_FRAMEWORK_VERSION));
   assert.match(enrich, /oneSentenceVerdict/);
   assert.match(analyze, /oneSentenceVerdict/);
   assert.match(enrich, /evidenceChain/);
