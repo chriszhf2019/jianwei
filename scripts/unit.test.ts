@@ -2296,3 +2296,41 @@ test('范例复核：A24 六模块输出保留结构、去重且不误判推算'
   // 套话会被具体性校验识别
   assert.ok(findSpecificityIssues('同价位规格对标，行业趋势向好。', corpus).issues.length > 0);
 });
+
+import { detectDomainTemplate } from '../src/utils/domainTemplate';
+import { deriveLogicWeights } from '../src/utils/logicWeights';
+
+test('领域路由与权重派生：影视/硬件各自挂载正确维度，且权重归一', () => {
+  const filmArticle: any = {
+    id: 'a24-test',
+    title: 'A24 豪赌《艾尔登法环》真人电影，预算近 2 亿美元',
+    summary: '据《华尔街日报》报道，导演加兰执导，预算约 2 亿美元；此前最高成本为《内战》约 5000 万美元。票房需 5.5-6 亿美元回本，改编与原著粉丝争议并存。',
+    category: '影视娱乐',
+    tags: ['电影', '游戏IP'],
+    coreLogic: { essence: '游戏 IP 接替超级英雄', points: [], counterIntuitive: '预算越高越可能稀释作者表达' },
+    bullBearDebate: { bull: [{ point: 'IP 自带粉丝' }], bear: [{ point: '回本线过高' }], coreDispute: '作者风格 vs 商业妥协' },
+    riskReviewText: { mainRisk: '票房回收风险' },
+    evidenceChain: [{ claim: '预算', sourceFact: '2 亿美元' }],
+  };
+  const filmTemplate = detectDomainTemplate(filmArticle);
+  assert.equal(filmTemplate.id, 'film');
+  const filmWeights = deriveLogicWeights(filmArticle);
+  assert.equal(filmWeights.length, 4);
+  assert.equal(filmWeights.reduce((sum, item) => sum + item.weight, 0), 100);
+  assert.ok(filmWeights.some((item) => item.name === '票房与回收'));
+
+  const hardwareArticle: any = {
+    id: 'iqoo-test',
+    title: 'iQOO Neo12 采用 6.83 英寸 2K 185Hz 屏幕，搭载骁龙芯片',
+    summary: '屏幕规格激进，2K+185Hz 带来功耗与散热压力，主流手游原生帧率仅 120/144Hz，充电与续航需要 6500mAh 电池。',
+    category: '科技',
+    tags: ['手机', '屏幕'],
+  };
+  assert.equal(detectDomainTemplate(hardwareArticle).id, 'hardware');
+  const hardwareWeights = deriveLogicWeights(hardwareArticle);
+  assert.ok(hardwareWeights.some((item) => item.name === '能效与物料取舍'));
+  assert.equal(hardwareWeights.reduce((sum, item) => sum + item.weight, 0), 100);
+
+  // 信号太少时不画图
+  assert.equal(deriveLogicWeights({ id: 'x', title: '短讯', summary: '' } as any).length, 0);
+});
