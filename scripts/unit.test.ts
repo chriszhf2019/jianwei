@@ -2372,3 +2372,28 @@ test('框架总览：定性不得回退摘要、截断不切半句、空模块�
   assert.equal(card.includes('暂无证据链条目'), false);
   assert.match(card, /已生成 \{presentCount\}\/6 模块/);
 });
+
+test('两阶段管线：facts 只抽事实，derive 只基于事实派生', () => {
+  const base = { mode: 'enrich' as const, title: 'A24 豪赌《艾尔登法环》', content: '预算近 2 亿美元。' };
+  const facts = buildAnalysisFrameworkPrompt({ ...base, stage: 'facts' });
+  assert.match(facts, /事实抽取员/);
+  assert.match(facts, /"evidenceChain"/);
+  assert.equal(facts.includes('"logicTree": {'), false);
+  assert.equal(facts.includes('"bullBearDebate": {'), false);
+
+  const derive = buildAnalysisFrameworkPrompt({
+    ...base,
+    stage: 'derive',
+    priorFacts: { summary: '预算近 2 亿美元', evidenceChain: [{ claim: '预算' }] },
+  });
+  assert.match(derive, /推演分析师/);
+  assert.match(derive, /已抽取事实/);
+  assert.match(derive, /"bullBearDebate"/);
+  assert.equal(derive.includes('"evidenceChain": ['), false);
+  assert.match(derive, /不得新增事实中不存在的数字/);
+
+  const server = fs.readFileSync(path.join(process.cwd(), 'src/server/deepEndpoints.ts'), 'utf8');
+  assert.match(server, /stage: "facts"/);
+  assert.match(server, /stage: "derive"/);
+  assert.match(server, /JIANWEI_ENRICH_PIPELINE/);
+});

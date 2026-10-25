@@ -82,8 +82,8 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       promptVersion: PROMPT_VERSIONS.enrich,
     });
 
-    const prompt = buildAnalysisFrameworkPrompt({
-      mode: "enrich",
+    const promptInput = {
+      mode: "enrich" as const,
       title: effectiveTitle,
       source: effectiveSource,
       sourceUrl: resolvedUrl,
@@ -91,18 +91,52 @@ app.post("/api/enrich", applyRateLimit, async (req, res) => {
       category: category ? String(category) : undefined,
       content: effectiveContent,
       contentBasis,
-    });
+    };
+    const prompt = buildAnalysisFrameworkPrompt(promptInput);
+    // 两阶段串行：事实/证据 → 基于事实派生影响与风险；JIANWEI_ENRICH_PIPELINE=0 可关闭。
+    const pipelineEnabled = process.env.JIANWEI_ENRICH_PIPELINE !== "0";
+    const FACT_FIELDS = new Set([
+      "subtitle",
+      "oneSentenceVerdict",
+      "summary",
+      "sevenElements",
+      "dehydratedItems",
+      "evidenceChain",
+      "backstoryTimeline",
+      "tongsuSummary",
+    ]);
 
     const generated = await getOrCreateCached(key, async () => {
-      // 事实抽取值固定低温度，减少随机性，便于复现。
-      const text = await callAI(prompt, { json: true, temperature: 0.2 });
-      let parsed: any;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
+      const parseJson = (text: string): any => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return JSON.parse(text.replace(/```json/g, "").replace(/```/g, "").trim());
+        }
+      };
+      if (!pipelineEnabled) {
+        return sanitizeEnrichPayload(parseJson(await callAI(prompt, { json: true, temperature: 0.2 })));
       }
-      return sanitizeEnrichPayload(parsed);
+      // 阶段一：只抽事实与证据。
+      const factsPrompt = buildAnalysisFrameworkPrompt({ ...promptInput, stage: "facts" });
+      const facts = sanitizeEnrichPayload(parseJson(await callAI(factsPrompt, { json: true, temperature: 0.2 })));
+      // 阶段二：只基于已抽事实派生；失败则回退单次全量生成。
+      try {
+        const derivePrompt = buildAnalysisFrameworkPrompt({
+          ...promptInput,
+          stage: "derive",
+          priorFacts: facts,
+        });
+        const derived = sanitizeEnrichPayload(parseJson(await callAI(derivePrompt, { json: true, temperature: 0.25 })));
+        const merged: any = { ...facts };
+        for (const [key, value] of Object.entries(derived)) {
+          if (!FACT_FIELDS.has(key)) merged[key] = value;
+        }
+        return merged;
+      } catch (error: any) {
+        console.warn("[enrich] derive stage failed, falling back to single pass:", String(error?.message || error).slice(0, 200));
+        return sanitizeEnrichPayload(parseJson(await callAI(prompt, { json: true, temperature: 0.2 })));
+      }
     }, { force });
     // 自审结果只用于质量报告，不写入语料。
     const audit = generated.data?.audit && typeof generated.data.audit === "object" ? generated.data.audit : null;

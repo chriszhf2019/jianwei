@@ -158,6 +158,30 @@ backstoryTimeline：给出之前的 3-6 个关键相关节点（时间正序）�
 6. 潜在风险 risks：工程物理极限、整机取舍代价、用户实际体验落差、商业落地阻力，禁止仅用“成本推高/未经证实”收尾。
 产品映射（供内部对齐，勿额外输出）：摘要=summary，定性=oneSentenceVerdict，7W=sevenElements，影响=dehydratedItems.impactHighlights/soWhat，风险=bullBearDebate.bear/threatRisk，证据链=evidenceChain。`;
 
+
+/** 两阶段管线 · 阶段一：只抽取可核对的事实与证据。 */
+export const ANALYSIS_FACTS_JSON_SCHEMA = `{
+  "subtitle": "精炼副标题",
+  "oneSentenceVerdict": "战略/行业定性（30-70字），不得写成新闻导语或复述配置参数",
+  "summary": "两行文本：第一行=项目核心事实（谁/做了什么/关键数字/来源）；第二行=行业坐标（前代或竞品对比）",
+  "sevenElements": { "what": "", "who": "", "when": "", "where": "", "why": "", "how": "", "soWhat": "" },
+  "dehydratedItems": { "coreEntity": "", "keyAction": "", "relatedCount": 0, "coreShifts": [], "impactHighlights": [] },
+  "evidenceChain": [{ "id": "ev-1", "claim": "", "sourceFact": "", "quote": "", "sourceName": "", "sourceUrl": null, "publishedAt": null, "sourceType": "reported_media", "relation": "supports", "reliability": "", "confidenceScore": 0 }],
+  "backstoryTimeline": [{ "date": "", "event": "", "relevance": "" }],
+  "tongsuSummary": { "simpleSay": "", "whyExplanation": "", "whatItMeans": "", "jargonTerms": [] }
+}`;
+
+/** 两阶段管线 · 阶段二：只基于已抽取事实派生影响与风险。 */
+export const ANALYSIS_DERIVED_JSON_SCHEMA = `{
+  "logicTree": { "rootCause": "", "nodes": [{ "id": "n-1", "label": "", "category": "cause|mid_effect|market_impact", "description": "" }], "variableWeights": [{ "name": "", "weight": 0, "impactDirection": "up|down|neutral", "description": "" }] },
+  "personaImpacts": [{ "personaId": "investor|manager|founder|pm|dev|sales_mkt", "coreImpact": "", "opportunity": "", "threatRisk": "", "recommendedAction": "" }],
+  "rippleEffect": { "stages": [{ "stage": "一阶影响", "title": "", "timeframe": "", "items": [], "severity": "高|中|低" }], "knowledgeGraph": [{ "id": "kg-1", "name": "", "type": "company", "relationToMain": "" }], "multiSources": [] },
+  "spectrumLayers": [{ "layer": "micro_signal|interests|logic_chain|data_signal|deduction", "name": "", "color": "#RRGGBB", "headline": "", "content": "", "keyIndicators": [] }],
+  "stakeholderImpact": [{ "name": "", "type": "company|government|person|group|industry|market", "direction": "benefit|pressure|neutral", "strength": 1, "why": "" }],
+  "coreLogic": { "essence": "", "points": [], "counterIntuitive": "" },
+  "bullBearDebate": { "bull": [{ "point": "", "basis": "" }], "bear": [{ "point": "", "basis": "" }], "coreDispute": "", "read": "" }
+}`;
+
 export interface AnalysisPromptInput {
   title?: string;
   source?: string;
@@ -172,6 +196,10 @@ export interface AnalysisPromptInput {
   dateLabel?: string;
   timeLabel?: string;
   sourceDateLabel?: string;
+  /** full=一次生成；facts=只抽事实；derive=基于已抽事实派生 */
+  stage?: 'full' | 'facts' | 'derive';
+  /** stage=derive 时传入阶段一的事实 JSON */
+  priorFacts?: Record<string, unknown>;
 }
 
 /**
@@ -179,6 +207,7 @@ export interface AnalysisPromptInput {
  * enrich / analyze 共用同一套深度 JSON 契约；analyze 额外要求壳字段便于生成 NewsArticle。
  */
 export function buildAnalysisFrameworkPrompt(input: AnalysisPromptInput): string {
+  const stage = input.stage || 'full';
   const title = input.title || '无标题';
   const source = input.source || (input.mode === 'analyze' ? '媒体报道' : '外部信源');
   const sourceUrl = input.sourceUrl || '未提供';
@@ -192,12 +221,16 @@ export function buildAnalysisFrameworkPrompt(input: AnalysisPromptInput): string
     : '';
 
   const role =
-    input.mode === 'enrich'
-      ? '你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。'
-      : '你是一个顶级深度调查记者、政经智库宏观分析师与《见微 Genway》特约总编。《见微 Genway》的核心理念是：“于细微处，读懂新闻背后。报刊为骨，数据为翼，光谱拆解为记”。请对新闻进行精辟的认知路径拆解，严格只输出合法 JSON。';
+    stage === 'facts'
+      ? '你是「见微 Genway」的事实抽取员。只抽取输入材料中可核对的事实与证据（谁/做了什么/关键数字/来源），不做影响与风险推演。严格只输出 JSON（不要任何额外文字）。'
+      : stage === 'derive'
+        ? '你是「见微 Genway」的推演分析师。下面是同一新闻已抽取的事实（JSON）。请只基于这些事实派生逻辑树、身份影响、涟漪、利益相关方、底层逻辑与正反博弈；不得新增事实中不存在的数字、来源或事件。严格只输出 JSON（不要任何额外文字）。'
+        : input.mode === 'enrich'
+          ? '你是「见微 Genway」的首席深度解构分析师。请为一条外部信源浅层新闻生成《见微》深层认知字段，并严格只输出 JSON（不要任何额外文字）。'
+          : '你是一个顶级深度调查记者、政经智库宏观分析师与《见微 Genway》特约总编。《见微 Genway》的核心理念是：“于细微处，读懂新闻背后。报刊为骨，数据为翼，光谱拆解为记”。请对新闻进行精辟的认知路径拆解，严格只输出合法 JSON。';
 
   const shellSchema =
-    input.mode === 'analyze'
+    input.mode === 'analyze' && stage === 'full'
       ? `
 壳字段（贴链接入口需要，深度字段仍须完整）：
 {
@@ -228,7 +261,7 @@ export function buildAnalysisFrameworkPrompt(input: AnalysisPromptInput): string
       : '';
 
   const auditSection =
-    input.mode === 'enrich'
+    input.mode === 'enrich' && stage !== 'facts'
       ? `
 自审要求（必须与深度字段放在同一个 JSON 内；该字段仅用于系统记录，不展示给用户）：
 "audit": {
@@ -242,8 +275,8 @@ export function buildAnalysisFrameworkPrompt(input: AnalysisPromptInput): string
 框架版本：${ANALYSIS_FRAMEWORK_VERSION}
 ${ANALYSIS_SHARED_RULES}
 ${shellSchema}${auditSection}
-深度字段 JSON 结构必须严格符合：
-${ANALYSIS_DEEP_JSON_SCHEMA}
+${input.priorFacts ? `已抽取事实（阶段一，作为唯一事实来源）：\n${JSON.stringify(input.priorFacts)}\n\n` : ''}深度字段 JSON 结构必须严格符合：
+${stage === 'facts' ? ANALYSIS_FACTS_JSON_SCHEMA : stage === 'derive' ? ANALYSIS_DERIVED_JSON_SCHEMA : ANALYSIS_DEEP_JSON_SCHEMA}
 
 标题：${title}
 来源：${source}
