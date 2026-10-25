@@ -11,12 +11,13 @@ import {
   normalizeFeedUrlKey,
 } from '../../../shared/qualityFeedPresets';
 
-const CATEGORY_ORDER: QualityFeedCategory[] = ['财经', '科技', 'AI'];
+const CATEGORY_ORDER: QualityFeedCategory[] = ['财经', '科技', 'AI', '教育'];
 
 const CATEGORY_BADGE: Record<QualityFeedCategory, string> = {
   '财经': 'bg-emerald-100 text-emerald-800 border-emerald-300',
   '科技': 'bg-sky-100 text-sky-800 border-sky-300',
   'AI': 'bg-violet-100 text-violet-800 border-violet-300',
+  '教育': 'bg-amber-100 text-amber-800 border-amber-300',
 };
 
 export function FeedsTab({ s }: { s: AdminTabScope }) {
@@ -70,7 +71,7 @@ export function FeedsTab({ s }: { s: AdminTabScope }) {
                 全局外部信源管道与实时调度中枢
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                内置财经 / 科技 / AI 优质 RSS 预设（公开可达）。一键启用不清空已有自定义源；坏链由上方健康面板暴露。
+                内置财经 / 科技 / AI / 教育优质 RSS 预设（公开可达）。一键启用不清空已有自定义源；坏链由上方健康面板暴露。
               </p>
             </div>
 
@@ -97,7 +98,7 @@ export function FeedsTab({ s }: { s: AdminTabScope }) {
           <div className="space-y-5">
             <h3 className="text-xs font-serif font-bold text-stone-900 flex items-center gap-1.5">
               <Globe className="w-4 h-4 text-blue-600" />
-              <span>优质信源预设 · 财经 / 科技 / AI（点击单卡订阅/取消；分类按钮合并启用）</span>
+              <span>优质信源预设 · 财经 / 科技 / AI / 教育（点击单卡订阅/取消；分类按钮合并启用）</span>
             </h3>
 
             {grouped.map(({ category, presets, enabledCount }) => (

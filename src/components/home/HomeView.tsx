@@ -279,6 +279,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           if (selectedCategory === '科技前沿') return canonical === '科技';
           if (selectedCategory === '全球财经') return canonical === '财经';
           if (selectedCategory === '产业纵深') return canonical === '科技';
+          // 产品规范名「科技」；IT 为兼容别名，互相同池
+          if (selectedCategory === '科技' || selectedCategory === 'IT') {
+            return canonical === '科技' || canonical === 'IT';
+          }
           return canonical === selectedCategory;
         }
 

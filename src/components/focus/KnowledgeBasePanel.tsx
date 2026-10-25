@@ -58,7 +58,7 @@ export const KnowledgeBasePanel: React.FC<KnowledgeBasePanelProps> = ({
   const [newNote, setNewNote] = useState('');
   const [newTags, setNewTags] = useState('战略, 核心沉淀');
 
-  // Categories：财经/科技/AI 预设 + 条目中出现的其它赛道
+  // Categories：财经/科技/AI/教育预设 + 条目中出现的其它赛道
   const categories = useMemo(() => {
     const set = new Set<string>([...HOME_TOPIC_CATEGORIES]);
     knowledgeItems.forEach((item) => {

@@ -1,9 +1,10 @@
 /**
- * 高质量 RSS 预设（切片 2）：财经 / 科技 / AI。
+ * 高质量 RSS 预设：财经 / 科技 / AI / 教育。
  * URL 均经公开可达性抽检；Admin 一键启用时与用户自定义列表合并，不覆盖清空。
+ * 产品侧 IT 与「科技」对齐，预设与首页主类使用「科技」作为规范名。
  */
 
-export type QualityFeedCategory = '财经' | '科技' | 'AI';
+export type QualityFeedCategory = '财经' | '科技' | 'AI' | '教育';
 
 export interface QualityFeedPreset {
   id: string;
@@ -17,7 +18,7 @@ export interface QualityFeedPreset {
 }
 
 /** 首页与用户话术对齐的主筛选类（含兼容别名） */
-export const HOME_TOPIC_CATEGORIES = ['财经', '科技', 'AI'] as const;
+export const HOME_TOPIC_CATEGORIES = ['财经', '科技', 'AI', '教育'] as const;
 
 export const QUALITY_FEED_PRESETS: QualityFeedPreset[] = [
   // —— 财经 / 金融 ——
@@ -176,6 +177,67 @@ export const QUALITY_FEED_PRESETS: QualityFeedPreset[] = [
     desc: 'OpenAI 官方博客与产品动态',
     lang: 'en',
   },
+
+  // —— 教育（中文优先 + 国际高等教育 / EdTech）——
+  {
+    id: 'jiemodui',
+    name: '芥末堆 · 教育产业',
+    url: 'https://www.jiemodui.com/rss',
+    category: '教育',
+    desc: 'K12、高等教育与教育信息化产业中文快讯',
+    lang: 'zh',
+    enabledByDefault: true,
+  },
+  {
+    id: 'sciencedaily-edu',
+    name: 'ScienceDaily · Education & Learning',
+    url: 'https://www.sciencedaily.com/rss/education_learning.xml',
+    category: '教育',
+    desc: '学习科学、认知与教育研究快讯',
+    lang: 'en',
+    enabledByDefault: true,
+  },
+  {
+    id: 'edsurge',
+    name: 'EdSurge · 教育科技',
+    url: 'https://www.edsurge.com/feed',
+    category: '教育',
+    desc: 'EdTech 产品、政策与教学实践',
+    lang: 'en',
+    enabledByDefault: true,
+  },
+  {
+    id: 'mit-news-edu',
+    name: 'MIT News · Education',
+    url: 'https://news.mit.edu/rss/topic/education',
+    category: '教育',
+    desc: '麻省理工教育、教学与在线学习相关新闻',
+    lang: 'en',
+  },
+  {
+    id: 'npr-education',
+    name: 'NPR · Education',
+    url: 'https://www.npr.org/rss/rss.php?id=1013',
+    category: '教育',
+    desc: '美国公共广播教育专题报道',
+    lang: 'en',
+  },
+  {
+    id: 'frontiers-education',
+    name: 'Frontiers in Education',
+    url: 'https://www.frontiersin.org/journals/education/rss',
+    category: '教育',
+    desc: '教育学开放获取期刊最新文章',
+    lang: 'en',
+  },
+  {
+    id: 'hnrss-edu',
+    name: 'Hacker News · Education/EdTech 过滤',
+    url: 'https://hnrss.org/newest?q=education+OR+EdTech',
+    category: '教育',
+    desc: 'HN 上教育与 EdTech 相关讨论与链接',
+    lang: 'en',
+  },
 ];
 
 const PRESET_BY_URL = new Map(
@@ -223,6 +285,12 @@ function guessCategoryFromHost(urlOrHost: string): QualityFeedCategory | undefin
   if (/techcrunch|technologyreview|ieee\.org|theverge|arstechnica|solidot|infoq|sspai|engadget|wired\.com/i.test(host)) {
     return '科技';
   }
+  if (
+    /jiemodui|sciencedaily\.com.*education|edsurge|npr\.org.*1013|frontiersin\.org\/journals\/education|news\.mit\.edu.*education|hnrss\.org.*education|moe\.gov\.cn|jyb\.cn|eol\.cn|edu\.cn|edutopia|insidehighered|chronicle\.com/i.test(raw) ||
+    /jiemodui|edsurge|edutopia|insidehighered/i.test(host)
+  ) {
+    return '教育';
+  }
   return undefined;
 }
 
@@ -256,5 +324,6 @@ export function mergeDisableFeedUrls(existing: string[], toDisable: string[]): s
 export function presetCategoryLabel(category: QualityFeedCategory): string {
   if (category === '财经') return '金融 / 财经';
   if (category === '科技') return '科技';
+  if (category === '教育') return '教育';
   return 'AI';
 }

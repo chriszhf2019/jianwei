@@ -1533,7 +1533,7 @@ test('AnalysisFramework: enrich/analyze 共用同一 prompt 构建器与深度 s
 
 
 // —— 切片 2：优质源预设 + AI 独立分类 ——
-test('qualityFeedPresets: 覆盖财经/科技/AI 且 URL 唯一', async () => {
+test('qualityFeedPresets: 覆盖财经/科技/AI/教育 且 URL 唯一', async () => {
   const {
     QUALITY_FEED_PRESETS,
     defaultEnabledFeedUrls,
@@ -1548,6 +1548,7 @@ test('qualityFeedPresets: 覆盖财经/科技/AI 且 URL 唯一', async () => {
   assert.ok(cats.has('财经'));
   assert.ok(cats.has('科技'));
   assert.ok(cats.has('AI'));
+  assert.ok(cats.has('教育'));
   assert.equal(cats.has('IT' as any), false);
 
   const keys = QUALITY_FEED_PRESETS.map((p) => normalizeFeedUrlKey(p.url));
@@ -1571,9 +1572,11 @@ test('qualityFeedPresets: 覆盖财经/科技/AI 且 URL 唯一', async () => {
   assert.equal(getDefaultCategoryForFeedUrl('https://rss.arxiv.org/rss/cs.AI'), 'AI');
   assert.equal(getDefaultCategoryForFeedUrl('https://feeds.a.dj.com/rss/RSSMarketsMain.xml'), '财经');
   assert.equal(getDefaultCategoryForFeedUrl('https://techcrunch.com/feed/'), '科技');
+  assert.equal(getDefaultCategoryForFeedUrl('https://www.jiemodui.com/rss'), '教育');
+  assert.equal(getDefaultCategoryForFeedUrl('https://www.sciencedaily.com/rss/education_learning.xml'), '教育');
 });
 
-test('getArticleCanonicalCategory: AI 从 IT 独立；源级 feedUrl 优先', async () => {
+test('getArticleCanonicalCategory: AI 从 IT 独立；源级默认 + 高置信内容覆写', async () => {
   const { getArticleCanonicalCategory } = await import('../src/utils/categoryClassifier');
 
   assert.equal(
@@ -1589,6 +1592,10 @@ test('getArticleCanonicalCategory: AI 从 IT 独立；源级 feedUrl 优先', as
     '财经'
   );
   assert.equal(
+    getArticleCanonicalCategory({ title: '教育部推进高考综合改革与智慧课堂', summary: '双减背景下的教学教改' }),
+    '教育'
+  );
+  assert.equal(
     getArticleCanonicalCategory({ category: 'AI 前沿', title: '无关标题' }),
     'AI'
   );
@@ -1596,13 +1603,39 @@ test('getArticleCanonicalCategory: AI 从 IT 独立；源级 feedUrl 优先', as
     getArticleCanonicalCategory({ category: '金融', title: '无关标题' }),
     '财经'
   );
-  // 源级默认：即使标题偏金融，订阅源为 arXiv AI 时归 AI
+  // 弱标题：源级默认优先（arXiv AI 不因含 market 一词改财经）
   assert.equal(
     getArticleCanonicalCategory({
       title: 'Some market note',
       feedUrl: 'https://rss.arxiv.org/rss/cs.AI',
     }),
     'AI'
+  );
+  // 高置信内容覆写源默认：科技源里的大模型稿 → AI
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: 'OpenAI 发布 GPT 大语言模型与智能体工作流',
+      summary: 'LLM 推理与 Agent 编排突破',
+      feedUrl: 'https://techcrunch.com/feed/',
+    }),
+    'AI'
+  );
+  // 高置信内容覆写：科技源里的教育政策 → 教育
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: '教育部发布高考改革与高校人才培养方案',
+      summary: '双减与智慧教育课堂试点',
+      feedUrl: 'https://techcrunch.com/feed/',
+    }),
+    '教育'
+  );
+  // 教育源默认
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: 'Weekly digest',
+      feedUrl: 'https://www.jiemodui.com/rss',
+    }),
+    '教育'
   );
 });
 
@@ -1616,6 +1649,7 @@ test('settings 默认 feeds 使用优质源子集且不含已知坏链', async (
   assert.match(feedsTab, /QUALITY_FEED_PRESETS/);
   assert.match(feedsTab, /一键启用全部优质源/);
   assert.match(feedsTab, /FeedHealthPanel/);
+  assert.match(feedsTab, /教育/);
 
   const home = fs.readFileSync(path.join(process.cwd(), 'src/components/home/HomeView.tsx'), 'utf8');
   assert.match(home, /'AI'/);
