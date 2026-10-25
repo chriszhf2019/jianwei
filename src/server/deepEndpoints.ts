@@ -20,6 +20,11 @@ import {
 } from "./aiValidation";
 import { buildAnalysisFrameworkPrompt } from "./prompts/analysisFrameworkPrompt";
 import { ANALYSIS_DEEP_FIELD_KEYS } from "../shared/analysisFramework";
+const HARDWARE_ANALYSIS_RULE = `【硬件/产品新闻专用规则】
+1. 涉及硬件参数（屏幕、芯片、电池、影像、快充等）时，必须把参数翻译成用户可感知的体验或代价（例如：2K+185Hz → DDIC 功耗与续航下降、主流手游原生帧率上限、MEMC 插帧延迟与伪影；大电池 → 机身重量/厚度）。
+2. 解释厂商动机时必须写清竞争格局与产品线区隔：对标谁、为什么此时做、牺牲了什么；不得复述配置参数。
+3. 风险必须落到工程或生态约束（功耗、散热、帧率适配、外围缩水、BOM 挤压），不得只写“成本高/利润薄”。
+4. 禁止空话：“同价位规格对标”“行业趋势向好”“市场竞争加剧”“需要重新划界”；每句必须带具体机制或主体。`;
 export interface RateLimiter { (req: express.Request, res: express.Response, next: express.NextFunction): void; }
 export function registerDeepEndpoints(app: express.Express, limit: RateLimiter): void {
   const applyRateLimit = limit;
@@ -462,7 +467,8 @@ app.post("/api/skill/interpret", applyRateLimit, (req, res) =>
 来源：${source}
 分类：${category}
 正文/要点：${content || "请基于标题解读"}
-要求：四项各一句；grayscale.memberships 2-4 条，score 为 0-100 的模型隶属度，不是校准概率；support/oppose/uncertain 各 2-4 条，必须区分材料事实与模型推断；reverseRisks 1-3 条；只基于输入材料，不补造事实、数字或来源；证据不足时写“现有信息有限，需继续核验”。不要自行输出最终行动结论，系统会按阈值计算。`,
+要求：四项各一句；core 必须是“为什么/意味着什么”的判断，不得复述标题或罗列配置参数；若无法判断写“现有信息不足以判断”。grayscale.memberships 2-4 条，score 为 0-100 的模型隶属度，不是校准概率；support/oppose/uncertain 各 2-4 条，必须区分材料事实与模型推断；reverseRisks 1-3 条；只基于输入材料，不补造事实、数字或来源；证据不足时写“现有信息有限，需继续核验”。不要自行输出最终行动结论，系统会按阈值计算。
+${HARDWARE_ANALYSIS_RULE}`,
   })
 );
 
@@ -513,7 +519,8 @@ app.post("/api/skill/trend", applyRateLimit, (req, res) =>
 来源：${source}
 分类：${category}
 正文/要点：${content || "请基于标题"}
-要求：字段值只写内容，不重复“短期/中期/关键变量/失效条件”等标签，不写“一句话”；四项各一句，总计约 100-160 字；写条件变化和可核验信号，不重复新闻事实；不编造概率、比例或时间点；证据不足时写“现有信息不足以支撑强判断”。`,
+要求：字段值只写内容，不重复“短期/中期/关键变量/失效条件”等标签；每项至少 20 字，必须写出具体驱动机制（供应链、技术、竞争格局）或可核验信号，不得用“同价位规格对标”“趋势向好”等空话；不重复新闻事实；不编造概率、比例或时间点；证据不足时写“现有信息不足以支撑强判断”。
+${HARDWARE_ANALYSIS_RULE}`,
   })
 );
 
@@ -534,7 +541,8 @@ app.post("/api/skill/risk", applyRateLimit, (req, res) =>
 来源：${source}
 分类：${category}
 正文/要点：${content || "请基于标题"}
-要求：字段值只写内容，不重复“主要风险/易误读/盲点/关注指标”等标签，不写“一句话”；四项各一句，总计约 100-160 字；只基于输入材料和可普遍核验的公开常识；无法判断时写“未说明”；不编造数据，不为制造冲突而夸大。`,
+要求：字段值只写内容，不重复“主要风险/易误读/盲点/关注指标”等标签；每项至少 20 字；mainRisk 必须写工程或生态后果（功耗、散热、帧率适配、外围缩水、BOM 挤压），不得只写“成本高/利润薄”；只基于输入材料和可普遍核验的公开常识；无法判断时写“未说明”；不编造数据，不为制造冲突而夸大。
+${HARDWARE_ANALYSIS_RULE}`,
   })
 );
 
