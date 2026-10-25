@@ -3,6 +3,7 @@
 // 由静态信号词词典 + JARGON_DICTIONARY + 可选的语料 AI 实体词（article.entityMentions）匹配；非 AI 判断、非事实结论。
 
 import { JARGON_DICTIONARY } from '../data/jargonData';
+import type { SemanticAnnotation, SemanticCategory } from '../types';
 
 export type KeyTone = 'pos' | 'neg' | 'num' | 'key' | 'term';
 
@@ -55,6 +56,16 @@ const NUM_PATTERNS = [
   /[+-]?\d+(?:\.\d+)?\s*(?:亿美元|亿元|万元|美元|欧元|元|亿|万|千|倍|卡|张|G|T|P)/, // 金额/量词
 ];
 
+/** 通用词黑名单：不得被当作核心实体高亮（用户反馈的高频误伤词）。 */
+const STOP_TERMS = new Set(['汇率', '美元', '人民币', '合作', '公司', '消息', '报道']);
+
+/** 密度熔断：100 字内最多 3 个高亮，全文最多 8 个。 */
+export function maxHighlightsFor(text: string): number {
+  const length = String(text || '').length;
+  if (length <= 100) return 3;
+  return Math.max(3, Math.min(8, Math.floor(length / 100) * 3));
+}
+
 interface TermItem {
   tone: KeyTone;
   re: RegExp;
@@ -67,6 +78,7 @@ function buildTerms(extraKeys: string[]): TermItem[] {
   const push = (text: string, tone: KeyTone) => {
     const t = text.trim();
     if (t.length < 2) return;
+    if (STOP_TERMS.has(t.toLowerCase())) return;
     if (seen.has(t.toLowerCase())) return;
     seen.add(t.toLowerCase());
     items.push({ tone, re: new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
@@ -94,6 +106,9 @@ export function splitKeyTerms(text: string, extraKeys: string[] = []): KeySeg[] 
   const terms = extraKeys.length > 0 ? buildTerms([...extraKeys]) : staticTerms();
   const segs: KeySeg[] = [];
   let pos = 0;
+  const maxHighlights = maxHighlightsFor(text);
+  let highlightCount = 0;
+  const seenWords = new Set<string>();
   outer: while (pos < text.length) {
     // 优先尝试长词/术语，避免"增长"命中"增速放缓"之类的前缀
     for (const item of terms) {
@@ -101,8 +116,15 @@ export function splitKeyTerms(text: string, extraKeys: string[] = []): KeySeg[] 
       const m = item.re.exec(text.slice(pos));
       if (m && m.index === 0) {
         const word = m[0];
+        const lower = word.toLowerCase();
+        if (highlightCount >= maxHighlights || seenWords.has(lower) || STOP_TERMS.has(lower)) {
+          pos += word.length;
+          continue outer;
+        }
         if (pos > 0) segs.push({ text: text.slice(0, pos), tone: undefined });
         segs.push({ text: word, tone: item.tone });
+        seenWords.add(lower);
+        highlightCount += 1;
         text = text.slice(pos + word.length);
         pos = 0;
         continue outer;
@@ -113,8 +135,15 @@ export function splitKeyTerms(text: string, extraKeys: string[] = []): KeySeg[] 
       const m = p.exec(text.slice(pos));
       if (m && m.index === 0) {
         const word = m[0];
+        const lower = word.toLowerCase();
+        if (highlightCount >= maxHighlights || seenWords.has(lower) || STOP_TERMS.has(lower)) {
+          pos += word.length;
+          continue outer;
+        }
         if (pos > 0) segs.push({ text: text.slice(0, pos), tone: undefined });
         segs.push({ text: word, tone: 'num' });
+        seenWords.add(lower);
+        highlightCount += 1;
         text = text.slice(pos + word.length);
         pos = 0;
         continue outer;
@@ -122,6 +151,58 @@ export function splitKeyTerms(text: string, extraKeys: string[] = []): KeySeg[] 
     }
     // 无命中：前进一个字符（支持中文逐字）
     pos += 1;
+  }
+  if (text) segs.push({ text, tone: undefined });
+  return segs;
+}
+
+
+/** 语义类别 → 五色调映射。 */
+export const SEMANTIC_TONE: Record<SemanticCategory, KeyTone> = {
+  core_subject: 'key',
+  key_data: 'num',
+  risk: 'neg',
+  breakthrough: 'pos',
+  term: 'term',
+};
+
+/** 优先使用模型抽取的语义实体；同实体只高亮首次出现，并受密度熔断约束。 */
+export function splitSemanticTerms(text: string, annotations: SemanticAnnotation[] = []): KeySeg[] {
+  const entities = annotations
+    .filter((item) => item.entity && item.entity.trim().length >= 2)
+    .filter((item) => !STOP_TERMS.has(item.entity.trim().toLowerCase()))
+    .sort((a, b) => b.entity.length - a.entity.length);
+  if (!text || entities.length === 0) return splitKeyTerms(text);
+
+  const maxHighlights = maxHighlightsFor(text);
+  const seen = new Set<string>();
+  const segs: KeySeg[] = [];
+  let pos = 0;
+  let count = 0;
+  while (pos < text.length) {
+    let matched: SemanticAnnotation | null = null;
+    for (const item of entities) {
+      const key = item.entity.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      if (count >= maxHighlights) break;
+      if (text.slice(pos, pos + item.entity.length).toLowerCase() === key) {
+        matched = item;
+        break;
+      }
+    }
+    if (matched) {
+      if (pos > 0) segs.push({ text: text.slice(0, pos), tone: undefined });
+      segs.push({
+        text: text.slice(pos, pos + matched.entity.length),
+        tone: SEMANTIC_TONE[matched.category] || 'term',
+      });
+      seen.add(matched.entity.trim().toLowerCase());
+      count += 1;
+      text = text.slice(pos + matched.entity.length);
+      pos = 0;
+    } else {
+      pos += 1;
+    }
   }
   if (text) segs.push({ text, tone: undefined });
   return segs;

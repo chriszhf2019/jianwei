@@ -86,7 +86,7 @@ export const ArticleBodyParserSection: React.FC<ArticleBodyParserSectionProps> =
                 报道正文与关键事实流 · 语义解析层
               </h3>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold border border-amber-300">
-                CSS 智能高亮 · 悬停即释义
+                语义实体解析 · 悬停即解惑
               </span>
             </div>
             <p className="text-[11px] text-stone-500 font-sans">
@@ -138,6 +138,7 @@ export const ArticleBodyParserSection: React.FC<ArticleBodyParserSectionProps> =
                 <KeyTermHighlight
                   text={para}
                   entities={entityNames}
+                  annotations={article.semanticAnnotations}
                   onOpenTermExplain={onOpenTermExplain}
                 />
               ) : (
@@ -152,7 +153,7 @@ export const ArticleBodyParserSection: React.FC<ArticleBodyParserSectionProps> =
               📰 信源：{article.sourceName || '权威机构公报'} ｜ 发布时间：{article.sourceDate || article.date}
             </span>
             <span className="text-[11px] text-stone-400">
-              见微语义解析层 · 本地实时词库匹配（零幻觉）
+              见微语义引擎 · 实时实体解析与上下文映射
             </span>
           </div>
         </div>

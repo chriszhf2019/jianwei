@@ -1,5 +1,6 @@
 import React, { Fragment, useMemo, useState, useRef, useEffect } from 'react';
-import { splitKeyTerms, KeyTone, KeySeg } from '../../utils/keyTermTone';
+import { splitKeyTerms, splitSemanticTerms, KeyTone, KeySeg } from '../../utils/keyTermTone';
+import type { SemanticAnnotation, SemanticCategory } from '../../types';
 import { JARGON_DICTIONARY } from '../../data/jargonData';
 import { Sparkles, BookOpen, Lightbulb, TrendingUp, AlertTriangle, ArrowRight, ExternalLink, HelpCircle } from 'lucide-react';
 
@@ -9,6 +10,14 @@ const TONE_CLASS: Record<KeyTone, string> = {
   num: 'text-amber-900 font-mono font-bold bg-amber-100/80 px-1 py-0.2 rounded border-b border-amber-300 hover:bg-amber-200 transition-colors',
   key: 'text-sky-900 font-medium bg-sky-100/80 px-1 py-0.2 rounded border-b border-sky-300 hover:bg-sky-200 transition-colors',
   term: 'text-purple-900 font-medium bg-purple-100 px-1 py-0.2 rounded underline decoration-dashed decoration-purple-500 cursor-pointer hover:bg-purple-200 transition-colors',
+};
+
+const SEMANTIC_LABEL: Record<SemanticCategory, string> = {
+  core_subject: '核心主体',
+  key_data: '关键数据',
+  risk: '风险预警',
+  breakthrough: '战略突破',
+  term: '专业术语',
 };
 
 const TONE_META: Record<KeyTone, { label: string; icon: React.ReactNode; desc: string; color: string }> = {
@@ -47,14 +56,17 @@ const TONE_META: Record<KeyTone, { label: string; icon: React.ReactNode; desc: s
 interface KeyTermHighlightProps {
   text: string;
   entities?: string[];
+  /** 模型抽取的语义实体（优先于静态词典） */
+  annotations?: SemanticAnnotation[];
   onOpenTermExplain?: (term: string) => void;
 }
 
 /** 单个关键词及其浮窗交互组件 */
 const TermSpan: React.FC<{
   seg: KeySeg;
+  annotation?: SemanticAnnotation;
   onOpenTermExplain?: (term: string) => void;
-}> = ({ seg, onOpenTermExplain }) => {
+}> = ({ seg, annotation, onOpenTermExplain }) => {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const tone = seg.tone || 'key';
@@ -109,15 +121,33 @@ const TermSpan: React.FC<{
           <span className="flex items-center justify-between border-b border-stone-800 pb-2 mb-2">
             <span className="flex items-center space-x-1.5 text-xs font-serif font-bold text-white">
               {meta.icon}
-              <span>{jargonDef ? jargonDef.term : seg.text}</span>
+              <span>{annotation?.entity || (jargonDef ? jargonDef.term : seg.text)}</span>
             </span>
             <span className="text-[10px] font-mono text-stone-400 bg-stone-800 px-1.5 py-0.5 rounded border border-stone-700">
-              {jargonDef ? jargonDef.category : meta.label}
+              {annotation ? SEMANTIC_LABEL[annotation.category] : jargonDef ? jargonDef.category : meta.label}
             </span>
           </span>
 
-          {/* Jargon Plain Talk or Semantic Meaning */}
-          {jargonDef ? (
+          {/* 语义标注优先：大白话 + 本文角色 + 信号 */}
+          {annotation ? (
+            <span className="space-y-1.5 block text-xs">
+              <span className="text-stone-200 leading-relaxed block">
+                <b className="text-amber-400">大白话：</b>
+                {annotation.plainText}
+              </span>
+              {annotation.role && (
+                <span className="text-stone-300 leading-relaxed block text-[11px]">
+                  <b className="text-sky-300">在本文：</b>
+                  {annotation.role}
+                </span>
+              )}
+              {annotation.signal && (
+                <span className="text-[11px] text-amber-300 block font-serif">
+                  信号：{annotation.signal}
+                </span>
+              )}
+            </span>
+          ) : jargonDef ? (
             <span className="space-y-2 block text-xs">
               <span className="text-stone-200 leading-relaxed block">
                 <b className="text-amber-400">大白话：</b>
@@ -168,9 +198,26 @@ const TermSpan: React.FC<{
 export const KeyTermHighlight: React.FC<KeyTermHighlightProps> = ({
   text,
   entities,
+  annotations,
   onOpenTermExplain,
 }) => {
-  const segs = useMemo(() => splitKeyTerms(text || '', entities), [text, entities]);
+  const annotationList = useMemo(
+    () => (Array.isArray(annotations) ? annotations : []),
+    [annotations]
+  );
+  const annotationByText = useMemo(() => {
+    const map = new Map<string, SemanticAnnotation>();
+    for (const item of annotationList) {
+      if (item?.entity) map.set(item.entity.trim().toLowerCase(), item);
+    }
+    return map;
+  }, [annotationList]);
+  const segs = useMemo(
+    () => (annotationList.length > 0
+      ? splitSemanticTerms(text || '', annotationList)
+      : splitKeyTerms(text || '', entities)),
+    [text, entities, annotationList]
+  );
 
   return (
     <>
@@ -180,6 +227,7 @@ export const KeyTermHighlight: React.FC<KeyTermHighlightProps> = ({
           <TermSpan
             key={i}
             seg={s}
+            annotation={annotationByText.get(s.text.trim().toLowerCase())}
             onOpenTermExplain={onOpenTermExplain}
           />
         );
