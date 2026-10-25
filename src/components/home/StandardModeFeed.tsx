@@ -256,26 +256,51 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
               return null;
             };
 
-            const interpretCore = pickDistinct([article.aiInterpretation?.core]);
-            const interpretImpact = pickDistinct([article.aiInterpretation?.impact]);
-            const aiCore = interpretCore
-              || interpretImpact
-              || pickDistinct([article.dehydratedItems?.keyAction]);
-            const aiCoreLabel = interpretCore ? 'AI解读 · 核心判断' : interpretImpact ? 'AI解读 · 主要影响' : 'AI解读 · 关键动作';
+            const pickDistinctList = (candidates: unknown[]): string[] => {
+              const out: string[] = [];
+              const push = (raw: unknown) => {
+                const text = String(raw || '').trim();
+                if (!text) return;
+                if (
+                  isDuplicateText(text, verdictText) ||
+                  isDuplicateText(text, summaryText) ||
+                  isDuplicateText(text, titleText)
+                ) return;
+                if (out.some((existing) => isDuplicateText(existing, text))) return;
+                out.push(text);
+              };
+              for (const candidate of candidates) {
+                if (Array.isArray(candidate)) candidate.forEach(push);
+                else push(candidate);
+              }
+              return out;
+            };
+
+            const motivationItems = pickDistinctList([article.aiInterpretation?.motivation]).slice(0, 3);
+            const fallbackCore = pickDistinct([
+              article.aiInterpretation?.core,
+              article.aiInterpretation?.impact,
+              article.dehydratedItems?.keyAction,
+            ]);
+            const aiCoreItems = motivationItems.length > 0 ? motivationItems : fallbackCore ? [fallbackCore] : [];
+            const aiCoreLabel = motivationItems.length > 0 ? 'AI解读（动机）' : 'AI解读 · 核心判断';
             const aiCoreBasis = article.aiInterpretation?.basis || '';
 
             const trendSource = article.trendForecastText;
-            const trendText = typeof trendSource === 'string'
-              ? (pickDistinct([trendSource]))
-              : (pickDistinct([(trendSource as any)?.shortTerm]));
+            const trendItems = pickDistinctList([
+              typeof trendSource === 'object' && trendSource ? (trendSource as any)?.trends : null,
+              typeof trendSource === 'string' ? trendSource : (trendSource as any)?.shortTerm,
+            ]).slice(0, 3);
             const trendSignal = typeof trendSource === 'object' && trendSource
               ? ((trendSource as any)?.keyVariables || null)
               : null;
 
             const riskSource = article.riskReviewText;
-            const riskText = typeof riskSource === 'string'
-              ? (pickDistinct([riskSource]))
-              : (pickDistinct([(riskSource as any)?.mainRisk, personaImpact?.threatRisk]));
+            const riskItems = pickDistinctList([
+              typeof riskSource === 'object' && riskSource ? (riskSource as any)?.risks : null,
+              typeof riskSource === 'string' ? riskSource : (riskSource as any)?.mainRisk,
+              personaImpact?.threatRisk,
+            ]).slice(0, 3);
             const riskSignal = typeof riskSource === 'object' && riskSource
               ? ((riskSource as any)?.watchMetrics || null)
               : null;
@@ -441,18 +466,23 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
                 )}
 
-                {/* 6. 三栏轻量分析胶囊：无真实内容的格子直接隐藏 */}
-                {(aiCore || trendText || riskText) && (
+                {/* 6. 三栏职责隔离胶囊：定性/摘要/AI解读/趋势/风险各司其职 */}
+                {(aiCoreItems.length > 0 || trendItems.length > 0 || riskItems.length > 0) && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  {aiCore && (
+                  {aiCoreItems.length > 0 && (
                   <div className="bg-sky-50/60 border border-sky-200/80 rounded-xl p-2.5 space-y-1" title={aiCoreBasis ? `依据：${aiCoreBasis}` : undefined}>
                     <div className="flex items-center gap-1 text-sky-900 font-serif font-bold text-[11px]">
                       <Sparkles className="w-3 h-3 text-sky-600" />
                       <span>{aiCoreLabel}</span>
                     </div>
-                    <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {aiCore}
-                    </p>
+                    <ul className="space-y-1 text-stone-700 leading-snug font-sans text-[11px]">
+                      {aiCoreItems.map((item, index) => (
+                        <li key={index} className="flex gap-1.5">
+                          <span className="shrink-0 text-sky-600">•</span>
+                          <span className="line-clamp-2">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                     {aiCoreBasis && (
                       <p className="text-[10px] text-stone-500 leading-snug line-clamp-1">
                         依据：{aiCoreBasis}
@@ -461,15 +491,17 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
                   )}
 
-                  {trendText && (
+                  {trendItems.length > 0 && (
                   <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-2.5 space-y-1" title={trendSignal ? `关键变量：${trendSignal}` : undefined}>
                     <div className="flex items-center gap-1 text-emerald-900 font-serif font-bold text-[11px]">
                       <TrendingUp className="w-3 h-3 text-emerald-600" />
                       <span>发展趋势</span>
                     </div>
-                    <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {trendText}
-                    </p>
+                    <ol className="space-y-1 text-stone-700 leading-snug font-sans text-[11px] list-decimal list-inside">
+                      {trendItems.map((item, index) => (
+                        <li key={index} className="line-clamp-2">{item}</li>
+                      ))}
+                    </ol>
                     {trendSignal && (
                       <p className="text-[10px] text-stone-500 leading-snug line-clamp-1">
                         关键变量：{trendSignal}
@@ -478,15 +510,17 @@ export const StandardModeFeed: React.FC<StandardModeFeedProps> = ({
                   </div>
                   )}
 
-                  {riskText && (
+                  {riskItems.length > 0 && (
                   <div className="bg-rose-50/60 border border-rose-200/80 rounded-xl p-2.5 space-y-1" title={riskSignal ? `关注指标：${riskSignal}` : undefined}>
                     <div className="flex items-center gap-1 text-rose-900 font-serif font-bold text-[11px]">
                       <ShieldAlert className="w-3 h-3 text-rose-600" />
                       <span>潜在风险</span>
                     </div>
-                    <p className="text-stone-700 leading-snug line-clamp-3 font-sans text-[11px]">
-                      {riskText}
-                    </p>
+                    <ol className="space-y-1 text-stone-700 leading-snug font-sans text-[11px] list-decimal list-inside">
+                      {riskItems.map((item, index) => (
+                        <li key={index} className="line-clamp-2">{item}</li>
+                      ))}
+                    </ol>
                     {riskSignal && (
                       <p className="text-[10px] text-stone-500 leading-snug line-clamp-1">
                         关注指标：{riskSignal}

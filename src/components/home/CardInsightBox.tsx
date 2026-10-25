@@ -112,6 +112,9 @@ function trendOf(value: unknown): TrendForecastData | null {
     midTerm: textOf(source.midTerm),
     keyVariables: textOf(source.keyVariables),
     invalidation: textOf(source.invalidation),
+    trends: Array.isArray(source.trends)
+      ? source.trends.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 3)
+      : undefined,
   };
   return Object.values(data).some(Boolean) ? data : null;
 }
@@ -124,6 +127,9 @@ function riskOf(value: unknown): RiskReviewData | null {
     misread: textOf(source.misread),
     blindSpot: textOf(source.blindSpot),
     watchMetrics: textOf(source.watchMetrics),
+    risks: Array.isArray(source.risks)
+      ? source.risks.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 3)
+      : undefined,
   };
   return Object.values(data).some(Boolean) ? data : null;
 }
@@ -136,6 +142,9 @@ function interpretationOf(value: unknown): AiInterpretationData | null {
     basis: textOf(source.basis),
     impact: textOf(source.impact),
     limits: textOf(source.limits),
+    motivation: Array.isArray(source.motivation)
+      ? source.motivation.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 3)
+      : undefined,
   };
   return Object.values(data).some(Boolean) ? data : null;
 }
