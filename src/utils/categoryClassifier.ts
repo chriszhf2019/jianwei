@@ -97,6 +97,10 @@ export function getArticleCanonicalCategory(article: {
   const headline = buildHeadline(article);
   const content = classifyFromContent(headline, cat);
 
+  const titleOnly = String(article.title || '').toLowerCase();
+  // 标题本身已是消费数码/古人类/航天算力等非教育域时，忽略摘要里的「教育优惠」「xx大学发言」等噪声
+  const titleNonEduEscape = escapeEducationWhenTitleIsNonEduDomain(titleOnly, cat);
+
   // 1. 显式已定义的类别与同义词（非「外部信源」等笼统标签）
   const explicit = mapExplicitCategory(cat, headline);
   if (explicit) {
@@ -109,6 +113,10 @@ export function getArticleCanonicalCategory(article: {
       content.category !== 'IT'
     ) {
       return content.category;
+    }
+    // 显式「教育」：标题域已明显非教育 → 直接跟标题分类（防摘要「教育优惠 / 复旦大学」误伤）
+    if (explicit === '教育' && titleNonEduEscape) {
+      return titleNonEduEscape;
     }
     // 显式「教育」若被错误盖章（或历史弱词误标），高置信非教育内容可覆写
     if (
@@ -126,6 +134,9 @@ export function getArticleCanonicalCategory(article: {
   // 2. 源级默认（订阅 URL / host）+ 高置信内容再分类
   const sourceDefault = resolveSourceDefault(article);
   if (sourceDefault) {
+    if (sourceDefault === '教育' && titleNonEduEscape) {
+      return titleNonEduEscape;
+    }
     // 源默认与内容冲突且内容置信度高时，以标题+摘要为准（避免科技源里的降息/高考/大模型被钉死）
     if (
       content.confidence === 'high' &&
@@ -287,6 +298,29 @@ function hasEducationStrongSignal(headline: string): boolean {
   return /教育|高考|课堂|教师|学生|高校|大学|慕课|双减|edtech|教学|教育部|人才培养|高等教育|university|college|curriculum|pedagogy/i.test(
     headline
   );
+}
+
+/** 标题侧的教育主题锚点（比 hasEducationStrongSignal 更严，不含机构名「大学」单点）。 */
+function hasEducationTopicAnchor(title: string): boolean {
+  return /教育|高考|课堂|教师|学生|高校|慕课|双减|edtech|教学|教育部|人才培养|高等教育|教改|K-?12|在线教育|智慧教育|university|college|curriculum|pedagogy|admissions/i.test(
+    title
+  );
+}
+
+/**
+ * 标题已明确落在非教育域，且标题本身无教育主题锚点时，按标题内容重分类。
+ * 用于对抗摘要里的「教育优惠」「xx大学领导讲话」等噪声。
+ */
+function escapeEducationWhenTitleIsNonEduDomain(
+  titleOnly: string,
+  cat: string,
+): CanonicalCategory | undefined {
+  if (!titleOnly || !looksLikeNonEducationDomain(titleOnly) || hasEducationTopicAnchor(titleOnly)) {
+    return undefined;
+  }
+  const titleContent = classifyFromContent(titleOnly, cat);
+  if (titleContent.category && titleContent.category !== '教育') return titleContent.category;
+  return '科技';
 }
 
 /** 消费数码 / 古人类考古 / 航天星座算力等：明显不是教育赛道的领域提示。 */

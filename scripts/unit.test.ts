@@ -2196,6 +2196,28 @@ test('categoryClassifier: IT之家消费数码/古人类/星座算力不得标�
   assert.equal(getArticleCanonicalCategory({ title: earbuds, sourceName: 'IT之家' }), 'IT');
   assert.equal(getArticleCanonicalCategory({ title: denisovan, sourceName: 'IT之家' }), '科技');
   assert.equal(getArticleCanonicalCategory({ title: stars, sourceName: 'IT之家' }), '科技');
+
+  // 线上残留：摘要含「教育优惠 / 复旦大学」仍不得盖成教育
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: earbuds,
+      category: '教育',
+      sourceName: 'ithome.com',
+      feedUrl: 'https://www.ithome.com/rss/',
+      summary: '荣耀新一代 Earbuds 耳夹式耳机将于今日开售，学生可再享 30 元教育优惠。',
+    }),
+    'IT',
+  );
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: stars,
+      category: '教育',
+      sourceName: 'ithome.com',
+      feedUrl: 'https://www.ithome.com/rss/',
+      summary: '复旦大学党委副书记、副校长迟楠在会上公布了“星枢计划”的部署规划。',
+    }),
+    '科技',
+  );
 });
 
 test('topicDossiers: 排除教育/Agent/关税已知假阳性', () => {
