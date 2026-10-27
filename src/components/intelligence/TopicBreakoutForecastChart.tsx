@@ -27,8 +27,14 @@ import {
   Radio,
   Filter,
 } from 'lucide-react';
-import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
 import { formatArticleTime, articleSortTime } from '../../utils/articleTime';
+import {
+  BREAKOUT_TOPIC_CONFIGS,
+  matchBreakoutArticles,
+  computeBreakoutStatus,
+  formatMomentumGain,
+  breakoutStatusLabel,
+} from '../../utils/topicBreakout';
 
 interface TopicBreakoutForecastChartProps {
   articles: NewsArticle[];
@@ -68,56 +74,9 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
     const now = Date.now();
     const dayMs = 24 * 3600 * 1000;
 
-    const topicsConfig = [
-      {
-        id: 'ai_semi',
-        name: '人工智能与半导体算力',
-        shortName: 'AI与算力',
-        color: '#E3120B',
-        icon: '🤖',
-        keywords: ['ai', 'semi', '算力', '芯片', '大模型', 'gpu', 'moe', 'cpo', 'openai', 'agent', '封装', '台积电'],
-        catalyst: '开源低成本架构爆发与超大规模算力集群供电采购提速',
-        actionGuidance: '重点关注上下游光模块与端侧芯片模组供应链排产交付',
-      },
-      {
-        id: 'battery_ev',
-        name: '新能源与固态电池',
-        shortName: '固态电池与新能源',
-        color: '#059669',
-        icon: '🔋',
-        keywords: ['auto', 'battery', '固态电池', '锂电', '储能', '新能源', '出海', '整车', 'ckd'],
-        catalyst: '车企海外散件本土化合资点火与下一代电池产业链深潜',
-        actionGuidance: '防范液态锂电正负极旧产能减值风险，跟踪海外本土化代工厂订单',
-      },
-      {
-        id: 'trade_tariff',
-        name: '跨国经贸与出海关税',
-        shortName: '关税与出海供应链',
-        color: '#D97706',
-        icon: '🌐',
-        keywords: ['gov', '关税', '出海', '反补贴', '制裁', '贸易', 'ckd', '美联储', '流动性', '汇率'],
-        catalyst: '原产地规则与跨境贸易监管重审，倒逼供应链散件化与多地代工',
-        actionGuidance: '加速东南亚与拉美本地合资工厂备案，规避反规避审查',
-      },
-      {
-        id: 'robotics',
-        name: '具身智能与人形机器人',
-        shortName: '具身智能与机器人',
-        color: '#8B5CF6',
-        icon: '🦾',
-        keywords: ['机器人', '人形机器人', '具身智能', '灵巧手', '自动化', 'agent', '数字员工'],
-        catalyst: '端到端自主 Agent 落地验证与工业级灵巧操作模块量产',
-        actionGuidance: '跟踪工业自动化集成商与高精度减速器供应商订单拐点',
-      },
-    ];
-
-    return topicsConfig.map((cfg) => {
-      // Find matching articles
-      const matchedArticles = articles.filter((a) => {
-        const text = `${a.title} ${a.summary || ''} ${(a.tags || []).join(' ')}`.toLowerCase();
-        const sectors = detectSectors(a);
-        return cfg.keywords.some((kw) => text.includes(kw) || sectors.includes(kw));
-      });
+    return BREAKOUT_TOPIC_CONFIGS.map((cfg) => {
+      // 正文关键词命中；赛道不可单独入题；代表稿取最高分
+      const matchedArticles = matchBreakoutArticles(cfg, articles);
 
       // Calculate real daily counts for past 7 days using articleSortTime
       const historyCounts: number[] = [0, 0, 0, 0, 0, 0, 0];
@@ -154,12 +113,9 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
       ];
 
       const burstScore = historyScores[6];
-      const momentumGain = historyScores[3] > 0
-        ? Math.round(((historyScores[6] - historyScores[3]) / historyScores[3]) * 100)
-        : historyScores[6] > 0 ? 100 : 0;
-      const growthRate = `${momentumGain > 0 ? '+' : ''}${momentumGain}%`;
-      const status: 'critical_breakout' | 'surging' | 'steady' =
-        burstScore >= 80 ? 'critical_breakout' : burstScore >= 40 ? 'surging' : 'steady';
+      const { momentumGain, growthRate } = formatMomentumGain(historyScores);
+      // 诚实口径：绝对分高但 72h 动量 ≤0 时不得标「快速升温」
+      const status = computeBreakoutStatus(burstScore, momentumGain);
 
       return {
         id: cfg.id,
@@ -466,9 +422,11 @@ export const TopicBreakoutForecastChart: React.FC<TopicBreakoutForecastChartProp
                   <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
                     tp.status === 'critical_breakout'
                       ? 'bg-red-600 text-white animate-pulse'
-                      : 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : tp.status === 'surging'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : 'bg-stone-100 text-stone-700 border border-stone-300'
                   }`}>
-                    {tp.status === 'critical_breakout' ? `🔥 极高爆发 (${tp.burstScore}分)` : `⚡ 快速升温 (${tp.burstScore}分)`}
+                    {breakoutStatusLabel(tp.status, tp.burstScore)}
                   </span>
                 </div>
               </div>

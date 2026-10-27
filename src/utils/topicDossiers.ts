@@ -1,7 +1,8 @@
 import type { NewsArticle, TopicCluster } from '../types';
 import { articleSortTime, formatArticleTime } from './articleTime';
-import { detectSectors } from './sectorTaxonomy';
+import { detectSectors, keywordMatches } from './sectorTaxonomy';
 import { buildTopicClusters } from './topicCluster';
+import { getArticleCanonicalCategory } from './categoryClassifier';
 
 /** 专题生命周期阶段（编辑种子默认值；有语料命中时才展示）。 */
 export type TopicLifecycleStage = 'early' | 'breakout' | 'debate' | 'consolidation';
@@ -88,7 +89,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '全球 AI 算力军备竞赛与物理功耗硬阻尼',
     subtitle: '从大模型参数爆发到先进封测 CoWoS、特种电网与光互连 (CPO) 物理约束',
     category: '算力芯片与半导体',
-    keywords: ['nvidia', '英伟达', '算力', '芯片', 'gpu', '封装', 'cowos', 'cpo', 'openai', '电力', '电网', '散热'],
+    keywords: ['nvidia', '英伟达', '算力', 'gpu', 'cowos', 'cpo', 'openai', 'hbm', '先进封装'],
     tags: ['先进封测', 'CPO光电', '电力瓶颈', '算力军备'],
     stage: 'breakout',
     coreConflict: '算力模型吞吐需求每 3 个月翻番，与物理电网接入周期（3-5年）及晶圆级先进封装产能上限之间的根本性失衡。',
@@ -109,7 +110,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '全固态电池产业化决战与下一代材料重塑',
     subtitle: '硫化物路线攻坚、能量密度 500Wh/kg 跃升与全球车企装车时间表博弈',
     category: '新能源与高端制造',
-    keywords: ['电池', '固态', '硫化物', '锂', '电解质', '宁德时代', '特斯拉', '装车', '能量密度', '快充'],
+    keywords: ['固态电池', '硫化物', '电解质', '宁德时代', '能量密度', '半固态', '全固态'],
     tags: ['全固态电池', '硫化物路线', '500Wh/kg', '车规量产'],
     stage: 'debate',
     coreConflict: '实验室高能量密度突破 vs 量产级制造公差、高纯硫化锂合成成本与极片界面阻抗劣化控制之间的工程鸿沟。',
@@ -130,7 +131,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '逆向出海、散件组装 (CKD) 与地缘原产地合规穿透',
     subtitle: '应对欧美反补贴高关税，中国高附加值制造业全球在地化建厂重构',
     category: '地缘经贸与出海',
-    keywords: ['关税', '反补贴', '出海', '欧洲', '东盟', '拉美', '建厂', '散件', 'ckd', '原产地', '合规', '海关'],
+    keywords: ['关税', '反补贴', '出海', 'ckd', '原产地', '海关', '贸易战', '逆向出海'],
     tags: ['逆向出海', '反补贴合规', 'CKD散件', '属地化制造'],
     stage: 'breakout',
     coreConflict: '西方贸易保护主义关税高墙 vs 跨国制造业通过第三国转口、CKD 组装与技术授权实现价值链渗透的猫鼠博弈。',
@@ -151,7 +152,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '具身智能与人形机器人从工业实测走向通用化',
     subtitle: '端到端世界模型交互、灵巧手触觉传感器与产线标准化落地',
     category: '前沿智能与机器人',
-    keywords: ['机器人', '具身智能', 'optimus', '特斯拉', '灵巧手', '伺服', '工件', '产线', '感知', '端到端'],
+    keywords: ['人形机器人', '具身智能', 'optimus', '灵巧手', '端到端', '工业机器人'],
     tags: ['具身智能', '人形机器人', '灵巧手', '工厂搬运'],
     stage: 'early',
     coreConflict: '通用物理仿真世界模型与真实世界非结构化物理环境交互中 0.1% 致命失误率之间的不可容忍性。',
@@ -170,7 +171,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '开源生态与自主智能体 (AI Agent) 架构重构',
     subtitle: '从大语言模型推演到上下文工程、自主工具调用与企业级工作流重构',
     category: '软件工程与开源智能',
-    keywords: ['agent', '智能体', '开源', '大模型', 'llm', '架构', '代码', '开发者', '软件', 'github', 'arxiv', '推理', '微服务', '操作系统', '模型'],
+    keywords: ['agent', '智能体', '大模型', 'llm', 'openai', '多智能体', '自主智能体', 'github copilot', 'agentic'],
     tags: ['自主智能体', '开源生态', '代码大模型', '企业级交付'],
     stage: 'breakout',
     coreConflict: '大语言模型自主规划与推理吞吐速度 vs 真实生产系统对确定性工程契约与安全可控边界的要求。',
@@ -190,7 +191,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '全球央行流动性周期与主权债务定价博弈',
     subtitle: '从美联储降息路径、国债收益率异动到跨国贸易摩擦与跨境资产避险',
     category: '宏观金融与全球资本',
-    keywords: ['国债', '债券', '债务', '加息', '降息', '央行', '美联储', '房贷', '流动性', '汇率', '利率', '通胀', '股市', '上市', '融资', '资本', '信用', '评级', '财经', '货币', 'ftchinese'],
+    keywords: ['国债', '加息', '降息', '央行', '美联储', '流动性', '汇率', '通胀', '货币政策', '主权债务'],
     tags: ['美联储政策', '国债收益率', '主权信用', '全球流动性'],
     stage: 'debate',
     coreConflict: '全球财政赤字持续攀升与主权债券天量发行，与私人资本市场对长期通胀再抬头风险的定价分歧。',
@@ -210,7 +211,7 @@ export const TOPIC_SEEDS: TopicSeed[] = [
     title: '认知科学范式跃迁与全球高等教育重构',
     subtitle: '从早期认知机制、神经语言科研到高校前沿育人与智慧教育科技 (EdTech)',
     category: '教育科研与认知科学',
-    keywords: ['教育', '大学', '高校', '科研', '学生', '教师', '教学', '认知', '学习', '论文', '学科', 'edtech', 'education', 'learning', 'cognitive', 'university', 'curriculum', 'school', 'sciencedaily'],
+    keywords: ['教育', '大学', '高校', '学生', '教师', '教学', 'edtech', 'education', 'university', 'curriculum', '高考', '慕课', '智慧教育', '高等教育', '人才培养'],
     tags: ['高等教育', '认知科学', '神经发育', '教育科技'],
     stage: 'early',
     coreConflict: '传统标准化分科考评与学分体制，与跨学科人工智能科研、脑科学实证突破对创新创造力的培养要求之间的脱节。',
@@ -231,22 +232,45 @@ function articleMatchText(article: NewsArticle): string {
   return `${article.title} ${article.subtitle || ''} ${article.summary || ''} ${(article.tags || []).join(' ')}`.toLowerCase();
 }
 
-/** 关键词命中 + 赛道/分类兜底（与 TopicsView 原逻辑一致）。 */
+/** 弱词单独命中不足以入专题（需与强词组合或命中 ≥2 个弱词）。 */
+const WEAK_TOPIC_TOKENS = new Set(
+  [
+    '芯片', '电力', '电网', '散热', '封装', '锂', '快充', '装车', '特斯拉', '欧洲', '东盟', '拉美', '建厂', '散件', '合规',
+    '伺服', '工件', '产线', '感知', '代码', '开发者', '软件', '开源', '架构', '推理', '微服务', '操作系统', '模型',
+    '科研', '认知', '学习', '论文', '学科', 'school', 'learning', 'cognitive', 'arxiv', 'github', '股市', '上市', '融资', '资本',
+  ].map((s) => s.toLowerCase()),
+);
+
+export function scoreArticleForSeed(seed: TopicSeed, article: NewsArticle): number {
+  const text = articleMatchText(article);
+  let strong = 0;
+  let weak = 0;
+  for (const kw of seed.keywords) {
+    if (!keywordMatches(text, kw)) continue;
+    if (WEAK_TOPIC_TOKENS.has(kw.toLowerCase()) || kw.trim().length <= 1) weak += 1;
+    else strong += 2;
+  }
+  // 至少 1 个强词，或 ≥2 个弱词
+  if (strong >= 2) return strong + weak;
+  if (weak >= 2) return weak;
+  return 0;
+}
+
+/** 关键词打分命中 + 收紧后的赛道/分类兜底（避免 IT/教育标签 alone 拖入无关稿）。 */
 export function matchArticlesForSeed(seed: TopicSeed, articles: NewsArticle[]): NewsArticle[] {
-  const matched = articles.filter((a) => {
-    const text = articleMatchText(a);
-    return seed.keywords.some((kw) => text.includes(kw.toLowerCase()));
-  });
+  const matched = articles.filter((a) => scoreArticleForSeed(seed, a) > 0);
 
   const fallback = articles.filter((a) => {
+    if (matched.includes(a)) return false;
     const sectors = detectSectors(a);
+    const canonical = getArticleCanonicalCategory(a);
     return (
-      (seed.id.includes('compute') && sectors.includes('ai_hardware')) ||
-      (seed.id.includes('agent') && (sectors.includes('ai_hardware') || a.category === 'IT')) ||
-      (seed.id.includes('battery') && sectors.includes('energy_manufacturing')) ||
-      (seed.id.includes('tariff') && (sectors.includes('macro_finance') || sectors.includes('energy_manufacturing'))) ||
-      (seed.id.includes('macro') && (sectors.includes('macro_finance') || a.category === '财经')) ||
-      (seed.id.includes('education') && a.category === '教育')
+      (seed.id.includes('compute') && sectors.includes('semi') && /算力|gpu|nvidia|英伟达|封装|cpo/i.test(articleMatchText(a))) ||
+      (seed.id.includes('agent') && canonical === 'AI' && /智能体|agent|大模型|llm/i.test(articleMatchText(a))) ||
+      (seed.id.includes('battery') && /固态|硫化物|电解质/.test(articleMatchText(a))) ||
+      (seed.id.includes('tariff') && /关税|反补贴|出海|原产地|ckd/.test(articleMatchText(a))) ||
+      (seed.id.includes('macro') && (canonical === '财经' || sectors.includes('macro'))) ||
+      (seed.id.includes('education') && canonical === '教育' && /教育|高校|大学|教学|学生|teacher|university|edtech/i.test(articleMatchText(a)))
     );
   });
 
