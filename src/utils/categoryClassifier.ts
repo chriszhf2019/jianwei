@@ -110,6 +110,16 @@ export function getArticleCanonicalCategory(article: {
     ) {
       return content.category;
     }
+    // 显式「教育」若被错误盖章（或历史弱词误标），高置信非教育内容可覆写
+    if (
+      explicit === '教育' &&
+      content.category !== '教育' &&
+      content.confidence === 'high' &&
+      content.score >= 2 &&
+      !hasEducationStrongSignal(headline)
+    ) {
+      return content.category;
+    }
     return explicit;
   }
 
@@ -124,14 +134,14 @@ export function getArticleCanonicalCategory(article: {
     ) {
       return content.category;
     }
-    // 教育源偶发非教育稿（地学发现、消费数码）：正文无教育强信号且其他类已有分 → 跟内容
+    // 教育源偶发非教育稿（地学/消费数码/航天算力/古人类等）：无教育强信号则跟内容
     if (
       sourceDefault === '教育' &&
       content.category !== '教育' &&
-      content.score >= 2 &&
-      !hasEducationStrongSignal(headline)
+      !hasEducationStrongSignal(headline) &&
+      (content.score >= 2 || looksLikeNonEducationDomain(headline))
     ) {
-      return content.category;
+      return content.score >= 2 ? content.category : '科技';
     }
     return sourceDefault;
   }
@@ -279,6 +289,13 @@ function hasEducationStrongSignal(headline: string): boolean {
   );
 }
 
+/** 消费数码 / 古人类考古 / 航天星座算力等：明显不是教育赛道的领域提示。 */
+function looksLikeNonEducationDomain(headline: string): boolean {
+  return /耳机|耳夹|earbuds|数码|手机|平板|笔记本|游戏本|显卡|政府补贴|消费电子|荣耀|小米|华为|联想|化石|考古|古人类|古生物|丹尼索瓦|尼安德特|桡骨|骨骼|星座|千星|星枢|算力|tops|卫星|航天|火箭|发射|地质|火山|岩浆|地球深处/i.test(
+    headline
+  );
+}
+
 type ContentHit = { category: CanonicalCategory; score: number; confidence: 'high' | 'low' };
 
 /**
@@ -312,11 +329,11 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
   if (/教育|高校|教学|edtech|高等教育/i.test(cat)) scores['教育'] += 1;
   // 强特征：高考/教育部/双减等几乎可单独定类
   if (/高考|教育部|双减|慕课|edtech|智慧课堂|产教融合|高等教育/.test(headline)) scores['教育'] += 2;
-  // 负向：硬核地质/消费电子/游戏本等若无教育强信号，压掉教育分
+  // 负向：硬核地质/消费电子/航天算力/古人类等若无教育强信号，压掉教育分
   if (
     scores['教育'] > 0 &&
     !/教育|高考|课堂|教师|学生|高校|大学|慕课|双减|edtech|教学|教育部|人才培养/.test(headline) &&
-    /地球|地质|氧气|岩浆|火山|笔记本电脑|游戏本|显卡|联名|内饰|gnome|byd|拯救者|影之刃/i.test(headline)
+    looksLikeNonEducationDomain(headline)
   ) {
     scores['教育'] = 0;
   }
@@ -366,7 +383,7 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
     scores['IT'] += 2;
   }
   if (
-    /软件|操作系统|云计算|云原生|数据库|开源|github|linux|开发者|编程|代码|网络安全|信息安全|黑客|漏洞|运维|容器|架构师|程序员|微服务|前端|后端|互联网|信息技术|数码|数字生产力|服务器|数据中心/i.test(
+    /软件|操作系统|云计算|云原生|数据库|开源|github|linux|开发者|编程|代码|网络安全|信息安全|黑客|漏洞|运维|容器|架构师|程序员|微服务|前端|后端|互联网|信息技术|数码|数字生产力|服务器|数据中心|耳机|耳夹|earbuds|手机|平板|智能手表|消费电子|政府补贴/i.test(
       headline
     )
   ) {
@@ -376,7 +393,7 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
 
   // —— 科技（硬件/半导体等；不含纯 AI/纯软件）——
   if (
-    /芯片|半导体|先进封装|chiplet|cowos|晶圆|台积电|日月光|光刻|hbm|集成电路|量子计算|物理极限|硬件|光模块|cpo|新能源|电动车|动力电池|光伏|储能|机器人|航天|卫星|超导|材料|生物医药|地球深处|地质|氧气来源|火山|岩浆|笔记本电脑|游戏本|显卡/i.test(
+    /芯片|半导体|先进封装|chiplet|cowos|晶圆|台积电|日月光|光刻|hbm|集成电路|量子计算|物理极限|硬件|光模块|cpo|新能源|电动车|动力电池|光伏|储能|机器人|航天|卫星|星座|千星|星枢|算力|tops|超导|材料|生物医药|地球深处|地质|氧气来源|火山|岩浆|笔记本电脑|游戏本|显卡|化石|考古|古人类|古生物|丹尼索瓦|尼安德特|桡骨/i.test(
       headline
     )
   ) {
@@ -398,11 +415,11 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
       scores['教育'] = Math.max(0, scores['教育'] - 2);
     }
   }
-  // 源默认「教育」但正文是硬核地学/消费电子且无教育强信号 → 降为低置信，交还给源默认覆写逻辑外的内容分
+  // 源默认「教育」但正文是硬核地学/消费电子/航天/古人类且无教育强信号 → 清零教育分
   if (
     scores['教育'] > 0 &&
     scores['教育'] <= 2 &&
-    /地球深处|隐藏氧气|地质|火山|岩浆|游戏本|笔记本电脑|显卡|联名皮肤|汽车内饰/i.test(headline) &&
+    looksLikeNonEducationDomain(headline) &&
     !/教育|高考|课堂|教师|学生|高校|大学|慕课|双减|edtech|教学|教育部/.test(headline)
   ) {
     scores['教育'] = 0;

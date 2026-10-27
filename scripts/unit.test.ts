@@ -2146,6 +2146,58 @@ test('categoryClassifier: 地质发现与游戏本不得标教育', () => {
   );
 });
 
+test('categoryClassifier: IT之家消费数码/古人类/星座算力不得标教育', () => {
+  const earbuds = '499 → 378 元：荣耀 Earbuds 耳夹式耳机政府补贴开启，全天候舒适佩戴';
+  const denisovan = '中国西南确认全球首件丹尼索瓦人桡骨：近端像尼安德特人，整体接近现代人';
+  const stars = '上海“星枢计划”目标 2032 年完成千星部署，百万级 TOPS 算力上天';
+
+  // 纯标题（IT之家语境）
+  assert.notEqual(getArticleCanonicalCategory({ title: earbuds, sourceName: 'IT之家', sourceUrl: 'https://www.ithome.com/0/1.htm' }), '教育');
+  assert.notEqual(getArticleCanonicalCategory({ title: denisovan, sourceName: 'IT之家', sourceUrl: 'https://www.ithome.com/0/2.htm' }), '教育');
+  assert.notEqual(getArticleCanonicalCategory({ title: stars, sourceName: 'IT之家', sourceUrl: 'https://www.ithome.com/0/3.htm' }), '教育');
+
+  // 历史误盖章 category=教育 也应被高置信内容纠正
+  assert.notEqual(getArticleCanonicalCategory({ title: earbuds, category: '教育', sourceName: 'IT之家' }), '教育');
+  assert.notEqual(getArticleCanonicalCategory({ title: denisovan, category: '教育', sourceName: 'IT之家' }), '教育');
+  assert.notEqual(getArticleCanonicalCategory({ title: stars, category: '教育', sourceName: 'IT之家' }), '教育');
+
+  // 教育源 URL 下的非教育稿
+  assert.notEqual(
+    getArticleCanonicalCategory({ title: earbuds, feedUrl: 'https://www.sciencedaily.com/rss/education_learning.xml' }),
+    '教育',
+  );
+  assert.notEqual(
+    getArticleCanonicalCategory({ title: denisovan, feedUrl: 'https://www.sciencedaily.com/rss/education_learning.xml' }),
+    '教育',
+  );
+  assert.notEqual(
+    getArticleCanonicalCategory({ title: stars, feedUrl: 'https://www.jiemodui.com/rss' }),
+    '教育',
+  );
+
+  // 正向：真实教育稿仍归教育
+  assert.equal(
+    getArticleCanonicalCategory({ title: '芥末堆：K12 在线教育融资放缓，EdTech 转向校内服务', sourceName: '芥末堆' }),
+    '教育',
+  );
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: 'Inside Higher Ed: universities rethink admissions after enrollment cliff',
+      summary: 'Higher education policy and campus admissions',
+    }),
+    '教育',
+  );
+  assert.equal(
+    getArticleCanonicalCategory({ title: '教育部发布高考改革与高校人才培养方案', summary: '双减与智慧教育课堂试点' }),
+    '教育',
+  );
+
+  // 偏好赛道：消费数码偏 IT，古人类/星座算力偏 科技
+  assert.equal(getArticleCanonicalCategory({ title: earbuds, sourceName: 'IT之家' }), 'IT');
+  assert.equal(getArticleCanonicalCategory({ title: denisovan, sourceName: 'IT之家' }), '科技');
+  assert.equal(getArticleCanonicalCategory({ title: stars, sourceName: 'IT之家' }), '科技');
+});
+
 test('topicDossiers: 排除教育/Agent/关税已知假阳性', () => {
   const fp = [
     {
