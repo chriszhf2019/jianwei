@@ -117,39 +117,58 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
       type: 'root',
       tierLabel: '始发种子事件 (E₀)',
       timeWindow: 'T₀ 现时触发',
-      confidence: 99,
       description: article.oneSentenceVerdict || article.summary || article.subtitle || article.title,
       category: article.category || '核心新闻',
       matchedArticle: article,
       radius: 34,
-      color: '#E3120B',
-      borderColor: '#990000',
+      color: '#EA580C',
+      borderColor: '#C2410C',
       iconSymbol: '🦋',
     };
     nodes.push(rootNode);
 
-    // 1. 根本动因与事实锚点节点 (Cause Nodes)
-    const whyText = article.sevenElements?.why || article.coreLogic?.essence || '产业周期与供给侧结构调整';
-    const causeId = `node-cause-${article.id}`;
-    nodes.push({
-      id: causeId,
-      label: '底层根因：博弈结构性调整',
-      type: 'cause',
-      tierLabel: '始发驱动因素',
-      timeWindow: '前置因果',
-      confidence: 95,
-      description: `【始发根因】${whyText}`,
-      category: '始发因果',
-      radius: 24,
-      color: '#7c3aed', // Purple
-      borderColor: '#5b21b6',
-      iconSymbol: '⚡',
-    });
-    links.push({
-      source: causeId,
-      target: rootId,
-      label: '驱动触发',
-      weight: 2,
+    // 1. 根本动因与事实锚点节点（只用真实字段，不再写通用套话）
+    const shortText = (value: string, max = 18) => {
+      const text = String(value || '').trim();
+      return text.length > max ? `${text.slice(0, max)}…` : text;
+    };
+    const causeItems: Array<{ title: string; detail: string; time: string }> = [];
+    if (article.logicTree?.rootCause) {
+      causeItems.push({
+        title: shortText(article.logicTree.rootCause),
+        detail: article.logicTree.rootCause,
+        time: '前置因果',
+      });
+    }
+    for (const item of (article.backstoryTimeline || []).slice(0, 2)) {
+      if (!String(item?.event || '').trim()) continue;
+      causeItems.push({
+        title: shortText(item.event),
+        detail: `${item.date || '时间未说明'}：${item.event}${item.relevance ? `（${item.relevance}）` : ''}`,
+        time: item.date || '前置因果',
+      });
+    }
+    if (causeItems.length === 0 && article.sevenElements?.why) {
+      causeItems.push({ title: shortText(article.sevenElements.why), detail: article.sevenElements.why, time: '前置因果' });
+    }
+    const causeIds: string[] = [];
+    causeItems.slice(0, 3).forEach((item, index) => {
+      const causeId = `node-cause-${index}`;
+      causeIds.push(causeId);
+      nodes.push({
+        id: causeId,
+        label: item.title,
+        type: 'cause',
+        tierLabel: '始发驱动因素',
+        timeWindow: item.time,
+        description: `【始发根因】${item.detail}`,
+        category: '始发因果',
+        radius: 24,
+        color: '#7C3AED',
+        borderColor: '#5B21B6',
+        iconSymbol: '⚡',
+      });
+      links.push({ source: causeId, target: rootId, label: '驱动触发', weight: 2 });
     });
 
     // 2. 解析 rippleEffect 及其 stages/firstOrder
@@ -159,21 +178,32 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
     const stage2 = stages.find((s) => s.stage === '二阶影响' || s.stage?.includes('二阶'));
     const stage3 = stages.find((s) => s.stage === '三阶影响' || s.stage?.includes('三阶'));
 
-    const r1List: RippleItem[] = rippleData?.firstOrder || (stage1 ? stage1.items.map((itemStr: string) => ({
-      horizon: stage1.timeframe || '1-3个月',
-      title: itemStr.length > 18 ? `${itemStr.slice(0, 18)}…` : itemStr,
+    const r1List: RippleItem[] = (rippleData?.firstOrder || (stage1?.items || []).map((itemStr: string) => ({
+      horizon: stage1?.timeframe || '1-3个月',
+      title: shortText(itemStr),
       description: itemStr,
       affectedSectors: ['直接产业'],
-      confidenceScore: 88,
-    })) : [
-      {
-        horizon: '1-3个月',
-        title: '核心供给侧变动与成本传导',
-        description: '直接影响上游核心元器件交付周期与采购协议定价。',
-        affectedSectors: ['上游硬件', '核心技术供应链'],
-        confidenceScore: 88,
-      },
-    ]);
+    })) || []).slice(0, 4);
+    if (r1List.length === 0) {
+      for (const item of (article.stakeholderImpact || []).slice(0, 3)) {
+        r1List.push({
+          horizon: '1-3个月',
+          title: shortText(`${item.name}：${item.direction === 'benefit' ? '受益' : item.direction === 'pressure' ? '承压' : '中性'}`),
+          description: item.why || `${item.name} 受到该事件的直接影响。`,
+          affectedSectors: [item.type || '相关方'],
+        });
+      }
+    }
+    if (r1List.length === 0) {
+      for (const item of (article.bullBearDebate?.bull || []).slice(0, 2)) {
+        r1List.push({
+          horizon: '1-3个月',
+          title: shortText(item.point),
+          description: item.basis ? `${item.point}（依据：${item.basis}）` : item.point,
+          affectedSectors: ['直接受益方'],
+        });
+      }
+    }
 
     r1List.forEach((r1: RippleItem, idx: number) => {
       const r1Id = `node-r1-${idx}`;
@@ -183,12 +213,12 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'ripple1',
         tierLabel: '一阶直接传导 (1st Ripple)',
         timeWindow: r1.horizon || '1-3个月',
-        confidence: r1.confidenceScore || 85,
+        confidence: r1.confidenceScore,
         description: `【一阶直接影响】${r1.description} (受影响领域：${(r1.affectedSectors || []).join('、') || '行业中游'})`,
         category: '直接冲击',
         radius: 22,
-        color: '#0284c7', // Cyan / Blue
-        borderColor: '#0369a1',
+        color: '#38BDF8', // 浅蓝 · 一阶
+        borderColor: '#0284C7',
         iconSymbol: '🌊',
       });
       links.push({
@@ -200,21 +230,32 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
     });
 
     // 3. 二阶间接发酵节点 (2nd Order Ripples - 3-12个月)
-    const r2List: RippleItem[] = rippleData?.secondOrder || (stage2 ? stage2.items.map((itemStr: string) => ({
-      horizon: stage2.timeframe || '3-12个月',
-      title: itemStr.length > 18 ? `${itemStr.slice(0, 18)}…` : itemStr,
+    const r2List: RippleItem[] = (rippleData?.secondOrder || (stage2?.items || []).map((itemStr: string) => ({
+      horizon: stage2?.timeframe || '3-12个月',
+      title: shortText(itemStr),
       description: itemStr,
       affectedSectors: ['下游生态'],
-      confidenceScore: 82,
-    })) : [
-      {
-        horizon: '3-12个月',
-        title: '竞争格局重构与跨界替代',
-        description: '倒逼同行加速国产化研发，引发竞争对手战略转向。',
-        affectedSectors: ['竞争对手', '替换供应链'],
-        confidenceScore: 82,
-      },
-    ]);
+    })) || []).slice(0, 4);
+    if (r2List.length === 0) {
+      for (const point of (article.coreLogic?.points || []).slice(0, 3)) {
+        r2List.push({
+          horizon: '3-12个月',
+          title: shortText(point),
+          description: point,
+          affectedSectors: ['结构性传导'],
+        });
+      }
+    }
+    if (r2List.length === 0) {
+      for (const signal of (article.industrySignals || []).slice(0, 3)) {
+        r2List.push({
+          horizon: '3-12个月',
+          title: shortText(signal.sector),
+          description: signal.detail || `${signal.sector} 出现 ${signal.trend === 'up' ? '走强' : signal.trend === 'down' ? '走弱' : '持平'}信号。`,
+          affectedSectors: [signal.sector],
+        });
+      }
+    }
 
     r2List.forEach((r2: RippleItem, idx: number) => {
       const r2Id = `node-r2-${idx}`;
@@ -225,12 +266,12 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'ripple2',
         tierLabel: '二阶间接发酵 (2nd Ripple)',
         timeWindow: r2.horizon || '3-12个月',
-        confidence: r2.confidenceScore || 80,
+        confidence: r2.confidenceScore,
         description: `【二阶连锁发酵】${r2.description} (受影响领域：${(r2.affectedSectors || []).join('、') || '产业生态'})`,
         category: '竞争与替代',
         radius: 20,
-        color: '#ca8a04', // Amber / Gold
-        borderColor: '#a16207',
+        color: '#2563EB', // 深蓝 · 二阶
+        borderColor: '#1D4ED8',
         iconSymbol: '⚡',
       });
       links.push({
@@ -242,21 +283,22 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
     });
 
     // 4. 三阶远期级联节点 (3rd Order Ripples - 1-3年)
-    const r3List: RippleItem[] = rippleData?.thirdOrder || (stage3 ? stage3.items.map((itemStr: string) => ({
-      horizon: stage3.timeframe || '1-3年',
-      title: itemStr.length > 18 ? `${itemStr.slice(0, 18)}…` : itemStr,
+    const r3List: RippleItem[] = (rippleData?.thirdOrder || (stage3?.items || []).map((itemStr: string) => ({
+      horizon: stage3?.timeframe || '1-3年',
+      title: shortText(itemStr),
       description: itemStr,
       affectedSectors: ['宏观终局'],
-      confidenceScore: 75,
-    })) : [
-      {
-        horizon: '1-3年',
-        title: '宏观法规与产业终局演变',
-        description: '重塑全球科技合规标准与跨国资本重新配置。',
-        affectedSectors: ['全球宏观', '监管合规'],
-        confidenceScore: 75,
-      },
-    ]);
+    })) || []).slice(0, 3);
+    if (r3List.length === 0) {
+      for (const item of (article.bullBearDebate?.bear || []).slice(0, 2)) {
+        r3List.push({
+          horizon: '1-3年',
+          title: shortText(item.point),
+          description: item.basis ? `${item.point}（依据：${item.basis}）` : item.point,
+          affectedSectors: ['长期风险'],
+        });
+      }
+    }
 
     r3List.forEach((r3: RippleItem, idx: number) => {
       const r3Id = `node-r3-${idx}`;
@@ -267,12 +309,12 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'ripple3',
         tierLabel: '三阶远期级联 (3rd Order Horizon)',
         timeWindow: r3.horizon || '1-3年',
-        confidence: r3.confidenceScore || 75,
+        confidence: r3.confidenceScore,
         description: `【三阶远期终局】${r3.description} (受影响领域：${(r3.affectedSectors || []).join('、') || '宏观格局'})`,
         category: '宏观终局',
         radius: 18,
-        color: '#dc2626', // Red
-        borderColor: '#991b1b',
+        color: '#047857', // 墨绿 · 三阶终局
+        borderColor: '#065F46',
         iconSymbol: '🌀',
       });
       links.push({
@@ -302,13 +344,12 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'entity',
         tierLabel: '认知实体/核心概念',
         timeWindow: '常态认知',
-        confidence: 90,
         description: `【核心认知实体】${term}：本文关联的主体实体与战略认知节点，点击可调阅概念图谱或词条释义。`,
         category: '实体词条',
         term: term,
         radius: 17,
-        color: '#059669', // Emerald
-        borderColor: '#047857',
+        color: '#0D9488', // 青绿 · 实体
+        borderColor: '#0F766E',
         iconSymbol: '💡',
       });
       links.push({
@@ -336,13 +377,12 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
         type: 'related_news',
         tierLabel: '跨新闻连带事件',
         timeWindow: '跨时空关联',
-        confidence: 85,
         description: `【连带相关新闻】《${rel.title}》— 关联原因：${rel.why || '涉及相同产业链或宏观政策背景'}。点击可跳转至该完整深度简报。`,
         category: '关联情报',
         matchedArticle: matched || ({ id: `ext-${idx}`, title: rel.title, sourceName: rel.media } as NewsArticle),
         radius: 19,
-        color: '#2563eb', // Royal Blue
-        borderColor: '#1d4ed8',
+        color: '#64748B', // 石板灰 · 关联新闻
+        borderColor: '#475569',
         iconSymbol: '📰',
       });
 
@@ -428,7 +468,7 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
     feMerge.append('feMergeNode').attr('in', 'blur');
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
 
-    ['#E3120B', '#0284c7', '#ca8a04', '#dc2626', '#059669', '#2563eb', '#7c3aed'].forEach((color, i) => {
+    ['#EA580C', '#38BDF8', '#2563EB', '#047857', '#0D9488', '#64748B', '#7C3AED'].forEach((color, i) => {
       defs
         .append('marker')
         .attr('id', `arrow-${i}`)
@@ -665,7 +705,7 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
             </h3>
           </div>
           <p className="text-xs text-stone-600 leading-relaxed font-serif max-w-2xl">
-            以本篇新闻为始发事件 $E_0$，自动关联提取其**底层始发根因、1-3阶级联演进效应、核心认知实体**与**关联外部新闻**。支持点击节点实时跳转阅读或深调。
+            以本篇新闻为始发事件 E₀，自动关联提取其底层始发根因、1–3 阶级联演进效应、核心认知实体与关联外部新闻；点击节点可查看推演依据。
           </p>
         </div>
 
@@ -767,13 +807,13 @@ export const ButterflyEffectGraph: React.FC<ButterflyEffectGraphProps> = ({
             <Sparkles className="w-3 h-3 text-amber-500" />
             <span>蝴蝶效应层级图例</span>
           </div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#E3120B]" /><span>始发种子事件 E₀</span></div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#7c3aed]" /><span>始发因果逻辑</span></div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0284c7]" /><span>一阶直接冲击 (1-3月)</span></div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#ca8a04]" /><span>二阶连锁发酵 (3-12月)</span></div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#dc2626]" /><span>三阶远期终局 (1-3年)</span></div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#059669]" /><span>认知实体 / 概念</span></div>
-          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2563eb]" /><span>关联外部新闻</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#EA580C]" /><span>始发种子事件 E₀</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#7C3AED]" /><span>始发因果逻辑</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#38BDF8]" /><span>一阶直接冲击 (1-3月)</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]" /><span>二阶连锁发酵 (3-12月)</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#047857]" /><span>三阶远期终局 (1-3年)</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0D9488]" /><span>认知实体 / 概念</span></div>
+          <div className="flex items-center space-x-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#64748B]" /><span>关联外部新闻</span></div>
         </div>
 
         {/* Physics Toggle Overlay */}
