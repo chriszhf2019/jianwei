@@ -36,6 +36,7 @@ import { deriveFromList, lexiconSentiment } from '../../utils/corpusMetrics';
 import { SECTOR_TAXONOMY, detectSectors } from '../../utils/sectorTaxonomy';
 import { MethodBadge } from '../common/MethodBadge';
 import { articleSortTime } from '../../utils/articleTime';
+import { mediaKey } from '../../utils/mediaAuthority';
 
 interface StrategicMetricsBarProps {
   articles: NewsArticle[];
@@ -54,7 +55,12 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
 }) => {
   const stats = useMemo(() => {
     const sentiment = deriveFromList(articles);
-    const sources = new Set(articles.map((a) => a.sourceName).filter(Boolean));
+    // 按域名（优先 sourceUrl）去重；缺 URL 时回退 sourceName，避免「只统计到 2 个名字」低估多域名语料
+    const sources = new Set(
+      articles
+        .map((a) => mediaKey(a.sourceName, a.sourceUrl) || String(a.sourceName || '').trim())
+        .filter(Boolean),
+    );
 
     // Calculate critical alerts (risk/warning items)
     const alertArticles = articles.filter((a) => {
@@ -420,7 +426,7 @@ export const StrategicMetricsBar: React.FC<StrategicMetricsBarProps> = ({
                 <span className="text-2xl sm:text-3xl font-serif font-black text-emerald-950 font-mono">
                   {stats.sourcesCount}
                 </span>
-                <span className="text-xs text-emerald-700 font-medium">家来源名</span>
+                <span className="text-xs text-emerald-700 font-medium">家活跃域</span>
               </div>
               <span className="text-[10px] font-mono text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-bold">
                 计数可复核

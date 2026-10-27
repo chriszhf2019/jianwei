@@ -124,6 +124,15 @@ export function getArticleCanonicalCategory(article: {
     ) {
       return content.category;
     }
+    // 教育源偶发非教育稿（地学发现、消费数码）：正文无教育强信号且其他类已有分 → 跟内容
+    if (
+      sourceDefault === '教育' &&
+      content.category !== '教育' &&
+      content.score >= 2 &&
+      !hasEducationStrongSignal(headline)
+    ) {
+      return content.category;
+    }
     return sourceDefault;
   }
 
@@ -263,6 +272,13 @@ function isSoftTechItAlias(contentCat: CanonicalCategory, sourceCat: CanonicalCa
   return soft.has(contentCat) && soft.has(sourceCat);
 }
 
+
+function hasEducationStrongSignal(headline: string): boolean {
+  return /教育|高考|课堂|教师|学生|高校|大学|慕课|双减|edtech|教学|教育部|人才培养|高等教育|university|college|curriculum|pedagogy/i.test(
+    headline
+  );
+}
+
 type ContentHit = { category: CanonicalCategory; score: number; confidence: 'high' | 'low' };
 
 /**
@@ -277,24 +293,33 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
     '科技': 0,
   };
 
-  // —— 教育 ——
+  // —— 教育（收紧：避免「学院/学科/学习/school」等弱词把地质科研、消费数码打成教育）——
   if (
-    /教育|大学|高校|大专|高职|中职|高考|中考|考研|考公|考博|保研|双一流|985|211|教育部|教委|留学生|留学|在校生|应届生|毕业生|校招|学科|教学|教改|教案|导师|产教融合|工匠学院|慕课|课堂|教师|师资|师范|师德|校长|学院|中小学|双减|edtech|智慧教育|研招|人才培养|学前|幼教|早教|家教|学位|文凭|通识课|通识教育|奖学金|助学金|学费|考证|四六级|雅思|托福|研学|育儿|青少年/i.test(
+    /教育|大学|高校|大专|高职|中职|高考|中考|考研|考公|考博|保研|双一流|教育部|教委|留学生|留学|在校生|应届生|毕业生|校招|教学|教改|教案|产教融合|工匠学院|慕课|课堂|教师|师资|师范|师德|校长|中小学|双减|edtech|智慧教育|研招|人才培养|学前|幼教|早教|家教|学位|文凭|通识教育|奖学金|助学金|学费|四六级|雅思|托福|研学/i.test(
       headline
     )
   ) {
     scores['教育'] += 2;
   }
+  // 英文：避开孤立 school/learning（易误伤科技通稿）；要求教育语义更强的词
   if (
-    /\b(education|educational|university|universities|college|colleges|school|schools|students?|teachers?|teaching|learning|learners?|classroom|curricula|curriculum|pedagogy|edtech|campus|tuition|professors?|admissions?|k-12|kindergarten|preschool)\b/i.test(
+    /\b(education|educational|university|universities|college|colleges|students?|teachers?|teaching|classroom|curricula|curriculum|pedagogy|edtech|campus|tuition|professors?|admissions?|k-12|kindergarten|preschool|higher\s+education)\b/i.test(
       headline
     )
   ) {
     scores['教育'] += 2;
   }
-  if (/教育|高校|教学|edtech|edu/i.test(cat)) scores['教育'] += 1;
+  if (/教育|高校|教学|edtech|高等教育/i.test(cat)) scores['教育'] += 1;
   // 强特征：高考/教育部/双减等几乎可单独定类
-  if (/高考|教育部|双减|慕课|edtech|智慧课堂|产教融合/.test(headline)) scores['教育'] += 2;
+  if (/高考|教育部|双减|慕课|edtech|智慧课堂|产教融合|高等教育/.test(headline)) scores['教育'] += 2;
+  // 负向：硬核地质/消费电子/游戏本等若无教育强信号，压掉教育分
+  if (
+    scores['教育'] > 0 &&
+    !/教育|高考|课堂|教师|学生|高校|大学|慕课|双减|edtech|教学|教育部|人才培养/.test(headline) &&
+    /地球|地质|氧气|岩浆|火山|笔记本电脑|游戏本|显卡|联名|内饰|gnome|byd|拯救者|影之刃/i.test(headline)
+  ) {
+    scores['教育'] = 0;
+  }
 
   // —— 财经 ——
   if (
@@ -351,7 +376,7 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
 
   // —— 科技（硬件/半导体等；不含纯 AI/纯软件）——
   if (
-    /芯片|半导体|先进封装|chiplet|cowos|晶圆|台积电|日月光|光刻|hbm|集成电路|量子计算|物理极限|硬件|光模块|cpo|新能源|电动车|动力电池|光伏|储能|机器人|航天|卫星|超导|材料|生物医药/i.test(
+    /芯片|半导体|先进封装|chiplet|cowos|晶圆|台积电|日月光|光刻|hbm|集成电路|量子计算|物理极限|硬件|光模块|cpo|新能源|电动车|动力电池|光伏|储能|机器人|航天|卫星|超导|材料|生物医药|地球深处|地质|氧气来源|火山|岩浆|笔记本电脑|游戏本|显卡/i.test(
       headline
     )
   ) {
@@ -372,6 +397,15 @@ function classifyFromContent(headline: string, cat: string): ContentHit {
     if (/论文|university|college|科研/.test(headline)) {
       scores['教育'] = Math.max(0, scores['教育'] - 2);
     }
+  }
+  // 源默认「教育」但正文是硬核地学/消费电子且无教育强信号 → 降为低置信，交还给源默认覆写逻辑外的内容分
+  if (
+    scores['教育'] > 0 &&
+    scores['教育'] <= 2 &&
+    /地球深处|隐藏氧气|地质|火山|岩浆|游戏本|笔记本电脑|显卡|联名皮肤|汽车内饰/i.test(headline) &&
+    !/教育|高考|课堂|教师|学生|高校|大学|慕课|双减|edtech|教学|教育部/.test(headline)
+  ) {
+    scores['教育'] = 0;
   }
 
   const ranked = (Object.entries(scores) as [CanonicalCategory, number][])

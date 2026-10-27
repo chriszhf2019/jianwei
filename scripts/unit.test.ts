@@ -80,6 +80,15 @@ import {
   matchArticlesForSeed,
   TOPIC_SEEDS,
 } from '../src/utils/topicDossiers';
+import {
+  BREAKOUT_TOPIC_CONFIGS,
+  matchBreakoutArticles,
+  computeBreakoutStatus,
+  formatMomentumGain,
+  breakoutStatusLabel,
+} from '../src/utils/topicBreakout';
+import { getArticleCanonicalCategory } from '../src/utils/categoryClassifier';
+import { mergeEnableFeedUrls, defaultEnabledFeedUrls } from '../src/shared/qualityFeedPresets';
 
 test('parseArticleDate: RFC822 / ISO / 空格 / 纯日期 / 中文', () => {
   assert.equal(parseArticleDate('Fri, 04 Sep 2026 02:33:08 +0000')! > 0, true);
@@ -1642,6 +1651,9 @@ test('getArticleCanonicalCategory: AI 从 IT 独立；源级默认 + 高置信�
 test('settings 默认 feeds 使用优质源子集且不含已知坏链', async () => {
   const settingsSrc = fs.readFileSync(path.join(process.cwd(), 'src/server/settings.ts'), 'utf8');
   assert.match(settingsSrc, /defaultEnabledFeedUrls/);
+  assert.match(settingsSrc, /mergeEnableFeedUrls/);
+  assert.match(settingsSrc, /FEEDS_PRESET_EPOCH/);
+  assert.match(settingsSrc, /feedsPresetEpoch/);
   assert.equal(settingsSrc.includes('https://36kr.com/feed'), false);
   assert.equal(settingsSrc.includes('https://www.ftchinese.com/rss/feed'), false);
 
@@ -2108,3 +2120,161 @@ test('detail deep-analysis UX: 成功落地、进度条、额度写回、浅层�
   assert.match(auth, /guestQuota/);
 });
 
+// —— 切片：分类/专题误匹配 + 动量诚实口径（live smoke 2026-10-27）——
+test('categoryClassifier: 地质发现与游戏本不得标教育', () => {
+  assert.notEqual(
+    getArticleCanonicalCategory({
+      title: '中国科学家在地球深处发现隐藏氧气来源',
+      summary: '地质研究表明地下岩石反应可产生氧气',
+      feedUrl: 'https://www.sciencedaily.com/rss/education_learning.xml',
+    }),
+    '教育',
+  );
+  assert.notEqual(
+    getArticleCanonicalCategory({
+      title: 'MSI 新款游戏本搭载高端显卡开售',
+      summary: '笔记本电脑性能与散热升级',
+    }),
+    '教育',
+  );
+  assert.equal(
+    getArticleCanonicalCategory({
+      title: '教育部推进高考综合改革与智慧课堂',
+      summary: '高校人才培养与教学教改',
+    }),
+    '教育',
+  );
+});
+
+test('topicDossiers: 排除教育/Agent/关税已知假阳性', () => {
+  const fp = [
+    {
+      id: 'geo1',
+      title: '中国科学家在地球深处发现隐藏氧气来源',
+      summary: '地质与地球化学新发现',
+      category: '科技',
+      tags: [],
+      publishedAt: '2026-10-27T08:00:00+08:00',
+      sourceName: 'ScienceDaily',
+    },
+    {
+      id: 'msi1',
+      title: 'MSI 游戏本新品发布',
+      summary: '笔记本电脑显卡升级',
+      category: 'IT',
+      tags: [],
+      publishedAt: '2026-10-27T09:00:00+08:00',
+      sourceName: 'IT之家',
+    },
+    {
+      id: 'byd1',
+      title: '比亚迪公布全新内饰设计',
+      summary: '座舱材质与氛围灯升级',
+      category: '科技',
+      tags: [],
+      publishedAt: '2026-10-27T10:00:00+08:00',
+      sourceName: 'IT之家',
+    },
+    {
+      id: 'gnome1',
+      title: 'GNOME 桌面环境发布更新',
+      summary: '开源操作系统组件改进',
+      category: 'IT',
+      tags: ['开源'],
+      publishedAt: '2026-10-27T11:00:00+08:00',
+      sourceName: 'Solidot',
+    },
+    {
+      id: 'lenovo1',
+      title: '联想拯救者×影之刃零联名款亮相',
+      summary: '游戏本联名皮肤与周边',
+      category: 'IT',
+      tags: [],
+      publishedAt: '2026-10-27T12:00:00+08:00',
+      sourceName: 'IT之家',
+    },
+    {
+      id: 'edu1',
+      title: '高校推进高等教育数字化与智慧课堂',
+      summary: '教育部支持大学教学改革',
+      category: '教育',
+      tags: ['教育'],
+      publishedAt: '2026-10-27T13:00:00+08:00',
+      sourceName: '芥末堆',
+    },
+    {
+      id: 'agent1',
+      title: 'OpenAI 发布自主智能体 Agent 工作流',
+      summary: '大模型 LLM 多智能体协作',
+      category: 'AI',
+      tags: ['智能体'],
+      publishedAt: '2026-10-27T14:00:00+08:00',
+      sourceName: 'TechCrunch',
+    },
+    {
+      id: 'tariff1',
+      title: '欧盟加征电动车反补贴关税冲击出海',
+      summary: '原产地与 CKD 合规成焦点',
+      category: '财经',
+      tags: ['关税'],
+      publishedAt: '2026-10-27T15:00:00+08:00',
+      sourceName: '财联社',
+    },
+  ] as any[];
+
+  const eduSeed = TOPIC_SEEDS.find((s) => s.id === 'dossier_education_transformation')!;
+  const agentSeed = TOPIC_SEEDS.find((s) => s.id === 'dossier_ai_agent_software')!;
+  const tariffSeed = TOPIC_SEEDS.find((s) => s.id === 'dossier_geopolitics_tariff')!;
+
+  const eduHits = matchArticlesForSeed(eduSeed, fp).map((a) => a.id);
+  assert.ok(eduHits.includes('edu1'));
+  assert.equal(eduHits.includes('geo1'), false);
+  assert.equal(eduHits.includes('msi1'), false);
+
+  const agentHits = matchArticlesForSeed(agentSeed, fp).map((a) => a.id);
+  assert.ok(agentHits.includes('agent1'));
+  assert.equal(agentHits.includes('byd1'), false);
+  assert.equal(agentHits.includes('msi1'), false);
+  assert.equal(agentHits.includes('gnome1'), false);
+
+  const tariffHits = matchArticlesForSeed(tariffSeed, fp).map((a) => a.id);
+  assert.ok(tariffHits.includes('tariff1'));
+  assert.equal(tariffHits.includes('lenovo1'), false);
+});
+
+test('topicBreakout: 关税专题不吃游戏本联名；动量0%不得标快速升温', () => {
+  const trade = BREAKOUT_TOPIC_CONFIGS.find((c) => c.id === 'trade_tariff')!;
+  const articles = [
+    {
+      id: 'lenovo1',
+      title: '联想拯救者×影之刃零联名款亮相',
+      summary: '游戏本联名皮肤与周边',
+      tags: [],
+    },
+    {
+      id: 'tariff1',
+      title: '欧盟加征反补贴关税冲击中国车企出海',
+      summary: '原产地规则与海关合规',
+      tags: ['关税'],
+    },
+  ] as any[];
+  const hits = matchBreakoutArticles(trade, articles).map((a) => a.id);
+  assert.deepEqual(hits, ['tariff1']);
+
+  const { momentumGain, growthRate } = formatMomentumGain([40, 40, 40, 50, 50, 50, 50]);
+  assert.equal(momentumGain, 0);
+  assert.equal(growthRate, '0%');
+  assert.equal(computeBreakoutStatus(50, 0), 'steady');
+  assert.match(breakoutStatusLabel('steady', 50), /平稳/);
+  assert.equal(computeBreakoutStatus(50, 10), 'surging');
+  assert.equal(computeBreakoutStatus(85, 25), 'critical_breakout');
+});
+
+test('quality feeds: 升级合并教育默认源且不覆盖自定义', () => {
+  const custom = ['https://www.ithome.com/rss/', 'https://example.com/custom.xml'];
+  const merged = mergeEnableFeedUrls(custom, defaultEnabledFeedUrls());
+  assert.ok(merged.includes(custom[0]));
+  assert.ok(merged.includes(custom[1]));
+  assert.ok(merged.some((u) => u.includes('jiemodui') || u.includes('sciencedaily') || u.includes('edsurge')));
+  assert.equal(mergeEnableFeedUrls(merged, defaultEnabledFeedUrls()).length, merged.length);
+});
